@@ -6,6 +6,7 @@ from uuid import UUID
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.models import Model
 from pydantic_ai.models.fallback import FallbackModel
+from pydantic_ai.models.test import TestModel
 
 from sot.domain.service import SOTService
 
@@ -20,9 +21,13 @@ class AgentDeps:
 def build_model(references: tuple[Model | str, ...]) -> Model | str:
     if not references:
         raise ValueError("at least one model is required")
-    if len(references) == 1:
-        return references[0]
-    return FallbackModel(references[0], *references[1:])
+    models = tuple(
+        TestModel(call_tools=[]) if reference == "test" else reference
+        for reference in references
+    )
+    if len(models) == 1:
+        return models[0]
+    return FallbackModel(models[0], *models[1:])
 
 
 def build_agent(model: Model | str) -> Agent[AgentDeps, str]:

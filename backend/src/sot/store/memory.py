@@ -164,6 +164,9 @@ class MemorySOTRepository:
             raise DomainError("toss_token_conflict", "Toss token already exists")
         self.tosses[toss.id] = toss
 
+    async def get_toss(self, toss_id: UUID) -> Toss | None:
+        return self.tosses.get(toss_id)
+
     async def get_toss_by_token(self, token: str) -> Toss | None:
         return next(
             (toss for toss in self.tosses.values() if toss.token == token), None

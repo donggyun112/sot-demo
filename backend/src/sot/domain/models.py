@@ -113,6 +113,15 @@ class DocumentView:
     current_revision: Revision
     revisions: tuple[Revision, ...]
     sessions: tuple[Session, ...]
+    provenance: RevisionProvenance | None
+
+
+@dataclass(frozen=True, slots=True)
+class RevisionProvenance:
+    proposal: Proposal
+    branch: Branch
+    toss: Toss
+    cite: Cite
 
 
 @dataclass(frozen=True, slots=True)

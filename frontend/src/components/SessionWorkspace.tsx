@@ -53,7 +53,6 @@ export function SessionWorkspace({
       const { cite } = await api.createCite(branchId, [...selected], summary.trim());
       setNewCite(cite);
       setStatus("Cite를 만들었습니다. 이제 공유 가능한 Toss로 발행할 수 있습니다.");
-      onChanged();
     } catch (reason) {
       setStatus(reason instanceof Error ? reason.message : "Cite 생성에 실패했습니다.");
     } finally {
@@ -101,7 +100,6 @@ export function SessionWorkspace({
       } else {
         setStatus(`${result.approver_ids.length}/2 승인 · 다른 구성원의 승인이 필요합니다.`);
       }
-      onChanged();
     } catch (reason) {
       setStatus(reason instanceof Error ? reason.message : "승인에 실패했습니다.");
     } finally {

@@ -19,6 +19,8 @@ dist/
 # JavaScript dependencies and compiler state
 node_modules/
 *.tsbuildinfo
+test-results/
+playwright-report/
 
 # Local environment and OS files
 .env

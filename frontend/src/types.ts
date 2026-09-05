@@ -82,6 +82,12 @@ export interface DocumentResponse {
   current_revision: Revision;
   revisions: Revision[];
   sessions: Session[];
+  provenance: {
+    proposal: Proposal;
+    branch: Branch;
+    toss: Toss;
+    cite: Cite;
+  } | null;
 }
 
 export interface SessionResponse {

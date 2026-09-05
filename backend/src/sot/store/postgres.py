@@ -391,6 +391,10 @@ class PostgresSOTRepository:
         )
         return _toss(row) if row else None
 
+    async def get_toss(self, toss_id: UUID) -> Toss | None:
+        row = await self._fetchone("SELECT * FROM sot.tosses WHERE id = %s", (toss_id,))
+        return _toss(row) if row else None
+
     async def save_proposal(self, proposal: Proposal) -> None:
         async with self._connection() as connection:
             await connection.execute(

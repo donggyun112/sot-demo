@@ -4,6 +4,7 @@ import pytest
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, ToolCallPart
 from pydantic_ai.models.fallback import FallbackModel
 from pydantic_ai.models.function import AgentInfo, FunctionModel
+from pydantic_ai.models.test import TestModel
 
 from sot.agent import AgentDeps, build_agent, build_model
 from sot.domain.models import NewTurn, ProposalStatus
@@ -36,6 +37,13 @@ def test_build_model_rejects_empty_chain() -> None:
         assert str(error) == "at least one model is required"
     else:
         raise AssertionError("empty model chain was accepted")
+
+
+def test_build_model_keeps_local_test_runs_text_only() -> None:
+    model = build_model(("test",))
+
+    assert isinstance(model, TestModel)
+    assert model.call_tools == []
 
 
 def _tool_model(tool_name: str, args: dict[str, object]) -> FunctionModel:

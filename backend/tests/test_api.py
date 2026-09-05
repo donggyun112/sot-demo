@@ -105,6 +105,10 @@ async def test_rest_api_supports_the_complete_sot_path() -> None:
         assert second.json()["proposal"]["status"] == "published"
         assert second.json()["revision"]["number"] == 2
 
+        published_document = await client.get(f"/api/v1/documents/{document.id}")
+        assert published_document.json()["provenance"]["cite"]["id"] == cite_id
+        assert published_document.json()["provenance"]["toss"]["token"] == token
+
         session = await client.get(f"/api/v1/sessions/{session_id}")
         assert session.status_code == 200
         assert {branch["id"] for branch in session.json()["branches"]} == {

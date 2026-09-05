@@ -60,6 +60,8 @@ input, select, textarea {
 .button:disabled { cursor: wait; opacity: .6; }
 .main-revision { min-height: 220px; margin: 2rem 0 3rem; padding: clamp(1.5rem, 4vw, 3rem); background: var(--surface); border: 1px solid var(--line); box-shadow: 0 16px 40px rgba(42, 49, 45, .08); }
 .main-revision p { max-width: 760px; font-family: "Newsreader", serif; font-size: 1.45rem; line-height: 1.55; white-space: pre-wrap; }
+.provenance { display: grid; gap: .35rem; margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+.provenance span { color: var(--muted); font-size: .82rem; }
 .inline-form { display: flex; align-items: end; gap: .7rem; padding: 1rem; background: #e8e3d5; }
 .inline-form label { flex: 1; }
 .session-list, .turn-list { list-style: none; padding: 0; }

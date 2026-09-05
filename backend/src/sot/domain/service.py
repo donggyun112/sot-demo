@@ -15,6 +15,7 @@ from sot.domain.models import (
     Proposal,
     ProposalStatus,
     Revision,
+    RevisionProvenance,
     Session,
     SessionDetail,
     SessionView,
@@ -68,11 +69,34 @@ class SOTService:
         self._require_actor(actor_id)
         document = await self._document(document_id)
         current = await self.current_revision(document_id)
+        provenance = await self._revision_provenance(current)
         return DocumentView(
             document=document,
             current_revision=current,
             revisions=await self._repository.list_revisions(document_id),
             sessions=await self._repository.list_sessions(document_id),
+            provenance=provenance,
+        )
+
+    async def _revision_provenance(
+        self, revision: Revision
+    ) -> RevisionProvenance | None:
+        if revision.proposal_id is None:
+            return None
+        proposal = await self._repository.get_proposal(revision.proposal_id)
+        if proposal is None:
+            return None
+        branch = await self._repository.get_branch(proposal.branch_id)
+        if branch is None or branch.source_toss_id is None:
+            return None
+        toss = await self._repository.get_toss(branch.source_toss_id)
+        if toss is None:
+            return None
+        cite = await self._repository.get_cite(toss.cite_id)
+        if cite is None:
+            return None
+        return RevisionProvenance(
+            proposal=proposal, branch=branch, toss=toss, cite=cite
         )
 
     async def session_detail(self, *, session_id: UUID, actor_id: str) -> SessionDetail:

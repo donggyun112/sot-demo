@@ -103,7 +103,7 @@ export function App({ apiBase = DEFAULT_API_BASE }: { apiBase?: string }) {
   }, [documentId, loadDocument, session, toss]);
 
   useEffect(() => {
-    if (session) void loadSession(session.session.id);
+    if (session && !toss) void loadSession(session.session.id);
   }, [actor]); // Re-resolve actor-scoped branch data after switching identity.
 
   const createSession = async (title: string) => {

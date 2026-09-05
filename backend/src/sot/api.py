@@ -25,6 +25,7 @@ from sot.domain.models import (
     NewTurn,
     Proposal,
     Revision,
+    RevisionProvenance,
     Session,
     SessionDetail,
     SessionView,
@@ -82,6 +83,7 @@ class DocumentResponse(StrictModel):
     current_revision: Revision
     revisions: tuple[Revision, ...]
     sessions: tuple[Session, ...]
+    provenance: RevisionProvenance | None
 
 
 class SessionResponse(StrictModel):

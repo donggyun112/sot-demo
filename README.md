@@ -139,33 +139,71 @@ SOT는 다음 제품이 아니다.
 
 세션 보관과 출처 표시는 필요한 기반이지만 목적은 아니다. 목적은 서로 다른 사고 상태를 교환하고, 공개 가능한 합의 상태를 함께 만드는 것이다.
 
-## 데모
+## 실행
 
-- [`index.html`](./index.html): 레이트리밋 결정을 정리해 문서에 반영하는 개념 데모
-- [`msbd-real.html`](./msbd-real.html): 실제 설계 세션에서 선택지와 인간의 선택, 로컬 세션, 공유 세션, main 문서를 연결한 데모
+필요한 것은 Docker Compose뿐이다. 기본값은 외부 API를 호출하지 않는 Pydantic AI `test`
+모델이다.
 
-두 데모에서 세션을 여는 것만으로 문서는 바뀌지 않는다. 고른 세션을 `session_cite`하고 합의된 내용을 `sot_update`해야 main에 반영된다.
-
-## 설계 문서
-
-- [`SOT v1 제품 설계`](./docs/superpowers/specs/2026-08-30-sot-v1-design.md)
-- [`Agent Server / AG-UI 경계 설계`](./docs/superpowers/plans/2026-08-30-agui-agent-boundary.md)
-
-현재 서비스 경계는 다음과 같다.
-
-```text
-React ── Platform API/SSE ──▶ Platform Server
-                                  │
-                                  │ AG-UI RunAgentInput/BaseEvent SSE
-                                  ▼
-                             Agent Server ──▶ Semora
+```bash
+cp .env.example .env
+docker compose up --build
 ```
 
-Platform Server는 session, branch, toss, curation, consensus와 main을 소유한다. Agent Server는
-그중 어느 개념도 모르며 여러 에이전트를 호스팅하지도 않는다. 하나의 Agent Server 배포는
-여러 에이전트 중 하나의 논리적 에이전트이고, AG-UI 요청과 Semora 실행 및 자기 기록만
-소유한다. 브라우저 연결 종료는 Agent 실행 취소가 아니며, 사용자의 명시적인 중단 요청만
-실행을 멈춘다.
+브라우저에서 <http://localhost:3000>을 연다. 실제 모델을 쓰려면 `.env`의 `SOT_MODELS`를
+Pydantic AI 모델 참조의 JSON 배열로 바꾸고 해당 provider key만 설정한다.
+
+```dotenv
+SOT_MODELS=["openai:gpt-5.2","anthropic:claude-sonnet-4-5"]
+```
+
+## 구현 구조
+
+```text
+React + CopilotKit
+  ├─ REST ─────────────▶ FastAPI ─▶ SOTService ─▶ PostgreSQL
+  └─ native AG-UI SSE ─▶ Pydantic AI Agent ─────┘
+```
+
+FastAPI 프로세스 하나가 REST와 AG-UI를 함께 제공한다. Agent는 request 범위의 단일 async
+실행이며 worker, 실행 journal, lease, replay cursor가 없다. 연결이 끊기면 실행 취소를 허용하고,
+완료된 user/assistant turn만 제품 데이터로 저장한다. PostgreSQL에는 document, revision,
+session, branch, cite, toss, proposal, approval 같은 SOT 상태만 저장한다.
+
+Agent의 서버 실행 도구는 `session_cite`와 `sot_update`뿐이다. `sot_update`는 main을 직접
+덮어쓰지 않고 proposal을 만들며 Alice와 Bob의 서로 다른 승인 두 개가 모이면 새 revision이
+된다. 현재 revision 응답에는 proposal → fork branch → toss → cite provenance도 포함된다.
+
+대표 응답 구조:
+
+```json
+{
+  "document": { "id": "…", "title": "요청 제한 토큰" },
+  "current_revision": { "number": 2, "content": "합의된 내용", "proposal_id": "…" },
+  "revisions": [],
+  "sessions": [],
+  "provenance": {
+    "proposal": { "id": "…", "status": "published" },
+    "branch": { "id": "…", "source_toss_id": "…" },
+    "toss": { "id": "…", "token": "…" },
+    "cite": { "id": "…", "turn_ids": ["…"], "summary": "선택 근거" }
+  }
+}
+```
+
+오류는 `{"error":{"code":"branch_forbidden","message":"…"}}` 형태이며 not-found는
+404, 권한 오류는 403, 상태 충돌은 409, 요청 검증 오류는 422다.
+
+## 개발 검증
+
+```bash
+uv run --project backend pytest backend/tests -q
+uv run --project backend ruff check backend
+uv run --project backend mypy backend/src backend/tests
+pnpm --dir frontend test
+pnpm --dir frontend typecheck
+pnpm --dir frontend build
+pnpm --dir frontend e2e
+```
 
 ## 한 문장으로
 

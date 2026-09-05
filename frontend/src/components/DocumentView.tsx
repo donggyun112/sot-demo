@@ -50,6 +50,13 @@ export function DocumentView({ data, onCreateSession, onOpenSession }: DocumentV
       )}
       <article className="main-revision">
         <p>{data.current_revision.content}</p>
+        {data.provenance && (
+          <aside className="provenance" aria-label="Main revision provenance">
+            <div className="eyebrow">PROVENANCE · TOSS</div>
+            <strong>{data.provenance.cite.summary}</strong>
+            <span>제안자 {data.provenance.proposal.created_by}</span>
+          </aside>
+        )}
       </article>
       <section>
         <div className="section-heading">
