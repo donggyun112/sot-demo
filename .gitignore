@@ -16,6 +16,10 @@ build/
 dist/
 *.egg-info/
 
+# JavaScript dependencies and compiler state
+node_modules/
+*.tsbuildinfo
+
 # Local environment and OS files
 .env
 .env.*
