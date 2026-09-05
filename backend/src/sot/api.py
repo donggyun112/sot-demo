@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from functools import cached_property
 from typing import Annotated, Literal
 from uuid import UUID
 
@@ -34,6 +35,14 @@ from sot.domain.models import (
 from sot.domain.service import DEVELOPMENT_USERS, SOTService
 
 NonEmptyText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+
+
+class ServerOnlyAGUIAdapter(AGUIAdapter[AgentDeps, str]):
+    """Use native AG-UI transport without trusting client-declared tools."""
+
+    @cached_property
+    def toolset(self) -> None:
+        return None
 
 
 class StrictModel(BaseModel):
@@ -325,7 +334,7 @@ def create_app(
             branch_id=branch_id,
             service=service,
         )
-        return await AGUIAdapter.dispatch_request(
+        return await ServerOnlyAGUIAdapter.dispatch_request(
             request,
             agent=application.state.agent,
             deps=deps,

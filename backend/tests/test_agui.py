@@ -3,11 +3,10 @@ from collections.abc import AsyncIterator
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from pydantic_ai import Agent, RunContext
 from pydantic_ai.messages import ModelMessage
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 
-from sot.agent import AgentDeps
+from sot.agent import build_agent
 from sot.api import create_app
 from sot.domain.service import SOTService
 from sot.store.memory import MemorySOTRepository
@@ -22,21 +21,18 @@ async def _stream_response(
 ) -> AsyncIterator[str]:
     assert info.instructions is not None
     assert f"actor=alice branch={BRANCH_ID}" in info.instructions
+    assert {tool.name for tool in info.function_tools} == {
+        "session_cite",
+        "sot_update",
+    }
     yield "검토 "
     yield "결과"
 
 
-def _agent() -> Agent[AgentDeps, str]:
-    agent = Agent(
-        FunctionModel(stream_function=_stream_response, model_name="test"),
-        deps_type=AgentDeps,
+def _agent():
+    return build_agent(
+        FunctionModel(stream_function=_stream_response, model_name="test")
     )
-
-    @agent.instructions
-    def request_context(ctx: RunContext[AgentDeps]) -> str:
-        return f"actor={ctx.deps.user_id} branch={ctx.deps.branch_id}"
-
-    return agent
 
 
 def _payload() -> dict[str, object]:
@@ -50,7 +46,13 @@ def _payload() -> dict[str, object]:
                 "content": "이 주장 검토해줘",
             }
         ],
-        "tools": [],
+        "tools": [
+            {
+                "name": "delete_everything",
+                "description": "untrusted client tool",
+                "parameters": {"type": "object", "properties": {}},
+            }
+        ],
         "context": [],
         "forwardedProps": {},
     }
