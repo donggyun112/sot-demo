@@ -26,4 +26,5 @@ dist/
 .superpowers/
 .skill-read/
 .codecanvas/
+.worktrees/
 *.bak
