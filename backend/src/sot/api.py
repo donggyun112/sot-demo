@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 from pydantic_ai import Agent
 from pydantic_ai.ui.ag_ui import AGUIAdapter
 from starlette.responses import Response
+from starlette.types import Lifespan
 
 from sot.agent import AgentDeps
 from sot.domain.errors import DomainError
@@ -140,8 +141,9 @@ def create_app(
     service: SOTService,
     agent: Agent[AgentDeps, str],
     cors_origins: tuple[str, ...] = ("http://localhost:5173",),
+    lifespan: Lifespan[FastAPI] | None = None,
 ) -> FastAPI:
-    application = FastAPI(title="SOT")
+    application = FastAPI(title="SOT", lifespan=lifespan)
     application.state.service = service
     application.state.agent = agent
     application.add_middleware(
