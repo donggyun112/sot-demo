@@ -9,6 +9,8 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 
 from sot.agent import AgentDeps
 from sot.api import create_app
+from sot.domain.service import SOTService
+from sot.store.memory import MemorySOTRepository
 
 BRANCH_ID = "019504e8-4b7c-7f3a-8c2d-123456789abc"
 RUN_ID = "019504e8-4b7d-7a31-9c2d-123456789abc"
@@ -56,7 +58,7 @@ def _payload() -> dict[str, object]:
 
 @pytest.mark.asyncio
 async def test_agui_endpoint_streams_standard_events() -> None:
-    app = create_app(service=object(), agent=_agent())
+    app = create_app(service=SOTService(MemorySOTRepository()), agent=_agent())
 
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://sot.test"
@@ -84,7 +86,7 @@ async def test_agui_endpoint_streams_standard_events() -> None:
 
 @pytest.mark.asyncio
 async def test_agui_endpoint_rejects_unknown_development_user() -> None:
-    app = create_app(service=object(), agent=_agent())
+    app = create_app(service=SOTService(MemorySOTRepository()), agent=_agent())
 
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://sot.test"

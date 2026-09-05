@@ -10,13 +10,16 @@ from sot.domain.models import (
     Branch,
     Cite,
     Document,
+    DocumentView,
     NewTurn,
     Proposal,
     ProposalStatus,
     Revision,
     Session,
+    SessionDetail,
     SessionView,
     Toss,
+    TossView,
     Turn,
     utc_now,
 )
@@ -56,6 +59,48 @@ class SOTService:
             await self._repository.save_document(document)
             await self._repository.save_revision(revision)
         return document
+
+    async def bootstrap(self, *, actor_id: str) -> tuple[Document, ...]:
+        self._require_actor(actor_id)
+        return await self._repository.list_documents()
+
+    async def document_view(self, *, document_id: UUID, actor_id: str) -> DocumentView:
+        self._require_actor(actor_id)
+        document = await self._document(document_id)
+        current = await self.current_revision(document_id)
+        return DocumentView(
+            document=document,
+            current_revision=current,
+            revisions=await self._repository.list_revisions(document_id),
+            sessions=await self._repository.list_sessions(document_id),
+        )
+
+    async def session_detail(self, *, session_id: UUID, actor_id: str) -> SessionDetail:
+        self._require_actor(actor_id)
+        session = await self._session(session_id)
+        branches = await self._repository.list_branches(session_id)
+        turns: list[Turn] = []
+        cites: list[Cite] = []
+        proposals: list[Proposal] = []
+        for branch in branches:
+            turns.extend(await self._repository.list_turns(branch.id))
+            cites.extend(await self._repository.list_cites(branch.id))
+            proposals.extend(await self._repository.list_proposals(branch.id))
+        return SessionDetail(
+            session=session,
+            branches=branches,
+            turns=tuple(turns),
+            cites=tuple(cites),
+            proposals=tuple(proposals),
+        )
+
+    async def toss_view(self, *, token: str) -> TossView:
+        toss = await self._repository.get_toss_by_token(token)
+        if toss is None:
+            raise DomainError("toss_not_found", "Toss does not exist")
+        cite = await self._cite(toss.cite_id)
+        turns = await self._repository.get_turns(cite.turn_ids)
+        return TossView(toss=toss, cite=cite, turns=turns)
 
     async def current_revision(self, document_id: UUID) -> Revision:
         document = await self._document(document_id)

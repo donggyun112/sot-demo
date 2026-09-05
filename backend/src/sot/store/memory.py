@@ -68,6 +68,9 @@ class MemorySOTRepository:
     async def get_document(self, document_id: UUID) -> Document | None:
         return self.documents.get(document_id)
 
+    async def list_documents(self) -> tuple[Document, ...]:
+        return tuple(sorted(self.documents.values(), key=lambda item: item.created_at))
+
     async def save_revision(self, revision: Revision) -> None:
         self.revisions[revision.id] = revision
 
@@ -92,11 +95,35 @@ class MemorySOTRepository:
     async def get_session(self, session_id: UUID) -> Session | None:
         return self.sessions.get(session_id)
 
+    async def list_sessions(self, document_id: UUID) -> tuple[Session, ...]:
+        return tuple(
+            sorted(
+                (
+                    session
+                    for session in self.sessions.values()
+                    if session.document_id == document_id
+                ),
+                key=lambda item: item.created_at,
+            )
+        )
+
     async def save_branch(self, branch: Branch) -> None:
         self.branches[branch.id] = branch
 
     async def get_branch(self, branch_id: UUID) -> Branch | None:
         return self.branches.get(branch_id)
+
+    async def list_branches(self, session_id: UUID) -> tuple[Branch, ...]:
+        return tuple(
+            sorted(
+                (
+                    branch
+                    for branch in self.branches.values()
+                    if branch.session_id == session_id
+                ),
+                key=lambda item: item.created_at,
+            )
+        )
 
     async def append_turns(self, turns: tuple[Turn, ...]) -> None:
         existing = {(turn.branch_id, turn.ordinal) for turn in self.turns.values()}
@@ -124,6 +151,14 @@ class MemorySOTRepository:
     async def get_cite(self, cite_id: UUID) -> Cite | None:
         return self.cites.get(cite_id)
 
+    async def list_cites(self, branch_id: UUID) -> tuple[Cite, ...]:
+        return tuple(
+            sorted(
+                (cite for cite in self.cites.values() if cite.branch_id == branch_id),
+                key=lambda item: item.created_at,
+            )
+        )
+
     async def save_toss(self, toss: Toss) -> None:
         if any(item.token == toss.token for item in self.tosses.values()):
             raise DomainError("toss_token_conflict", "Toss token already exists")
@@ -139,6 +174,18 @@ class MemorySOTRepository:
 
     async def get_proposal(self, proposal_id: UUID) -> Proposal | None:
         return self.proposals.get(proposal_id)
+
+    async def list_proposals(self, branch_id: UUID) -> tuple[Proposal, ...]:
+        return tuple(
+            sorted(
+                (
+                    proposal
+                    for proposal in self.proposals.values()
+                    if proposal.branch_id == branch_id
+                ),
+                key=lambda item: item.created_at,
+            )
+        )
 
     async def add_approval(self, proposal_id: UUID, actor_id: str) -> None:
         approvers = self.approvals.setdefault(proposal_id, set())

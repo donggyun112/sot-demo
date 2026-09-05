@@ -108,6 +108,30 @@ class SessionView:
 
 
 @dataclass(frozen=True, slots=True)
+class DocumentView:
+    document: Document
+    current_revision: Revision
+    revisions: tuple[Revision, ...]
+    sessions: tuple[Session, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class SessionDetail:
+    session: Session
+    branches: tuple[Branch, ...]
+    turns: tuple[Turn, ...]
+    cites: tuple[Cite, ...]
+    proposals: tuple[Proposal, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class TossView:
+    toss: Toss
+    cite: Cite
+    turns: tuple[Turn, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class ApprovalResult:
     proposal: Proposal
     approver_ids: tuple[str, ...]
