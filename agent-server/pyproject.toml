@@ -1,0 +1,50 @@
+[project]
+name = "agent-server"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "ag-ui-protocol>=0.1.19,<0.2",
+    "fastapi>=0.116,<1",
+    "psycopg[binary]>=3.2,<4",
+    "psycopg-pool>=3.2,<4",
+    "pydantic-settings>=2.10,<3",
+    "rfc8785>=0.1.4,<0.2",
+    "pydantic-ai-slim[ag-ui,anthropic,google,openai,openrouter]==2.38.0",
+    "semora==0.3.0",
+    "semora-store==0.3.0",
+    "semora-store-pg==0.3.0",
+    "service-auth",
+    "uuid-utils>=0.11,<1",
+    "uvicorn>=0.35,<1",
+]
+
+[tool.uv.sources]
+service-auth = { path = "../packages/service-auth" }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agent_core"]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28,<1",
+    "mypy>=1.11",
+    "pytest>=8",
+    "pytest-asyncio>=1,<2",
+    "ruff>=0.6",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["e2e: requires live OpenRouter credentials"]
+
+[tool.ruff]
+target-version = "py312"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]

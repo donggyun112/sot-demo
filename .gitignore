@@ -1,0 +1,29 @@
+# Python virtual environments and caches
+.venv/
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Test and coverage output
+.coverage
+.coverage.*
+htmlcov/
+
+# Python build artifacts
+build/
+dist/
+*.egg-info/
+
+# Local environment and OS files
+.env
+.env.*
+!.env.example
+.DS_Store
+
+# Local agent tooling and scratch artifacts
+.superpowers/
+.skill-read/
+.codecanvas/
+*.bak

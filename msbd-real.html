@@ -1,0 +1,1055 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SOT · 세션이 근거</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" />
+  <style>
+    :root {
+      --blue: #3182f6;
+      --blue-50: #e8f3ff;
+      --blue-100: #c9e2ff;
+      --violet: #6b4eff;
+      --violet-50: #f0edff;
+      --red: #f04452;
+      --red-50: #ffeeee;
+      --green: #00a86b;
+      --yellow: #ffc342;
+      --gray-900: #191f28;
+      --gray-800: #333d4b;
+      --gray-700: #4e5968;
+      --gray-600: #6b7684;
+      --gray-500: #8b95a1;
+      --gray-400: #b0b8c1;
+      --gray-300: #d1d6db;
+      --gray-200: #e5e8eb;
+      --gray-100: #f2f4f6;
+      --gray-50: #f9fafb;
+      --white: #fff;
+      --ses-a: #3182f6;
+      --ses-b: #6b4eff;
+      --radius: 12px;
+      --shadow: 0 1px 2px rgba(25, 31, 40, .06), 0 4px 16px rgba(25, 31, 40, .04);
+      --font: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      font-family: var(--font);
+      color: var(--gray-800);
+      background: var(--gray-100);
+      font-size: 15px;
+      line-height: 1.5;
+      word-break: keep-all;
+    }
+    button, input { font-family: inherit; }
+    button { cursor: pointer; }
+    .mono { font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+
+    /* demo chrome */
+    .demo-bar {
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      padding: 8px 16px; background: var(--gray-900); color: var(--white);
+      font-size: 12px; font-weight: 600;
+    }
+    .demo-bar .label { color: var(--gray-400); margin-right: 4px; }
+    .demo-bar button, .role-switch button {
+      border: 0; background: transparent; color: var(--gray-400);
+      padding: 6px 10px; border-radius: 8px; font-size: 12px; font-weight: 600;
+    }
+    .demo-bar button.on, .role-switch button.on { background: var(--white); color: var(--gray-900); }
+    .demo-bar button:hover:not(.on) { color: var(--white); background: #333d4b; }
+    .role-switch { margin-left: auto; display: flex; gap: 4px; background: #333d4b; padding: 3px; border-radius: 10px; }
+    .role-switch button { color: var(--gray-400); }
+
+    /* app shell */
+    .app-header {
+      display: flex; align-items: center; gap: 12px;
+      height: 56px; padding: 0 20px; background: var(--white);
+      border-bottom: 1px solid var(--gray-200);
+    }
+    .brand { display: flex; align-items: baseline; gap: 8px; text-decoration: none; color: inherit; }
+    .brand strong { font-size: 18px; letter-spacing: -.03em; color: var(--gray-900); }
+    .brand span { font-size: 13px; color: var(--gray-500); font-weight: 500; }
+    .crumb { color: var(--gray-400); font-size: 13px; }
+    .crumb b { color: var(--gray-800); font-weight: 600; }
+    .header-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+    .chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      height: 26px; padding: 0 10px; border-radius: 8px;
+      background: var(--gray-100); color: var(--gray-700);
+      font-size: 12px; font-weight: 600; border: 0;
+    }
+    .chip.ses-a { background: var(--blue-50); color: var(--blue); }
+    .chip.ses-b { background: var(--violet-50); color: var(--violet); }
+    .chip.naked { background: var(--red-50); color: var(--red); }
+    .chip.merged { background: #eaf8f0; color: var(--green); }
+    .chip.local { background: var(--gray-100); color: var(--gray-600); }
+    .chip.priv { background: var(--gray-900); color: var(--white); }
+    .chip.shared { background: var(--violet-50); color: var(--violet); }
+    .btn {
+      height: 36px; padding: 0 14px; border-radius: 10px;
+      border: 1px solid var(--gray-200); background: var(--white);
+      color: var(--gray-800); font-size: 13px; font-weight: 600;
+    }
+    .btn:hover { background: var(--gray-50); }
+    .btn.primary { background: var(--blue); color: var(--white); border-color: var(--blue); }
+    .btn.primary:hover { filter: brightness(.96); }
+    .btn.ghost { border-color: transparent; background: transparent; }
+    .btn.danger { color: var(--red); border-color: var(--gray-200); }
+
+    .view { display: none; height: calc(100vh - 56px - 37px); min-height: 0; overflow: hidden; }
+    .view.on { display: flex; }
+    .view.on.sot { display: grid; grid-template-columns: 220px 1fr 320px; width: 100%; }
+    .view.on.session { display: grid; grid-template-columns: 1fr 340px; width: 100%; }
+    .view.on.branches { display: flex; justify-content: center; overflow: auto; padding: 32px 20px; }
+    .branch-wrap { width: min(640px, 100%); }
+    .branch-wrap h1 { font-size: 22px; color: var(--gray-900); margin-bottom: 6px; }
+    .branch-wrap .sub { color: var(--gray-500); margin-bottom: 18px; font-size: 14px; }
+    .branch-row {
+      display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center;
+      background: var(--white); border: 1px solid var(--gray-200); border-radius: 14px;
+      padding: 14px 16px; margin-bottom: 8px; cursor: pointer; text-align: left; width: 100%;
+      font: inherit; color: inherit;
+    }
+    .branch-row:hover { border-color: var(--blue-100); }
+    .branch-row.on { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-50); }
+    .branch-row .id { font-weight: 700; color: var(--gray-900); }
+    .branch-row .meta { font-size: 13px; color: var(--gray-600); margin-top: 4px; }
+    .branch-row .tags { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+
+    /* SoT */
+    .sot { min-height: 0; }
+    .outline {
+      background: var(--white); border-right: 1px solid var(--gray-200);
+      padding: 18px 12px; overflow: auto; min-height: 0;
+    }
+    .outline h3 { font-size: 11px; color: var(--gray-500); letter-spacing: .06em; padding: 0 8px 10px; }
+    .outline button {
+      display: flex; width: 100%; text-align: left; gap: 8px; align-items: center;
+      border: 0; background: transparent; padding: 8px; border-radius: 8px;
+      color: var(--gray-700); font-size: 13px; font-weight: 500;
+    }
+    .outline button.on, .outline button:hover { background: var(--gray-100); color: var(--gray-900); }
+    .outline .n { width: 18px; color: var(--gray-400); font-size: 12px; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--gray-300); margin-left: auto; }
+    .dot.a { background: var(--ses-a); }
+    .dot.b { background: var(--ses-b); }
+    .dot.naked { background: var(--red); }
+
+    .doc {
+      overflow: auto; padding: 36px 48px 80px;
+      background: var(--gray-50); min-height: 0;
+    }
+    .doc-card {
+      max-width: 720px; margin: 0 auto; background: var(--white);
+      border: 1px solid var(--gray-200); border-radius: 16px;
+      padding: 40px 44px 48px; box-shadow: var(--shadow);
+    }
+    .doc-meta { display: flex; gap: 8px; align-items: center; margin-bottom: 18px; font-size: 12px; color: var(--gray-500); }
+    .doc-card h1 { font-size: 28px; letter-spacing: -.03em; color: var(--gray-900); line-height: 1.3; margin-bottom: 8px; }
+    .lede { color: var(--gray-600); margin-bottom: 28px; }
+    .block {
+      position: relative; padding: 14px 14px 14px 16px; margin: 0 -14px;
+      border-radius: 10px; border-left: 3px solid transparent; cursor: pointer;
+    }
+    .block:hover { background: var(--gray-50); }
+    .block.on { background: var(--blue-50); border-left-color: var(--blue); }
+    .block.naked.on { background: var(--red-50); border-left-color: var(--red); }
+    .block.patched.on { background: var(--violet-50); border-left-color: var(--violet); }
+    .block h2 { font-size: 18px; color: var(--gray-900); margin-bottom: 8px; letter-spacing: -.02em; }
+    .block p { color: var(--gray-700); line-height: 1.7; }
+    .block .map {
+      display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap;
+    }
+    .add-line {
+      margin-top: 10px; padding: 10px 12px; border-radius: 8px;
+      background: var(--violet-50); color: var(--gray-800); font-size: 14px;
+      border: 1px dashed var(--violet);
+    }
+
+    .rail {
+      background: var(--white); border-left: 1px solid var(--gray-200);
+      padding: 18px 16px; overflow: auto; display: flex; flex-direction: column; gap: 12px;
+      min-height: 0;
+    }
+    .rail h3 { font-size: 11px; color: var(--gray-500); letter-spacing: .06em; }
+    .rail h4 { font-size: 15px; color: var(--gray-900); margin-top: 2px; }
+    .rail .empty { color: var(--gray-500); font-size: 13px; line-height: 1.6; }
+    .card {
+      border: 1px solid var(--gray-200); border-radius: 12px; padding: 12px;
+      background: var(--white);
+    }
+    .card .who { font-size: 12px; color: var(--gray-500); margin-bottom: 6px; }
+    .claim { display: flex; gap: 8px; padding: 8px 0; border-top: 1px solid var(--gray-100); }
+    .claim:first-of-type { border-top: 0; }
+    .cid {
+      flex: 0 0 auto; height: 20px; min-width: 28px; padding: 0 6px;
+      border-radius: 6px; background: var(--blue-50); color: var(--blue);
+      font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center;
+    }
+    .claim p { font-size: 13px; color: var(--gray-800); line-height: 1.5; }
+    .rail .actions { display: flex; flex-direction: column; gap: 8px; margin-top: auto; padding-top: 8px; }
+
+    /* session */
+    .session { min-height: 0; }
+    .thread-wrap {
+      display: flex; flex-direction: column; background: var(--gray-50);
+      min-width: 0; min-height: 0; overflow: hidden;
+    }
+    .thread-head {
+      display: flex; align-items: center; gap: 10px; padding: 12px 20px;
+      background: var(--white); border-bottom: 1px solid var(--gray-200);
+    }
+    .banner {
+      margin: 12px 20px 0; padding: 10px 12px; border-radius: 10px;
+      background: var(--blue-50); color: var(--gray-800); font-size: 13px;
+      display: flex; gap: 8px; align-items: center;
+    }
+    .banner.recv { background: var(--violet-50); }
+    .thread {
+      flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden;
+      padding: 16px 20px 12px; display: flex; flex-direction: column-reverse;
+    }
+    .thread-log {
+      display: flex; flex-direction: column; gap: 14px; margin-top: auto;
+    }
+    .msg { display: flex; gap: 10px; max-width: 760px; }
+    .av {
+      width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center;
+      font-size: 12px; font-weight: 700; color: var(--white); flex: 0 0 auto;
+    }
+    .av.human { background: var(--gray-800); }
+    .av.llm { background: var(--blue); }
+    .av.mj { background: var(--violet); }
+    .bubble { background: var(--white); border: 1px solid var(--gray-200); border-radius: 12px; padding: 12px 14px; }
+    .bubble .who { font-size: 12px; font-weight: 700; color: var(--gray-900); }
+    .bubble .who em { font-style: normal; font-weight: 600; color: var(--blue); margin-left: 6px; }
+    .bubble p { margin-top: 6px; color: var(--gray-700); line-height: 1.65; font-size: 14px; }
+    .cite {
+      display: inline-flex; align-items: center; height: 18px; padding: 0 5px; margin: 0 2px;
+      border-radius: 4px; background: var(--blue-50); color: var(--blue);
+      font-size: 11px; font-weight: 700; cursor: pointer; border: 0;
+    }
+    .cite.on, .claim.on .cid { outline: 2px solid var(--blue); }
+    .composer {
+      display: flex; gap: 8px; padding: 12px 20px 16px; background: var(--white);
+      border-top: 1px solid var(--gray-200);
+    }
+    .composer input {
+      flex: 1; height: 40px; border: 1px solid var(--gray-200); border-radius: 10px;
+      padding: 0 12px; font-size: 14px; outline: none;
+    }
+    .composer input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-50); }
+    .side {
+      background: var(--white); border-left: 1px solid var(--gray-200);
+      padding: 16px; overflow: auto; display: flex; flex-direction: column; gap: 14px;
+      min-height: 0;
+    }
+    .side h3 { font-size: 11px; color: var(--gray-500); letter-spacing: .06em; }
+    .side h4 { font-size: 16px; color: var(--gray-900); }
+    .hist-mark {
+      align-self: center; margin: 4px 0 10px;
+      font-size: 11px; font-weight: 600; color: var(--gray-400);
+    }
+    .early { opacity: .72; }
+    .tool, .tool-card {
+      font-size: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .tool {
+      background: var(--gray-50); border: 1px dashed var(--gray-300);
+      border-radius: 10px; padding: 8px 10px; color: var(--gray-600);
+    }
+    .tool-card {
+      background: var(--white); border: 1px solid var(--gray-200); border-radius: 12px;
+      overflow: hidden; max-width: 760px; color: var(--gray-700);
+    }
+    .tool-card .name {
+      display: flex; align-items: center; gap: 8px;
+      background: var(--gray-50); padding: 8px 10px; font-weight: 700; color: var(--gray-900);
+      border-bottom: 1px solid var(--gray-200);
+    }
+    .tool-card .name em { font-style: normal; font-weight: 600; color: var(--blue); font-size: 11px; }
+    .tool-card pre {
+      margin: 0; padding: 8px 10px; background: var(--white); white-space: pre-wrap;
+      font-size: 12px; line-height: 1.5; color: var(--gray-700);
+    }
+    .tool-card .out {
+      border-top: 1px solid var(--gray-200); padding: 8px 10px; background: #f7fbff;
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    }
+    .tool-card .out button { height: 24px; padding: 0 8px; font-size: 12px; }
+    .bubble pre {
+      margin-top: 8px; background: var(--gray-50); padding: 8px 10px; border-radius: 8px;
+      font-size: 12px; overflow: auto; color: var(--gray-700); line-height: 1.45;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap;
+    }
+    .bubble p + p { margin-top: 8px; }
+    .turn-n { font-weight: 500; color: var(--gray-400); margin-left: 6px; font-size: 11px; }
+    .msg.jump .bubble { outline: 2px solid var(--blue); background: var(--blue-50); }
+    .quote {
+      font-size: 13px; color: var(--gray-800); border-left: 2px solid var(--blue);
+      padding: 8px 10px; background: var(--gray-50); border-radius: 0 8px 8px 0;
+      cursor: pointer; text-align: left; width: 100%; border-top: 0; border-right: 0; border-bottom: 0;
+    }
+    .quote .t { font-size: 11px; color: var(--gray-500); font-weight: 600; margin-bottom: 4px; }
+    .warn-note { font-size: 12px; color: var(--gray-500); line-height: 1.55; }
+
+    /* inbox */
+    .inbox { width: 100%; justify-content: center; padding: 40px 20px; overflow: auto; }
+    .inbox-wrap { width: min(640px, 100%); }
+    .inbox-wrap h1 { font-size: 22px; color: var(--gray-900); margin-bottom: 6px; }
+    .inbox-wrap .sub { color: var(--gray-500); margin-bottom: 20px; }
+    .toss-card {
+      background: var(--white); border: 1px solid var(--gray-200); border-radius: 16px;
+      padding: 20px; box-shadow: var(--shadow); cursor: pointer;
+    }
+    .toss-card:hover { border-color: var(--blue-100); }
+    .toss-card .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .toss-card h2 { font-size: 16px; color: var(--gray-900); }
+    .empty-inbox {
+      background: var(--white); border: 1px dashed var(--gray-300); border-radius: 16px;
+      padding: 48px 20px; text-align: center; color: var(--gray-500);
+    }
+
+    /* patch */
+    .patch { width: 100%; padding: 28px 20px 60px; overflow: auto; justify-content: center; }
+    .patch-wrap { width: min(820px, 100%); }
+    .patch-wrap h1 { font-size: 22px; color: var(--gray-900); margin-bottom: 8px; }
+    .diff {
+      background: var(--white); border: 1px solid var(--gray-200); border-radius: 16px;
+      overflow: hidden; margin-top: 16px; box-shadow: var(--shadow);
+    }
+    .diff-h {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 12px 16px; border-bottom: 1px solid var(--gray-200); background: var(--gray-50);
+      font-size: 13px; font-weight: 600;
+    }
+    .hunk { display: grid; grid-template-columns: 1fr 140px; border-top: 1px solid var(--gray-100); }
+    .hunk:first-child { border-top: 0; }
+    .hunk pre {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 13px; line-height: 1.6; padding: 12px 16px; white-space: pre-wrap;
+    }
+    .hunk .del { background: #fff1f1; color: #8a1f2a; }
+    .hunk .add { background: #f0fff6; color: #0d6b3c; }
+    .hunk .ctx { color: var(--gray-700); }
+    .blame {
+      border-left: 1px solid var(--gray-200); padding: 12px; display: flex;
+      flex-direction: column; gap: 6px; justify-content: center; background: var(--gray-50);
+    }
+
+    /* modal */
+    .overlay {
+      display: none; position: fixed; inset: 0; background: rgba(25, 31, 40, .4);
+      z-index: 20; align-items: center; justify-content: center; padding: 24px;
+    }
+    .overlay.on { display: flex; }
+    .sheet {
+      width: min(480px, 100%); background: var(--white); border-radius: 20px;
+      padding: 22px 22px 18px; box-shadow: 0 16px 48px rgba(25,31,40,.18);
+    }
+    .sheet h2 { font-size: 18px; color: var(--gray-900); margin-bottom: 6px; }
+    .sheet .desc { font-size: 13px; color: var(--gray-600); margin-bottom: 16px; }
+    .field { margin-bottom: 12px; }
+    .field label { display: block; font-size: 12px; font-weight: 600; color: var(--gray-600); margin-bottom: 6px; }
+    .field .box, .modes {
+      border: 1px solid var(--gray-200); border-radius: 10px; padding: 10px 12px; background: var(--gray-50);
+    }
+    .modes { display: flex; gap: 6px; padding: 4px; background: var(--gray-100); }
+    .modes button {
+      flex: 1; border: 0; background: transparent; height: 34px; border-radius: 8px;
+      font-size: 13px; font-weight: 600; color: var(--gray-600);
+    }
+    .modes button.on { background: var(--white); color: var(--gray-900); box-shadow: var(--shadow); }
+    .include { display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: var(--gray-700); }
+    .include label { display: flex; gap: 8px; align-items: center; font-weight: 500; }
+    .sheet textarea {
+      width: 100%; height: 72px; border: 1px solid var(--gray-200); border-radius: 10px;
+      padding: 10px 12px; resize: none; font: inherit; outline: none;
+    }
+    .sheet textarea:focus { border-color: var(--blue); }
+    .sheet-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+
+    .toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
+      background: var(--gray-900); color: var(--white); padding: 10px 14px; border-radius: 10px;
+      font-size: 13px; font-weight: 600; opacity: 0; pointer-events: none; transition: .2s;
+      z-index: 30;
+    }
+    .toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    @media (max-width: 960px) {
+      .view.on.sot { grid-template-columns: 1fr; }
+      .view.on.session { grid-template-columns: 1fr; }
+      .outline, .rail, .side { display: none; }
+      .sot.rail-open .rail, .session.rail-open .side {
+        display: flex; position: fixed; top: 93px; right: 0; bottom: 0;
+        width: min(340px, 92vw); height: auto; z-index: 10;
+        border-top: 0; border-left: 1px solid var(--gray-200);
+      }
+      .doc { padding: 16px 12px 120px; }
+      .doc-card { padding: 24px 18px 32px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="demo-bar">
+    <span class="label">화면</span>
+    <button data-view="docs" class="on">문서 목록</button>
+    <button data-view="sot">문서 본문</button>
+    <button data-view="branches">세션 목록</button>
+    <button data-view="session">세션</button>
+    <button data-view="shared">같이 쓰는 세션</button>
+    </div>
+
+  <header class="app-header">
+    <a class="brand" href="#" data-view="sot"><strong>SOT</strong><span>세션이 근거</span></a>
+    <span class="crumb" id="crumb">문서 · <b>요청 제한 토큰</b></span>
+    <div class="header-actions" id="header-actions"></div>
+  </header>
+
+  <!-- SoT -->
+  <section class="view on sot" id="view-sot">
+    <nav class="outline">
+      <h3>OUTLINE</h3>
+      <button data-block="p" class="on"><span class="n">·</span>목적 <i class="dot a"></i></button>
+      <button data-block="d"><span class="n">2</span>아키텍처 · 핵심 결정 <i class="dot a"></i></button>
+      <button data-block="n"><span class="n">3</span>세션 수명 <i class="dot naked" id="dot-n"></i></button>
+      <button data-block="c"><span class="n">4</span>v1에서 제외 <i class="dot naked"></i></button>
+      <button data-block="x"><span class="n">·</span>문서에 없는 이의 <i class="dot naked"></i></button>
+    </nav>
+
+    <article class="doc">
+      <div class="doc-card">
+        <div class="doc-meta">
+          <span>msbd/docs/superpowers/specs/2026-08-24-msbd-design.md</span>
+          <span>·</span>
+          <span>sot_read / sot_update</span>
+          <span>·</span>
+          <span id="doc-rev">실제 문서 · 세션 4d578888</span>
+        </div>
+        <h1>msbd — microVM 샌드박스 서버 설계</h1>
+        <p class="lede">2026-08-24 · 상태: 승인 대기. 사용자가 내려받아 리눅스 서버에 바로 배포하는 오픈소스 microVM 샌드박스 서버.</p>
+
+        <div class="block on" data-block="p" id="b-p">
+          <h2>1. 목적</h2>
+          <p>Nexora의 원격 샌드박스 HTTP 프로토콜을 서버로 구현해 <span class="mono">nexora-python</span>의 <span class="mono">RemoteSandboxClient</span>가 그대로 클라이언트가 된다. 스택은 <b>Go, Firecracker, 리눅스 + KVM</b>. v1 범위에 OCI 이미지 → rootfs 변환 포함(접근 방식 B).</p>
+          <div class="map"><button class="chip ses-a" data-open-ses="a">e_4d57</button></div>
+        </div>
+
+        <div class="block" data-block="d" id="b-d">
+          <h2>2. 아키텍처 · 핵심 결정</h2>
+          <p>exec·fs는 전부 guest-agent 경유(vsock). rootfs와 /workspace 분리. 데몬리스 이미지 pull(<span class="mono">mke2fs -d</span>). jailer 기본 사용.</p>
+          <div class="map"><button class="chip ses-a" data-open-ses="a">e_4d57</button></div>
+        </div>
+
+        <div class="block naked" data-block="n" id="b-n">
+          <h2>3. 세션 수명 · 근거 없음</h2>
+          <p>idle TTL 30분 경과 시 reaper가 VM 종료. 세션 상태는 인메모리만. 데몬 재시작 시 사라지지만 서버 측 영속화는 하지 않는다(YAGNI).</p>
+          <div class="map" id="n-map"><span class="chip naked">세션 없음</span></div>
+        </div>
+
+        <div class="block naked" data-block="c" id="b-c">
+          <h2>4. v1에서 제외 · 근거 없음</h2>
+          <p>exec 스트리밍, 세션 영속화, VM 스냅샷 웜부팅, 멀티테넌트 쿼터, 네트워크 egress 도메인 필터.</p>
+          <div class="map"><span class="chip naked">세션 없음</span></div>
+        </div>
+
+        <div class="block naked" data-block="x" id="b-x">
+          <h2>· 문서에 없는 이의</h2>
+          <p>t18에서 jailer 결정에 정면으로 반대하는 물음이 나왔는데 문서는 그 뒤로 갱신되지 않았다.</p>
+          <div class="map"><span class="chip naked">문서에 자리 없음</span></div>
+        </div>
+      </div>
+    </article>
+
+    <aside class="rail" id="rail"></aside>
+  </section>
+
+  <!-- Session -->
+  <section class="view session" id="view-session">
+    <div class="thread-wrap">
+      <div class="thread-head">
+        <span class="chip ses-a mono" id="ses-id">ses_8f2a</span>
+        <span id="ses-owner">동균 · Claude</span>
+        <span class="chip" id="armed-chip">41턴 · 원본</span>
+        <button class="chip" type="button" id="to-top" style="margin-left:auto">↑ 처음</button>
+      </div>
+      <div class="banner" id="ses-banner">이건 LLM 대화 원본이다. 주장을 카드로 안 뽑는다. 정제는 SoT에만 있다.</div>
+      <div class="thread" id="thread"><div class="thread-log" id="thread-log"></div></div>
+      <form class="composer" id="composer">
+        <input id="composer-input" placeholder="이 세션에서 이어서 말하기" autocomplete="off" />
+        <button class="btn primary" type="submit">보내기</button>
+      </form>
+    </div>
+    <aside class="side" id="claim-side"></aside>
+  </section>
+
+  <section class="view branches" id="view-docs">
+    <div class="branch-wrap">
+      <h1>설계문서</h1>
+      <p class="sub">msbd 레포의 superpowers 문서 4개. 근거는 문서에 종속되지 않는다 — 세션 하나가 여러 문서에 걸린다.</p>
+      <div id="doc-list"></div>
+      <button class="btn primary" id="new-doc" style="margin-top:14px">새 문서 만들기</button>
+    </div>
+  </section>
+
+  <section class="view branches" id="view-branches">
+    <div class="branch-wrap">
+      <h1 id="br-title">세션</h1>
+      <p class="sub">이 문서의 세션만 보인다. 세션을 열어도 문서는 안 바뀐다. 문서로 나가는 건 근거로 고른 것뿐이다.</p>
+      <div id="branch-list"></div>
+    </div>
+  </section>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const $ = (s, el = document) => el.querySelector(s);
+    const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+
+    const state = {
+      view: "docs",
+      doc: "design",
+      block: "p",
+      branch: "ses_8f2a",
+      jumpTurn: null,
+      asCommit: false,
+      proposed: false,
+    };
+
+    const EARLY = [
+      { turn: 1, who: "동균", kind: "human", text: "레포하나 만들거야 마이크로샌드박스 서버 플젝임" },
+      { turn: 2, who: "동균", kind: "human", text: "~/Works/agent-sandbox 이걸 레퍼런스로 삼을거임 /Users/dongkseo/project/nexora-python이거랑 같이 연계해서 쓸건데 배포용 샌드박스 서버를 만들거임" },
+    ];
+
+    const TURNS_A = [
+      { turn: 3, who: "Claude", kind: "llm", text: "가장 큰 설계 결정 하나만 먼저 물을게요: 세션당 격리 백엔드를 뭘로 하실 건가요?\n1. Docker 컨테이너 per session (추천) — 배포용 리눅스 서버에 가장 무난. agent-sandbox 이미지 재활용 가능.\n2. microVM (vz/firecracker) — 격리 최강이지만 배포 환경 제약 큼.\n3. 프로세스 수준 격리 (nsjail/bubblewrap/chroot) — 가볍지만 직접 다룰 게 많음." },
+      { turn: 3, who: "동균", kind: "human", text: "2번으로 할 생각인데" },
+      { turn: 4, who: "Claude", kind: "llm", text: "microVM으로 가시는군요. 어디에 배포하나요?\n1. 리눅스 서버 → Firecracker 또는 Cloud Hypervisor (KVM 필요). 배포용 샌드박스 서버의 정석.\n2. macOS → Virtualization.framework. agent-sandbox의 launcher/vz.go 재활용 여지.\n3. 둘 다 → 백엔드 추상화 필요, 범위가 커짐. 첫 버전에서는 비추." },
+      { turn: 4, who: "동균", kind: "human", text: "리눅스 서버에 배포할거임" },
+      { turn: 5, who: "Claude", kind: "llm", text: "서버 구현 언어는 뭘로 할까요?\n1. Go (추천) — firecracker-go-sdk가 공식으로 있고, agent-sandbox launcher가 이미 Go라 패턴 재활용. 단일 바이너리 배포.\n2. Python — nexora-python과 언어 통일. 다만 Firecracker 제어는 REST를 직접 두드려야 함.\n3. Rust — Firecracker 자체가 Rust지만 기존 자산 재활용이 없음." },
+      { turn: 5, who: "동균", kind: "human", text: "1" },
+      { turn: 6, who: "동균", kind: "human", text: "이건... 오픈소스로 사용자들이 내려받아서 빠르게 마이크로 vm을 만들 수 있는 플젝인데 바로 서버에 적용할 수 있도록" },
+      { turn: 7, who: "Claude", kind: "llm", text: "오픈소스 제품이면 DX가 설계의 중심이 됩니다.\nA. 단일 바이너리 + 프리빌트 rootfs (추천) — curl | sh 설치 → serve → 끝.\nB. A + 사용자 Docker 이미지 → rootfs 변환 내장 — 범용성 최고지만 v1 범위가 크게 늘어남.\n제 추천은 A로 시작, B는 v2." },
+      { turn: 7, who: "동균", kind: "human", text: "B" },
+      { turn: 10, who: "Claude", kind: "sot", name: "sot_update", args: "path: docs/superpowers/specs/2026-08-24-msbd-design.md\ncite: e_4d57", result: "wrote", link: "2026-08-24-msbd-design.md#p", jump: "p" },
+      { turn: 18, who: "동균", kind: "human", text: "근데 jail run을 만들어야됐을까? gvisor를 마이크로 vm에올리면 그게 제일런 아님?" },
+    ];
+
+    const TURNS_LOCAL = [
+      { turn: 1, who: "동균", kind: "human", text: "ㄱㄱ 다음 섹션" },
+      { turn: 2, who: "동균", kind: "human", text: "msbd" },
+      { turn: 3, who: "동균", kind: "human", text: "ㅇㅇ" },
+    ];
+    const TURNS_PRIV = [
+      { turn: 1, who: "동균", kind: "human", text: "스테이징 숫자 아직 밖에 말하면 안 됨. 이 대화는 로컬에만." },
+      { turn: 2, who: "Claude", kind: "llm", text: "알겠습니다. sot_update 안 합니다. 이 세션은 비공개로 남습니다." },
+    ];
+    const TURNS_SHARED = [
+      { turn: 1, who: "동균", kind: "human", text: "여기 같이 쓰는 세션. gvisor 얘기 여기서 하자. 내 로컬에서 본 건 아직 안 가져옴." },
+      { turn: 2, who: "민지", kind: "mj", text: "jailer 대신 gvisor면 t3 격리 백엔드 선택이 흔들리는 거 아님?" },
+      { turn: 3, who: "Claude", kind: "llm", text: "e_4d57의 t3은 Docker / microVM / 프로세스 격리 셋 중에 고른 겁니다.\ngvisor는 그때 선택지에 없었습니다. 기존 근거로는 답이 안 나옵니다." },
+      { turn: 4, who: "동균", kind: "human", text: "그럼 선택지를 새로 내야지. 지금 문서 §2는 그대로 두고." },
+      { turn: 5, who: "민지", kind: "mj", text: "ㅇㅋ 여기서 정리되기 전엔 sot_update 하지 마." },
+    ];
+
+    const BRANCHES = [
+      { id: "main", kind: "sot", title: "문서", meta: "docs/superpowers/specs/2026-08-24-msbd-design.md", tags: [["게시됨", "merged"]] },
+      { id: "ses_8f2a", kind: "session", title: "4d578888", meta: "사람 발화 22턴 · 설계 구간 10턴 237자", tags: [["근거 1", "merged"]], merged: true, private: false, early: true, turns: null, commit: "e_4d57", cite: [3, 5, 7], doc: "design" },
+      { id: "ses_b2e9", kind: "session", title: "4d57 · 이후", meta: "ㄱㄱ / msbd / ㅇㅇ · 결정 아님", tags: [["내 세션", "local"], ["반영 안 됨", "local"]], merged: false, private: false, turns: "local", doc: "design" },
+      { id: "ses_shared", kind: "session", title: "gvisor 재검토", meta: "같이 쓰는 세션 · 동균·민지 · t18 이의를 여기서 다룸 · 개념 화면(msbd 실세션 아님)", tags: [["같이 씀", "shared"], ["반영 안 됨", "local"]], merged: false, private: false, shared: true, turns: "shared", doc: "design" },
+    ];
+
+    const DERIVED = {};
+
+    // 실측: msbd/docs/superpowers/**  +  ~/.claude/projects transcript 역인덱스
+    const DOCS = [
+      { id: "design", path: "specs/2026-08-24-msbd-design.md", title: "msbd 설계", secs: 8,
+        ses: ["4d578888", "agent-a0", "agent-aa", "agent-ab"], open: true },
+      { id: "core", path: "plans/2026-08-24-msbd-core.md", title: "Plan 1 · core", secs: 5,
+        ses: ["4d578888", "agent-a5", "agent-aa", "agent-ae"] },
+      { id: "fc", path: "plans/2026-08-26-msbd-firecracker.md", title: "Plan 2 · Firecracker", secs: 2,
+        ses: ["4d578888", "agent-ab"] },
+      { id: "dx", path: "plans/2026-08-26-msbd-images-dx.md", title: "Plan 3 · Images & DX", secs: 2,
+        ses: ["4d578888", "agent-a0"] },
+    ];
+
+    const BLOCKS = {
+      p: { title: "1. 목적", naked: false, quotes: [
+        { turn: 3, q: "격리 백엔드 — <b>1 Docker(추천)</b> / 2 microVM / 3 프로세스 격리", text: "2번으로 할 생각인데", flip: true },
+        { turn: 5, q: "구현 언어 — <b>1 Go(추천)</b> / 2 Python / 3 Rust", text: "1" },
+        { turn: 7, q: "v1 범위 — <b>A 프리빌트 rootfs(추천)</b> / B 이미지 변환 내장", text: "B", flip: true }] },
+      d: { title: "2. 아키텍처 · 핵심 결정", naked: false, quotes: [
+        { turn: 3, q: "격리 백엔드 — <b>1 Docker(추천)</b> / 2 microVM / 3 프로세스 격리", text: "2번으로 할 생각인데", flip: true },
+        { turn: 7, q: "v1 범위 — <b>A 프리빌트 rootfs(추천)</b> / B 이미지 변환 내장", text: "B", flip: true }] },
+      n: { title: "3. 세션 수명", naked: true, quotes: [] },
+      c: { title: "4. v1에서 제외", naked: true, quotes: [] },
+      x: { title: "· 문서에 없는 이의", naked: true, quotes: [] },
+    };
+
+    function toast(msg) {
+      const el = $("#toast");
+      el.textContent = msg;
+      el.classList.add("on");
+      setTimeout(() => el.classList.remove("on"), 1800);
+    }
+
+    function branchOf(id) {
+      return BRANCHES.find((b) => b.id === id) || BRANCHES[1];
+    }
+
+    function setView(v) {
+      if (v === "shared") { openSession("ses_shared", null, false); return; }
+      if (v === "session") {
+        state.asCommit = false;
+        if (branchOf(state.branch).shared) state.branch = "ses_8f2a";
+      }
+      state.view = v;
+      render();
+    }
+
+    function render() {
+      $$(".demo-bar [data-view]").forEach((b) => {
+        const v = b.dataset.view;
+        const on = v === "shared" ? (state.view === "session" && state.branch === "ses_shared")
+          : v === "session" ? (state.view === "session" && state.branch !== "ses_shared")
+          : v === state.view;
+        b.classList.toggle("on", on);
+      });
+      $$(".view").forEach((el) => el.classList.remove("on"));
+      const viewId = state.view === "session" ? "view-session"
+        : state.view === "branches" ? "view-branches"
+        : state.view === "docs" ? "view-docs"
+        : "view-sot";
+      $("#" + viewId).classList.add("on");
+      $("#view-sot").classList.add("rail-open");
+      $("#view-session").classList.add("rail-open");
+      renderHeader();
+      if (state.view === "sot") renderSot();
+      if (state.view === "session") renderSession();
+      if (state.view === "branches") renderBranches();
+      if (state.view === "docs") renderDocs();
+    }
+
+    function renderHeader() {
+      const actions = $("#header-actions");
+      const crumb = $("#crumb");
+      const br = branchOf(state.branch);
+      if (state.view === "sot") {
+        crumb.innerHTML = "문서 · <b>msbd 설계</b>";
+        actions.innerHTML = `
+          <span class="chip merged">게시됨</span>
+          <button class="btn" data-view="branches">세션 목록</button>`;
+      } else if (state.view === "session") {
+        crumb.innerHTML = `세션 · <b>${br.title}</b>`;
+        actions.innerHTML = `
+          <span class="chip ${br.private ? "priv" : br.merged ? "merged" : "local"}">${br.private ? "비공개" : br.merged ? "반영됨" : "반영 안 됨"}</span>
+          <button class="btn" data-view="sot">문서</button>
+          <button class="btn" data-view="branches">세션 목록</button>`;
+      } else if (state.view === "docs") {
+        crumb.innerHTML = "설계문서 4개";
+        actions.innerHTML = `<button class="btn" data-view="branches">세션 목록</button>`;
+      } else {
+        const d0 = DOCS.find((x) => x.id === state.doc);
+        crumb.innerHTML = `${d0.title} · <b>세션 ${BRANCHES.filter((b) => b.doc === state.doc).length}</b>`;
+        actions.innerHTML = `<button class="btn" data-view="sot">문서</button><button class="btn" data-view="docs">문서 목록</button>`;
+      }
+      $$(".header-actions [data-view], .brand[data-view]").forEach((b) => {
+        b.onclick = (e) => { e.preventDefault(); setView(b.dataset.view); };
+      });
+    }
+
+    let SNAP = null;
+    function snap() {
+      if (!SNAP) SNAP = { outline: $(".outline").innerHTML, doc: $(".doc").innerHTML };
+    }
+
+    function renderNewDoc() {
+      const d = DOCS.find((x) => x.id === state.doc);
+      $(".outline").innerHTML = "<h3>OUTLINE</h3>" + (d.blocks.length
+        ? d.blocks.map((b, i) => `<button class="on"><span class="n">${i + 1}</span>${b.title} <i class="dot a"></i></button>`).join("")
+        : `<p class="empty" style="padding:0 8px;font-size:12px;color:var(--gray-500)">아직 없음</p>`);
+      $(".doc").innerHTML = `
+        <div class="doc-card">
+          <div class="doc-meta"><span>sot/${d.id}.md</span><span>·</span><span>새 문서</span></div>
+          <h1>${d.title}</h1>
+          ${d.blocks.length
+            ? d.blocks.map((b) => `<div class="block on"><h2>${b.title}</h2><p>${b.body}</p>
+                <div class="map"><button class="chip ses-a">${b.cite}</button></div></div>`).join("")
+            : `<p class="lede">빈 문서다. 여기 직접 쓰는 게 아니라, 세션에서 결정이 내려지면 그 자리가 근거와 함께 들어온다.</p>`}
+        </div>`;
+      const rail = $("#rail");
+      rail.innerHTML = d.blocks.length
+        ? `<h3>문서에 연결된 근거</h3><h4>${d.title}</h4>
+           <div class="card"><div class="who">${d.blocks[d.blocks.length - 1].cite}</div>
+             <p style="font-size:13px">${d.blocks[d.blocks.length - 1].said}</p></div>
+           <div class="actions"><button class="btn" id="go-ses">세션 보기</button></div>`
+        : `<h3>근거</h3><h4>${d.title}</h4>
+           <p class="empty">근거가 하나도 없다. 문서에 무언가 들어오려면 먼저 세션에서 결정이 나야 한다.</p>
+           <div class="actions"><button class="btn primary" id="start-ses">이 문서로 세션 시작</button></div>`;
+      const st = $("#start-ses");
+      if (st) st.onclick = () => {
+        const nid = "ses_" + (0x1000 + Math.floor(Math.random() * 0xefff)).toString(16);
+        DERIVED[nid] = [];
+        BRANCHES.push({ id: nid, kind: "session", title: nid.slice(4),
+          meta: d.title + " · 아직 근거 없음", tags: [["새 세션", "local"], ["반영 안 됨", "local"]],
+          merged: false, private: false, forDoc: d.id, doc: d.id });
+        state.branch = nid; state.asCommit = false; state.view = "session"; render();
+        toast("빈 세션이다. 말을 걸면 LLM이 선택지를 낸다.");
+      };
+      const gs = $("#go-ses");
+      if (gs) gs.onclick = () => { state.branch = d.sesId; state.view = "session"; render(); };
+    }
+
+    function renderSot() {
+      snap();
+      const d = DOCS.find((x) => x.id === state.doc);
+      if (d && d.blocks) { renderNewDoc(); return; }
+      if (SNAP) { $(".outline").innerHTML = SNAP.outline; $(".doc").innerHTML = SNAP.doc; }
+      $("#doc-rev").textContent = "문서 · 근거 연결된 것만";
+      $$(".outline button").forEach((el) => el.onclick = () => { state.block = el.dataset.block; renderSot(); });
+      $$(".block").forEach((el) => el.onclick = () => { state.block = el.dataset.block; renderSot(); });
+      $$(".block").forEach((el) => el.classList.toggle("on", el.dataset.block === state.block));
+      $$(".outline button").forEach((el) => el.classList.toggle("on", el.dataset.block === state.block));
+      renderRail();
+      $$("[data-open-ses]").forEach((b) => b.onclick = (e) => {
+        e.stopPropagation();
+        openSession("ses_8f2a", null, true);
+      });
+    }
+
+    function renderRail() {
+      const b = BLOCKS[state.block];
+      const rail = $("#rail");
+      if (b.naked) {
+        rail.innerHTML = `
+          <h3>근거</h3>
+          <h4>${b.title}</h4>
+          <p class="empty">sot_update를 안 탄 문장이다. 채팅에 붙여 넣거나 손으로 적으면 세션 링크가 안 생긴다.</p>
+          <div class="card">
+            <div class="who">할 수 있는 것</div>
+            <p style="font-size:13px;color:var(--gray-700)">이 구간에서 세션을 시작하면, 이후 문장은 session id를 갖게 된다.</p>
+          </div>
+          <div class="actions">
+            <button class="btn primary" id="start-ses">이 구간부터 세션 시작</button>
+          </div>`;
+        $("#start-ses").onclick = () => toast("데모에선 본편 세션만 열어둠");
+        return;
+      }
+      const quotes = b.quotes.map((q) => `
+        <button class="quote" type="button" data-turn="${q.turn}">
+          <div class="t">t${q.turn} · LLM이 낸 선택지${q.flip ? ' · <b style="color:var(--red)">추천 뒤집음</b>' : ""}</div>
+          <div style="font-size:12px;color:var(--gray-600);line-height:1.55;margin:4px 0 8px">${q.q}</div>
+          <div style="background:var(--gray-900);color:#fff;border-radius:8px;padding:7px 10px;font-weight:700">사람 “${q.text}”</div>
+        </button>`).join("");
+      rail.innerHTML = `
+        <h3>문서에 연결된 근거 · 선택지와 선택</h3>
+        <h4>${b.title}</h4>
+        <p class="warn-note">사람이 쓴 건 “1” “B” 뿐이다. 앞 선택지가 없으면 근거가 되지 않는다.</p>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="chip ses-a" data-open-ses="ses_8f2a">e_4d57</button>
+          <span class="chip merged">근거</span>
+        </div>
+        <div class="card" style="display:flex;flex-direction:column;gap:8px">
+          <div class="who">고른 자리 · t3 · t5 · t7</div>
+          ${quotes}
+        </div>
+        <div class="actions">
+          <button class="btn primary" data-open-ses="ses_8f2a">이 근거 보기</button>
+        </div>`;
+      $$("[data-open-ses]", rail).forEach((btn) => btn.onclick = () => openSession("ses_8f2a", btn.dataset.turn, true));
+      $$(".quote", rail).forEach((btn) => btn.onclick = () => openSession("ses_8f2a", btn.dataset.turn, true));
+    }
+
+    function openSession(id, turn, asCommit) {
+      if (id === "a" || !id) id = "ses_8f2a";
+      state.branch = id;
+      state.asCommit = !!asCommit;
+      if (turn) state.jumpTurn = Number(turn);
+      else state.jumpTurn = null;
+      state.view = "session";
+      render();
+    }
+
+    // 선택 지점 = 선택지를 낸 LLM 턴 + 바로 뒤 사람 턴
+    function pairsOf(br) {
+      const rest = turnsFor(br).rest, out = [];
+      for (let i = 0; i < rest.length - 1; i++) {
+        const a = rest[i], b = rest[i + 1];
+        const hasOpts = a.kind === "llm" && (a.text.indexOf("\n1.") >= 0 || a.text.indexOf("\nA.") >= 0);
+        if (hasOpts && b.kind === "human") out.push([a, b]);
+      }
+      return out;
+    }
+
+    function turnsFor(br) {
+      if (DERIVED[br.id]) return { early: TURNS_A.filter((m) => br.citeTurns.indexOf(m.turn) >= 0), rest: DERIVED[br.id] };
+      if (br.turns === "local") return { early: "", rest: TURNS_LOCAL };
+      if (br.turns === "priv") return { early: "", rest: TURNS_PRIV };
+      if (br.turns === "shared") return { early: "", rest: TURNS_SHARED };
+      return { early: EARLY, rest: TURNS_A };
+    }
+
+    function renderSession() {
+      const br = branchOf(state.branch);
+      const commitView = state.asCommit && br.commit;
+      $("#ses-id").textContent = commitView ? br.commit : br.title;
+      $("#ses-id").className = "chip mono " + (commitView ? "ses-a" : br.private ? "priv" : br.shared ? "shared" : br.merged ? "ses-a" : "local");
+      $("#ses-owner").textContent = commitView ? `근거 · ${br.cite.map(t => "t" + t).join(", ")}만` : br.shared ? "동균 · 민지 · Claude" : br.private ? "이 머신 · 비공개" : "동균 · Claude";
+      $("#armed-chip").textContent = commitView ? "세션 원본 아님" : br.shared ? "같이 씀" : br.merged ? "세션 원본" : "반영 안 됨";
+      const banner = $("#ses-banner");
+      banner.className = "banner" + (commitView || br.shared || br.private ? " recv" : "");
+      if (br.from) {
+        banner.className = "banner recv";
+        banner.textContent = br.from + "에서 갈라져 나온 세션이다. " + br.cited + "가 장전돼 있고, 원본 22턴은 안 바뀐다. 문서에 가려면 여기서 근거를 새로 골라야 한다.";
+      } else
+      banner.textContent = commitView
+        ? "근거는 고른 턴이다. 22턴 전부가 아니라, 결정이 내려진 자리만. 선택지를 낸 턴과 고른 턴이 쌍으로 들어온다."
+        : br.private
+          ? "비공개 세션이다. 여기서 턴을 지우고 고쳐도 밖에 안 나간다. 근거로 골라야 나간다."
+          : br.shared
+            ? "같이 쓰는 세션이다. 두 사람과 LLM이 같은 자리에서 말한다. 근거로 고르기 전엔 문서에 없다. — 이 화면만 msbd 실데이터가 아니라 개념 화면이다."
+            : br.merged
+              ? "세션 원본이다. 사람 발화 22턴 중 설계 구간은 10턴 237자, 나머지는 시스템 알림이었다."
+              : "내 세션이다. 턴에 손댈 수 있고, 아직 고른 근거가 없다.";
+
+      const pack = turnsFor(br);
+      const include = commitView ? br.cite : null;
+      const early = (!commitView && pack.early) ? pack.early.map((m) => renderMsg(m, true)).join("") : "";
+      const restSrc = include ? pack.rest.filter((m) => include.includes(m.turn)) : pack.rest;
+      const rest = restSrc.map((m) => renderMsg(m)).join("");
+      const log = $("#thread-log");
+      const mark = br.from
+        ? `${br.cited} · 장전된 근거 ${pack.early.length}턴 · 읽기 전용 (원본은 ${br.from})`
+        : "t1–2 · 세션 원본 · 근거에 안 넣음";
+      log.innerHTML = early
+        ? `${early}<div class="hist-mark">${mark}</div>${rest}`
+        : (commitView ? `<div class="hist-mark">${br.commit} · 고른 턴 ${br.cite.map(t => "t" + t).join(" ")} · 나머지 제외</div>${rest}` : rest);
+      $("#to-top").onclick = () => {
+        const first = log.querySelector(".msg");
+        if (first) first.scrollIntoView({ block: "start" });
+      };
+      if (state.jumpTurn) {
+        const el = log.querySelector(`.msg[data-turn="${state.jumpTurn}"]`);
+        if (el) el.scrollIntoView({ block: "center" });
+      }
+      $$("[data-jump]", log).forEach((b) => b.onclick = () => {
+        state.block = b.dataset.jump;
+        setView("sot");
+      });
+      renderClaimSide();
+      $("#composer-input").placeholder = br.commit ? "여기서 말하면 갈라진 세션이 생긴다" : br.shared ? "같이 쓰는 세션에 말하기" : br.private ? "이 머신에서만 말하기" : "이 세션에서 이어서 말하기";
+    }
+
+    function renderMsg(m, early) {
+      if (m.kind === "tool") {
+        return `<div class="msg ${early ? "early" : ""} ${state.jumpTurn === m.turn ? "jump" : ""}" data-turn="${m.turn}">
+          <div class="av llm">C</div>
+          <div class="tool">tool · ${m.text}<span class="turn-n">t${m.turn}</span></div>
+        </div>`;
+      }
+      if (m.kind === "sot") {
+        const link = m.link
+          ? `<button class="chip ses-a" type="button" data-jump="${m.jump}">${m.link}</button>`
+          : (m.jump ? `<button class="chip" type="button" data-jump="${m.jump}">문서에서 보기</button>` : "");
+        return `<div class="msg ${early ? "early" : ""} ${state.jumpTurn === m.turn ? "jump" : ""}" data-turn="${m.turn}">
+          <div class="av llm">C</div>
+          <div class="tool-card">
+            <div class="name">${m.name}<em>t${m.turn}</em></div>
+            <pre>${m.args}</pre>
+            <div class="out">→ ${m.result} ${link}</div>
+          </div>
+        </div>`;
+      }
+      const av = m.kind === "llm" ? "llm" : m.kind === "mj" ? "mj" : "human";
+      const edited = state.asCommit && m.edit;
+      const body = edited || m.text;
+      const paras = body.split("\n").filter(Boolean).map((t) => `<p>${t}</p>`).join("");
+      return `<div class="msg ${early ? "early" : ""} ${state.jumpTurn === m.turn ? "jump" : ""}" data-turn="${m.turn}">
+        <div class="av ${av}">${m.kind === "llm" ? "C" : m.who[0]}</div>
+        <div class="bubble">
+          <div class="who">${m.who}<span class="turn-n">t${m.turn}${edited ? " · edited" : ""}${m.live ? " · 방금 · 문서에 안 감" : ""}</span></div>
+          ${paras}
+          ${!edited && m.pre ? `<pre>${m.pre}</pre>` : ""}
+        </div>
+      </div>`;
+    }
+
+    function renderClaimSide() {
+      const br = branchOf(state.branch);
+      const commitView = state.asCommit && br.commit;
+      const link = br.merged
+        ? `<button class="btn ghost" style="justify-content:flex-start;height:auto;padding:6px 4px" data-jump="p">문서 · §1 ← e_4d57</button>`
+        : `<p class="empty">고른 근거가 없어서 문서에 연결이 없다.</p>`;
+      $("#claim-side").innerHTML = `
+        <div>
+          <h3>${commitView ? "근거" : "세션 원본"}</h3>
+          <h4>${commitView ? br.commit : br.title}</h4>
+          <p class="warn-note" style="margin-top:8px">${commitView ? "고른 턴 앞에는 반드시 선택지를 낸 LLM 턴이 있다. 그 둘이 한 쌍이라야 근거다." : "결정은 선택지가 제시된 자리에서 내려진다. 그 지점을 골라 근거로 삼는다."}</p>
+        </div>
+        <div class="card">
+          <div class="who">${commitView ? "이 근거" : "LLM이 치는 도구"}</div>
+          <p style="font-size:13px;line-height:1.55">${commitView ? "t3 격리 백엔드 · t5 구현 언어 · t7 v1 범위<br>사람이 쓴 글자 합계 13자" : "session_cite(turns)<br>sot_update(cite)<br><br>t18 gvisor 이의는 아직 어디에도 안 붙었다."}</p>
+        </div>
+        <div>
+          <h3>문서</h3>
+          <div class="card" style="font-size:13px">${link}</div>
+        </div>
+        ${br.title === "4d578888" ? `<div>
+          <h3>이 세션이 근거를 댄 문서</h3>
+          <div class="card" style="font-size:12.5px;line-height:1.9">
+            ${DOCS.map((d) => "· " + d.title).join("<br>")}
+            <div style="margin-top:8px;color:var(--gray-500)">근거 하나가 문서 여러 개에 걸린다.</div>
+          </div>
+        </div>` : ""}
+        ${commitView ? `<button class="btn" id="open-wt">세션 원본 열기 · 22턴 전체</button>` : `<button class="btn primary" id="do-commit">${br.commit ? "고른 자리 보기" : pairsOf(br).length ? "근거로 고르기 · session_cite" : "LLM에게 선택지 요청"}</button>`}`;
+      $$("[data-jump]").forEach((b) => b.onclick = () => { state.block = b.dataset.jump; setView("sot"); });
+      const wt = $("#open-wt");
+      if (wt) wt.onclick = () => openSession(br.id, null, false);
+      const dc = $("#do-commit");
+      if (dc) dc.onclick = () => {
+        if (br.commit) { openSession(br.id, br.cite[0], false); return; }
+        const pairs = pairsOf(br);
+        const pack = turnsFor(br);
+        if (!pairs.length) {
+          const last = pack.rest[pack.rest.length - 1].turn;
+          pack.rest.push({ turn: last + 1, who: "Claude", kind: "llm", text:
+            "gvisor는 t3 선택지에 없었습니다. 그 자리를 다시 냅니다.\n1. jailer 유지 (추천) — CI 스모크까지 통과한 상태. 바꾸면 Plan 3 재작업.\n2. gvisor로 교체 — syscall 필터는 촘촘하지만 microVM 안에 한 겹 더 얹는 비용.\n3. 둘 다 지원 — 백엔드 추상화 필요, v1 범위 초과." });
+          state.jumpTurn = last + 1;
+          render();
+          toast("선택지가 나왔다. 고르면 그 자리가 근거가 된다.");
+          return;
+        }
+        const p = pairs[pairs.length - 1];
+        const eid = "e_" + br.id.slice(4);
+        if (br.forDoc) {
+          const d = DOCS.find((x) => x.id === br.forDoc);
+          const key = p[1].text.trim();
+          const chosen = (p[0].text.split(String.fromCharCode(10)).find((l) => l.trim().indexOf(key + ".") === 0) || "").replace(/^\s*[0-9A-D]\.\s*/, "");
+          d.blocks.push({ title: d.blocks.length + 1 + ". 결정", body: chosen || key, cite: eid, said: "사람 “" + key + "”" });
+          d.title = d.title === "제목 없음" ? "요청 제한 처리" : d.title;
+          d.sesId = br.id;
+          br.commit = eid; br.merged = true; br.cite = [p[1].turn];
+          br.tags = [["근거 1", "merged"]];
+          br.meta = d.title + " · " + eid + " 문서에 붙음";
+          state.doc = d.id;
+          setView("sot");
+          toast(eid + " 생김. 빈 문서에 첫 블록이 들어갔다.");
+          return;
+        }
+        br.commit = eid; br.merged = true; br.cite = [p[1].turn];
+        br.tags = [["근거 1", "merged"]];
+        br.meta = br.from + "에서 갈라짐 · " + eid + " 문서 §2에 붙음";
+        BLOCKS.d.quotes.push({ turn: p[1].turn,
+          q: "gvisor 재검토 — <b>1 jailer 유지(추천)</b> / 2 gvisor 교체 / 3 둘 다",
+          text: p[1].text });
+        const bx = $("#b-x");
+        bx.classList.remove("naked");
+        $("#b-x .map").innerHTML = '<button class="chip ses-a">' + eid + '</button>';
+        $("#b-x h2").textContent = "· 이의 해소됨";
+        $("#b-x p").textContent = "t18의 물음이 " + eid + "로 문서 §2에 붙었다.";
+        $$(".outline button").forEach((btn) => {
+          if (btn.dataset.block === "x") btn.querySelector("i").className = "dot a";
+        });
+        state.block = "d";
+        setView("sot");
+        toast(eid + " 생김. 문서 §2에 붙었다.");
+      };
+    }
+
+    function renderDocs() {
+      $("#doc-list").innerHTML = DOCS.map((d) => `
+        <button class="branch-row ${d.open ? "on" : ""}" type="button" data-doc="${d.id}">
+          <div>
+            <div class="id">${d.title}</div>
+            <div class="meta">${d.blocks ? d.path + " · 블록 " + d.blocks.length + "개" : "docs/superpowers/" + d.path + " · 섹션 " + d.secs + "개 · 인용 세션 " + d.ses.length}</div>
+            <div class="meta" style="margin-top:4px">${(d.blocks ? BRANCHES.filter((b) => b.doc === d.id).map((b) => b.title) : d.ses).map((x) => x.indexOf("agent-") === 0
+              ? `<span class="chip" style="margin-right:4px">${x} · 사람 없음</span>`
+              : `<span class="chip ses-a" style="margin-right:4px">${x}</span>`).join("")}</div>
+          </div>
+          <div class="tags">${d.blocks ? (d.blocks.length ? '<span class="chip merged">근거 ' + d.blocks.length + '</span>' : '<span class="chip local">비어 있음</span>') : d.open ? '<span class="chip merged">본문 있음</span>' : '<span class="chip local">본문 없음</span>'}</div>
+        </button>`).join("");
+      $("#new-doc").onclick = () => {
+        const id = "doc" + (DOCS.length + 1);
+        DOCS.push({ id: id, path: "sot/" + id + ".md", title: "제목 없음", secs: 0, ses: [], blocks: [] });
+        state.doc = id; setView("sot");
+        toast("빈 문서를 만들었다. 근거 0개.");
+      };
+      $$("[data-doc]").forEach((btn) => btn.onclick = () => {
+        const d = DOCS.find((x) => x.id === btn.dataset.doc);
+        if (d.open || d.blocks) { state.doc = d.id; setView("sot"); }
+        else toast(d.title + " · 이 데모엔 설계문서 본문만 넣었다");
+      });
+    }
+
+    function renderBranches() {
+      const d = DOCS.find((x) => x.id === state.doc);
+      const mine = BRANCHES.filter((b) => b.kind === "sot" || b.doc === state.doc);
+      const head = mine.map((b) => b.kind === "sot"
+        ? Object.assign({}, b, { title: d.title, meta: d.blocks ? "sot/" + d.id + ".md" : "docs/superpowers/" + d.path })
+        : b);
+      $("#branch-list").innerHTML = head.map((b) => `
+        <button class="branch-row ${state.branch === b.id && b.kind === "session" ? "on" : ""}" type="button" data-br="${b.id}">
+          <div>
+            <div class="id">${b.title}</div>
+            <div class="meta">${b.meta}</div>
+          </div>
+          <div class="tags">${b.tags.map(([t, c]) => `<span class="chip ${c}">${t}</span>`).join("")}</div>
+        </button>`).join("");
+      $("#br-title").textContent = d.title + " · 세션";
+      $$("[data-br]").forEach((btn) => btn.onclick = () => {
+        const id = btn.dataset.br;
+        if (id === "main") setView("sot");
+        else openSession(id, null, false);
+      });
+    }
+
+    $$(".demo-bar [data-view]").forEach((b) => b.onclick = () => setView(b.dataset.view));
+    $$(".outline button").forEach((b) => b.onclick = () => { state.block = b.dataset.block; renderSot(); });
+    $$(".block").forEach((b) => b.onclick = () => { state.block = b.dataset.block; renderSot(); });
+    $("#composer").onsubmit = (e) => {
+      e.preventDefault();
+      const input = $("#composer-input");
+      const text = input.value.trim();
+      if (!text) return;
+      const br = branchOf(state.branch);
+      input.value = "";
+      if (br.commit) {
+        // 근거로 인용된 세션은 불변이다. 이어 말하면 갈라져 나온다.
+        const nid = "ses_" + (0x1000 + Math.floor(Math.random() * 0xefff)).toString(16);
+        DERIVED[nid] = [{ turn: 1, who: "동균", kind: "human", text: text, live: true }];
+        BRANCHES.push({
+          id: nid, kind: "session", title: nid.slice(4),
+          meta: br.title + "에서 갈라짐 · " + br.commit + " 장전됨",
+          tags: [["갈라짐", "local"], ["반영 안 됨", "local"]],
+          merged: false, private: false, from: br.title, cited: br.commit, citeTurns: br.cite.slice(), doc: br.doc,
+        });
+        state.branch = nid;
+        state.asCommit = false;
+        state.jumpTurn = 1;
+        render();
+        toast(nid + " 생김. " + br.title + "은 그대로다.");
+        return;
+      }
+      const pack = turnsFor(br);
+      const last = pack.rest.length ? pack.rest[pack.rest.length - 1].turn : 0;
+      pack.rest.push({ turn: last + 1, who: "동균", kind: "human", text: text, live: true });
+      if (br.forDoc && pack.rest.length === 1) {
+        pack.rest.push({ turn: last + 2, who: "Claude", kind: "llm", text:
+          "정하기 전에 선택지를 놓겠습니다.\n1. 게이트 프로세스 메모리 카운터 — 제일 단순하지만 재시도가 다른 게이트로 붙으면 깨집니다.\n2. Redis + pub/sub 무효화 — 구독 끊긴 노드가 옛 카운터로 통과시킵니다.\n3. durable store + 버전 토큰 (추천) — 재시도가 토큰을 들고 오면 같은 결정이 다시 나옵니다." });
+        state.jumpTurn = last + 2;
+      } else {
+        state.jumpTurn = last + 1;
+      }
+      state.asCommit = false;
+      render();
+      toast(br.forDoc && pack.rest.length > 2 ? "골랐다. 이제 근거로 만들 수 있다." : "이 세션에만 남았다. 문서에는 안 간다.");
+    };
+
+    render();
+  </script>
+</body>
+</html>

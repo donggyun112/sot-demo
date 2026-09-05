@@ -1,0 +1,840 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SOT · 세션이 근거</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" />
+  <style>
+    :root {
+      --blue: #3182f6;
+      --blue-50: #e8f3ff;
+      --blue-100: #c9e2ff;
+      --violet: #6b4eff;
+      --violet-50: #f0edff;
+      --red: #f04452;
+      --red-50: #ffeeee;
+      --green: #00a86b;
+      --yellow: #ffc342;
+      --gray-900: #191f28;
+      --gray-800: #333d4b;
+      --gray-700: #4e5968;
+      --gray-600: #6b7684;
+      --gray-500: #8b95a1;
+      --gray-400: #b0b8c1;
+      --gray-300: #d1d6db;
+      --gray-200: #e5e8eb;
+      --gray-100: #f2f4f6;
+      --gray-50: #f9fafb;
+      --white: #fff;
+      --ses-a: #3182f6;
+      --ses-b: #6b4eff;
+      --radius: 12px;
+      --shadow: 0 1px 2px rgba(25, 31, 40, .06), 0 4px 16px rgba(25, 31, 40, .04);
+      --font: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      font-family: var(--font);
+      color: var(--gray-800);
+      background: var(--gray-100);
+      font-size: 15px;
+      line-height: 1.5;
+      word-break: keep-all;
+    }
+    button, input { font-family: inherit; }
+    button { cursor: pointer; }
+    .mono { font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+
+    /* demo chrome */
+    .demo-bar {
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      padding: 8px 16px; background: var(--gray-900); color: var(--white);
+      font-size: 12px; font-weight: 600;
+    }
+    .demo-bar .label { color: var(--gray-400); margin-right: 4px; }
+    .demo-bar button, .role-switch button {
+      border: 0; background: transparent; color: var(--gray-400);
+      padding: 6px 10px; border-radius: 8px; font-size: 12px; font-weight: 600;
+    }
+    .demo-bar button.on, .role-switch button.on { background: var(--white); color: var(--gray-900); }
+    .demo-bar button:hover:not(.on) { color: var(--white); background: #333d4b; }
+    .role-switch { margin-left: auto; display: flex; gap: 4px; background: #333d4b; padding: 3px; border-radius: 10px; }
+    .role-switch button { color: var(--gray-400); }
+
+    /* app shell */
+    .app-header {
+      display: flex; align-items: center; gap: 12px;
+      height: 56px; padding: 0 20px; background: var(--white);
+      border-bottom: 1px solid var(--gray-200);
+    }
+    .brand { display: flex; align-items: baseline; gap: 8px; text-decoration: none; color: inherit; }
+    .brand strong { font-size: 18px; letter-spacing: -.03em; color: var(--gray-900); }
+    .brand span { font-size: 13px; color: var(--gray-500); font-weight: 500; }
+    .crumb { color: var(--gray-400); font-size: 13px; }
+    .crumb b { color: var(--gray-800); font-weight: 600; }
+    .header-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+    .chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      height: 26px; padding: 0 10px; border-radius: 8px;
+      background: var(--gray-100); color: var(--gray-700);
+      font-size: 12px; font-weight: 600; border: 0;
+    }
+    .chip.ses-a { background: var(--blue-50); color: var(--blue); }
+    .chip.ses-b { background: var(--violet-50); color: var(--violet); }
+    .chip.naked { background: var(--red-50); color: var(--red); }
+    .chip.merged { background: #eaf8f0; color: var(--green); }
+    .chip.local { background: var(--gray-100); color: var(--gray-600); }
+    .chip.priv { background: var(--gray-900); color: var(--white); }
+    .chip.shared { background: var(--violet-50); color: var(--violet); }
+    .btn {
+      height: 36px; padding: 0 14px; border-radius: 10px;
+      border: 1px solid var(--gray-200); background: var(--white);
+      color: var(--gray-800); font-size: 13px; font-weight: 600;
+    }
+    .btn:hover { background: var(--gray-50); }
+    .btn.primary { background: var(--blue); color: var(--white); border-color: var(--blue); }
+    .btn.primary:hover { filter: brightness(.96); }
+    .btn.ghost { border-color: transparent; background: transparent; }
+    .btn.danger { color: var(--red); border-color: var(--gray-200); }
+
+    .view { display: none; height: calc(100vh - 56px - 37px); min-height: 0; overflow: hidden; }
+    .view.on { display: flex; }
+    .view.on.sot { display: grid; grid-template-columns: 220px 1fr 320px; width: 100%; }
+    .view.on.session { display: grid; grid-template-columns: 1fr 340px; width: 100%; }
+    .view.on.branches { display: flex; justify-content: center; overflow: auto; padding: 32px 20px; }
+    .branch-wrap { width: min(640px, 100%); }
+    .branch-wrap h1 { font-size: 22px; color: var(--gray-900); margin-bottom: 6px; }
+    .branch-wrap .sub { color: var(--gray-500); margin-bottom: 18px; font-size: 14px; }
+    .branch-row {
+      display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center;
+      background: var(--white); border: 1px solid var(--gray-200); border-radius: 14px;
+      padding: 14px 16px; margin-bottom: 8px; cursor: pointer; text-align: left; width: 100%;
+      font: inherit; color: inherit;
+    }
+    .branch-row:hover { border-color: var(--blue-100); }
+    .branch-row.on { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-50); }
+    .branch-row .id { font-weight: 700; color: var(--gray-900); }
+    .branch-row .meta { font-size: 13px; color: var(--gray-600); margin-top: 4px; }
+    .branch-row .tags { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+
+    /* SoT */
+    .sot { min-height: 0; }
+    .outline {
+      background: var(--white); border-right: 1px solid var(--gray-200);
+      padding: 18px 12px; overflow: auto; min-height: 0;
+    }
+    .outline h3 { font-size: 11px; color: var(--gray-500); letter-spacing: .06em; padding: 0 8px 10px; }
+    .outline button {
+      display: flex; width: 100%; text-align: left; gap: 8px; align-items: center;
+      border: 0; background: transparent; padding: 8px; border-radius: 8px;
+      color: var(--gray-700); font-size: 13px; font-weight: 500;
+    }
+    .outline button.on, .outline button:hover { background: var(--gray-100); color: var(--gray-900); }
+    .outline .n { width: 18px; color: var(--gray-400); font-size: 12px; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--gray-300); margin-left: auto; }
+    .dot.a { background: var(--ses-a); }
+    .dot.b { background: var(--ses-b); }
+    .dot.naked { background: var(--red); }
+
+    .doc {
+      overflow: auto; padding: 36px 48px 80px;
+      background: var(--gray-50); min-height: 0;
+    }
+    .doc-card {
+      max-width: 720px; margin: 0 auto; background: var(--white);
+      border: 1px solid var(--gray-200); border-radius: 16px;
+      padding: 40px 44px 48px; box-shadow: var(--shadow);
+    }
+    .doc-meta { display: flex; gap: 8px; align-items: center; margin-bottom: 18px; font-size: 12px; color: var(--gray-500); }
+    .doc-card h1 { font-size: 28px; letter-spacing: -.03em; color: var(--gray-900); line-height: 1.3; margin-bottom: 8px; }
+    .lede { color: var(--gray-600); margin-bottom: 28px; }
+    .block {
+      position: relative; padding: 14px 14px 14px 16px; margin: 0 -14px;
+      border-radius: 10px; border-left: 3px solid transparent; cursor: pointer;
+    }
+    .block:hover { background: var(--gray-50); }
+    .block.on { background: var(--blue-50); border-left-color: var(--blue); }
+    .block.naked.on { background: var(--red-50); border-left-color: var(--red); }
+    .block.patched.on { background: var(--violet-50); border-left-color: var(--violet); }
+    .block h2 { font-size: 18px; color: var(--gray-900); margin-bottom: 8px; letter-spacing: -.02em; }
+    .block p { color: var(--gray-700); line-height: 1.7; }
+    .block .map {
+      display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap;
+    }
+    .add-line {
+      margin-top: 10px; padding: 10px 12px; border-radius: 8px;
+      background: var(--violet-50); color: var(--gray-800); font-size: 14px;
+      border: 1px dashed var(--violet);
+    }
+
+    .rail {
+      background: var(--white); border-left: 1px solid var(--gray-200);
+      padding: 18px 16px; overflow: auto; display: flex; flex-direction: column; gap: 12px;
+      min-height: 0;
+    }
+    .rail h3 { font-size: 11px; color: var(--gray-500); letter-spacing: .06em; }
+    .rail h4 { font-size: 15px; color: var(--gray-900); margin-top: 2px; }
+    .rail .empty { color: var(--gray-500); font-size: 13px; line-height: 1.6; }
+    .card {
+      border: 1px solid var(--gray-200); border-radius: 12px; padding: 12px;
+      background: var(--white);
+    }
+    .card .who { font-size: 12px; color: var(--gray-500); margin-bottom: 6px; }
+    .claim { display: flex; gap: 8px; padding: 8px 0; border-top: 1px solid var(--gray-100); }
+    .claim:first-of-type { border-top: 0; }
+    .cid {
+      flex: 0 0 auto; height: 20px; min-width: 28px; padding: 0 6px;
+      border-radius: 6px; background: var(--blue-50); color: var(--blue);
+      font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center;
+    }
+    .claim p { font-size: 13px; color: var(--gray-800); line-height: 1.5; }
+    .rail .actions { display: flex; flex-direction: column; gap: 8px; margin-top: auto; padding-top: 8px; }
+
+    /* session */
+    .session { min-height: 0; }
+    .thread-wrap {
+      display: flex; flex-direction: column; background: var(--gray-50);
+      min-width: 0; min-height: 0; overflow: hidden;
+    }
+    .thread-head {
+      display: flex; align-items: center; gap: 10px; padding: 12px 20px;
+      background: var(--white); border-bottom: 1px solid var(--gray-200);
+    }
+    .banner {
+      margin: 12px 20px 0; padding: 10px 12px; border-radius: 10px;
+      background: var(--blue-50); color: var(--gray-800); font-size: 13px;
+      display: flex; gap: 8px; align-items: center;
+    }
+    .banner.recv { background: var(--violet-50); }
+    .thread {
+      flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden;
+      padding: 16px 20px 12px; display: flex; flex-direction: column-reverse;
+    }
+    .thread-log {
+      display: flex; flex-direction: column; gap: 14px; margin-top: auto;
+    }
+    .msg { display: flex; gap: 10px; max-width: 760px; }
+    .av {
+      width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center;
+      font-size: 12px; font-weight: 700; color: var(--white); flex: 0 0 auto;
+    }
+    .av.human { background: var(--gray-800); }
+    .av.llm { background: var(--blue); }
+    .av.mj { background: var(--violet); }
+    .bubble { background: var(--white); border: 1px solid var(--gray-200); border-radius: 12px; padding: 12px 14px; }
+    .bubble .who { font-size: 12px; font-weight: 700; color: var(--gray-900); }
+    .bubble .who em { font-style: normal; font-weight: 600; color: var(--blue); margin-left: 6px; }
+    .bubble p { margin-top: 6px; color: var(--gray-700); line-height: 1.65; font-size: 14px; }
+    .cite {
+      display: inline-flex; align-items: center; height: 18px; padding: 0 5px; margin: 0 2px;
+      border-radius: 4px; background: var(--blue-50); color: var(--blue);
+      font-size: 11px; font-weight: 700; cursor: pointer; border: 0;
+    }
+    .cite.on, .claim.on .cid { outline: 2px solid var(--blue); }
+    .composer {
+      display: flex; gap: 8px; padding: 12px 20px 16px; background: var(--white);
+      border-top: 1px solid var(--gray-200);
+    }
+    .composer input {
+      flex: 1; height: 40px; border: 1px solid var(--gray-200); border-radius: 10px;
+      padding: 0 12px; font-size: 14px; outline: none;
+    }
+    .composer input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-50); }
+    .side {
+      background: var(--white); border-left: 1px solid var(--gray-200);
+      padding: 16px; overflow: auto; display: flex; flex-direction: column; gap: 14px;
+      min-height: 0;
+    }
+    .side h3 { font-size: 11px; color: var(--gray-500); letter-spacing: .06em; }
+    .side h4 { font-size: 16px; color: var(--gray-900); }
+    .hist-mark {
+      align-self: center; margin: 4px 0 10px;
+      font-size: 11px; font-weight: 600; color: var(--gray-400);
+    }
+    .early { opacity: .72; }
+    .tool, .tool-card {
+      font-size: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .tool {
+      background: var(--gray-50); border: 1px dashed var(--gray-300);
+      border-radius: 10px; padding: 8px 10px; color: var(--gray-600);
+    }
+    .tool-card {
+      background: var(--white); border: 1px solid var(--gray-200); border-radius: 12px;
+      overflow: hidden; max-width: 760px; color: var(--gray-700);
+    }
+    .tool-card .name {
+      display: flex; align-items: center; gap: 8px;
+      background: var(--gray-50); padding: 8px 10px; font-weight: 700; color: var(--gray-900);
+      border-bottom: 1px solid var(--gray-200);
+    }
+    .tool-card .name em { font-style: normal; font-weight: 600; color: var(--blue); font-size: 11px; }
+    .tool-card pre {
+      margin: 0; padding: 8px 10px; background: var(--white); white-space: pre-wrap;
+      font-size: 12px; line-height: 1.5; color: var(--gray-700);
+    }
+    .tool-card .out {
+      border-top: 1px solid var(--gray-200); padding: 8px 10px; background: #f7fbff;
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    }
+    .tool-card .out button { height: 24px; padding: 0 8px; font-size: 12px; }
+    .bubble pre {
+      margin-top: 8px; background: var(--gray-50); padding: 8px 10px; border-radius: 8px;
+      font-size: 12px; overflow: auto; color: var(--gray-700); line-height: 1.45;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap;
+    }
+    .bubble p + p { margin-top: 8px; }
+    .turn-n { font-weight: 500; color: var(--gray-400); margin-left: 6px; font-size: 11px; }
+    .msg.jump .bubble { outline: 2px solid var(--blue); background: var(--blue-50); }
+    .quote {
+      font-size: 13px; color: var(--gray-800); border-left: 2px solid var(--blue);
+      padding: 8px 10px; background: var(--gray-50); border-radius: 0 8px 8px 0;
+      cursor: pointer; text-align: left; width: 100%; border-top: 0; border-right: 0; border-bottom: 0;
+    }
+    .quote .t { font-size: 11px; color: var(--gray-500); font-weight: 600; margin-bottom: 4px; }
+    .warn-note { font-size: 12px; color: var(--gray-500); line-height: 1.55; }
+
+    /* inbox */
+    .inbox { width: 100%; justify-content: center; padding: 40px 20px; overflow: auto; }
+    .inbox-wrap { width: min(640px, 100%); }
+    .inbox-wrap h1 { font-size: 22px; color: var(--gray-900); margin-bottom: 6px; }
+    .inbox-wrap .sub { color: var(--gray-500); margin-bottom: 20px; }
+    .toss-card {
+      background: var(--white); border: 1px solid var(--gray-200); border-radius: 16px;
+      padding: 20px; box-shadow: var(--shadow); cursor: pointer;
+    }
+    .toss-card:hover { border-color: var(--blue-100); }
+    .toss-card .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .toss-card h2 { font-size: 16px; color: var(--gray-900); }
+    .empty-inbox {
+      background: var(--white); border: 1px dashed var(--gray-300); border-radius: 16px;
+      padding: 48px 20px; text-align: center; color: var(--gray-500);
+    }
+
+    /* patch */
+    .patch { width: 100%; padding: 28px 20px 60px; overflow: auto; justify-content: center; }
+    .patch-wrap { width: min(820px, 100%); }
+    .patch-wrap h1 { font-size: 22px; color: var(--gray-900); margin-bottom: 8px; }
+    .diff {
+      background: var(--white); border: 1px solid var(--gray-200); border-radius: 16px;
+      overflow: hidden; margin-top: 16px; box-shadow: var(--shadow);
+    }
+    .diff-h {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 12px 16px; border-bottom: 1px solid var(--gray-200); background: var(--gray-50);
+      font-size: 13px; font-weight: 600;
+    }
+    .hunk { display: grid; grid-template-columns: 1fr 140px; border-top: 1px solid var(--gray-100); }
+    .hunk:first-child { border-top: 0; }
+    .hunk pre {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 13px; line-height: 1.6; padding: 12px 16px; white-space: pre-wrap;
+    }
+    .hunk .del { background: #fff1f1; color: #8a1f2a; }
+    .hunk .add { background: #f0fff6; color: #0d6b3c; }
+    .hunk .ctx { color: var(--gray-700); }
+    .blame {
+      border-left: 1px solid var(--gray-200); padding: 12px; display: flex;
+      flex-direction: column; gap: 6px; justify-content: center; background: var(--gray-50);
+    }
+
+    /* modal */
+    .overlay {
+      display: none; position: fixed; inset: 0; background: rgba(25, 31, 40, .4);
+      z-index: 20; align-items: center; justify-content: center; padding: 24px;
+    }
+    .overlay.on { display: flex; }
+    .sheet {
+      width: min(480px, 100%); background: var(--white); border-radius: 20px;
+      padding: 22px 22px 18px; box-shadow: 0 16px 48px rgba(25,31,40,.18);
+    }
+    .sheet h2 { font-size: 18px; color: var(--gray-900); margin-bottom: 6px; }
+    .sheet .desc { font-size: 13px; color: var(--gray-600); margin-bottom: 16px; }
+    .field { margin-bottom: 12px; }
+    .field label { display: block; font-size: 12px; font-weight: 600; color: var(--gray-600); margin-bottom: 6px; }
+    .field .box, .modes {
+      border: 1px solid var(--gray-200); border-radius: 10px; padding: 10px 12px; background: var(--gray-50);
+    }
+    .modes { display: flex; gap: 6px; padding: 4px; background: var(--gray-100); }
+    .modes button {
+      flex: 1; border: 0; background: transparent; height: 34px; border-radius: 8px;
+      font-size: 13px; font-weight: 600; color: var(--gray-600);
+    }
+    .modes button.on { background: var(--white); color: var(--gray-900); box-shadow: var(--shadow); }
+    .include { display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: var(--gray-700); }
+    .include label { display: flex; gap: 8px; align-items: center; font-weight: 500; }
+    .sheet textarea {
+      width: 100%; height: 72px; border: 1px solid var(--gray-200); border-radius: 10px;
+      padding: 10px 12px; resize: none; font: inherit; outline: none;
+    }
+    .sheet textarea:focus { border-color: var(--blue); }
+    .sheet-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+
+    .toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
+      background: var(--gray-900); color: var(--white); padding: 10px 14px; border-radius: 10px;
+      font-size: 13px; font-weight: 600; opacity: 0; pointer-events: none; transition: .2s;
+      z-index: 30;
+    }
+    .toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    @media (max-width: 960px) {
+      .view.on.sot { grid-template-columns: 1fr; }
+      .view.on.session { grid-template-columns: 1fr; }
+      .outline, .rail, .side { display: none; }
+      .sot.rail-open .rail, .session.rail-open .side {
+        display: flex; position: fixed; top: 93px; right: 0; bottom: 0;
+        width: min(340px, 92vw); height: auto; z-index: 10;
+        border-top: 0; border-left: 1px solid var(--gray-200);
+      }
+      .doc { padding: 16px 12px 120px; }
+      .doc-card { padding: 24px 18px 32px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="demo-bar">
+    <span class="label">화면</span>
+    <button data-view="sot" class="on">문서</button>
+    <button data-view="branches">세션 목록</button>
+    <button data-view="session">세션</button>
+    <button data-view="shared">같이 쓰는 세션</button>
+  </div>
+
+  <header class="app-header">
+    <a class="brand" href="#" data-view="sot"><strong>SOT</strong><span>세션이 근거</span></a>
+    <span class="crumb" id="crumb">문서 · <b>요청 제한 토큰</b></span>
+    <div class="header-actions" id="header-actions"></div>
+  </header>
+
+  <!-- SoT -->
+  <section class="view on sot" id="view-sot">
+    <nav class="outline">
+      <h3>OUTLINE</h3>
+      <button data-block="p" class="on"><span class="n">·</span>문제 <i class="dot a"></i></button>
+      <button data-block="d"><span class="n">2</span>결정 <i class="dot a"></i></button>
+      <button data-block="n"><span class="n">3</span>안 하는 것 <i class="dot a" id="dot-n"></i></button>
+      <button data-block="c"><span class="n">4</span>클라이언트 계약 <i class="dot a"></i></button>
+      <button data-block="x"><span class="n">·</span>초안 <i class="dot naked"></i></button>
+    </nav>
+
+    <article class="doc">
+      <div class="doc-card">
+        <div class="doc-meta">
+          <span>sot/rate-limit-token.md</span>
+          <span>·</span>
+          <span>sot_read / sot_update</span>
+          <span>·</span>
+          <span id="doc-rev">rev 4 · 세션 1</span>
+        </div>
+        <h1>요청 제한은 버전 토큰으로 재현한다</h1>
+        <p class="lede">거절인지 허용인지는 머신 로컬 카운터가 아니라, 다시 물어보면 같은 답이 나오는 토큰이어야 한다.</p>
+
+        <div class="block on" data-block="p" id="b-p">
+          <h2>1. 문제</h2>
+          <p>같은 클라이언트가 재시도하면 게이트마다 다른 숫자를 본다. 거절/허용이 프로세스 메모리 카운터에 묶여 있다.</p>
+          <div class="map"><button class="chip ses-a" data-open-ses="a">e_3a91</button></div>
+        </div>
+
+        <div class="block" data-block="d" id="b-d">
+          <h2>2. 결정</h2>
+          <p>제한 상태는 durable store 한곳에 둔다. 응답마다 그 시점의 버전 토큰을 붙인다. 재시도는 토큰을 그대로 들고 오고, store가 같은 결정을 다시 낸다.</p>
+          <div class="map">
+            <button class="chip ses-a" data-open-ses="a">e_3a91</button>
+          </div>
+        </div>
+
+        <div class="block" data-block="n" id="b-n">
+          <h2>3. 안 하는 것</h2>
+          <p>Pub/sub로 캐시를 날리는 방식은 안 쓴다. 파티션 나면 구독이 끊긴 노드가 옛날 카운터로 통과시킨다. 이중 차감을 막지 못한다.</p>
+          <div class="map" id="n-map">
+            <button class="chip ses-a" data-open-ses="a">e_3a91</button>
+          </div>
+        </div>
+
+        <div class="block" data-block="c" id="b-c">
+          <h2>4. 클라이언트 계약</h2>
+          <p>거절 응답의 <span class="mono">Retry-After</span>와 <span class="mono">X-Limit-Token</span>은 같이 간다. 토큰 없이 온 재시도는 새 요청으로 본다.</p>
+          <div class="map"><button class="chip ses-a" data-open-ses="a">e_3a91</button></div>
+        </div>
+
+        <div class="block naked" data-block="x" id="b-x">
+          <h2>초안 · 근거 없음</h2>
+          <p>글로벌 레이트리밋은 나중에 붙인다.</p>
+          <div class="map"><span class="chip naked">세션 없음</span></div>
+        </div>
+      </div>
+    </article>
+
+    <aside class="rail" id="rail"></aside>
+  </section>
+
+  <!-- Session -->
+  <section class="view session" id="view-session">
+    <div class="thread-wrap">
+      <div class="thread-head">
+        <span class="chip ses-a mono" id="ses-id">ses_8f2a</span>
+        <span id="ses-owner">동균 · Claude</span>
+        <span class="chip" id="armed-chip">41턴 · 원본</span>
+        <button class="chip" type="button" id="to-top" style="margin-left:auto">↑ 처음</button>
+      </div>
+      <div class="banner" id="ses-banner">이건 LLM 대화 원본이다. 주장을 카드로 안 뽑는다. 정제는 SoT에만 있다.</div>
+      <div class="thread" id="thread"><div class="thread-log" id="thread-log"></div></div>
+      <form class="composer" id="composer">
+        <input id="composer-input" placeholder="이 세션에서 이어서 말하기" autocomplete="off" />
+        <button class="btn primary" type="submit">보내기</button>
+      </form>
+    </div>
+    <aside class="side" id="claim-side"></aside>
+  </section>
+
+  <section class="view branches" id="view-branches">
+    <div class="branch-wrap">
+      <h1>세션</h1>
+      <p class="sub">세션을 열어도 문서는 안 바뀐다. 문서로 나가는 건 근거로 고른 것뿐이다. 비공개 세션은 문서에 안 뜬다.</p>
+      <div id="branch-list"></div>
+    </div>
+  </section>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const $ = (s, el = document) => el.querySelector(s);
+    const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+
+    const state = {
+      view: "sot",
+      block: "p",
+      branch: "ses_8f2a",
+      jumpTurn: null,
+      asCommit: false,
+      proposed: false,
+    };
+
+    const EARLY = [
+      { turn: 4, who: "동균", kind: "human", text: "아 그냥 게이트 메모리로 가자.  replicas 적으니까 sticky 하면 되지 않냐" },
+      { turn: 5, who: "Claude", kind: "llm", text: "sticky면 재시도가 다른 게이트로 붙는 순간 또 깨집니다. 스테이징 로그에 이미 그 패턴이 있어요." },
+      { turn: 11, who: "동균", kind: "human", text: "로그", pre: "10:14:02 gw-a 429 token=— retry=1\n10:14:02 gw-b 200 token=— retry=1\n10:14:03 gw-a 200 token=—" },
+      { turn: 12, who: "Claude", kind: "llm", text: "같은 retry_id가 gw-a에서 429, gw-b에서 200입니다. 카운터가 프로세스 로컬이라는 거의 확정." },
+      { turn: 18, who: "동균", kind: "human", text: "그럼 redis pubsub로 무효화? 예전에 그렇게 하자고 한 적 있는듯" },
+      { turn: 19, who: "Claude", kind: "llm", text: "가능은 한데, pub/sub 끊긴 노드가 구버전 카운터로 통과시키는 케이스가 남습니다." },
+    ];
+
+    const TURNS_A = [
+      { turn: 29, who: "동균", kind: "human", text: "야 스테이징에서 같은 클라이언트가 429 받았다가 바로 200 나옴. 게이트 2대인데 카운터가 각자임 ㅋㅋ 이거 어케하지" },
+      { turn: 30, who: "Claude", kind: "llm", text: "지금 로그면 카운터가 프로세스 메모리에 있는 게 원인에 가깝습니다. 선택지는 대략 세 개예요.\n1) sticky session\n2) redis + pub/sub 무효화\n3) durable store에 카운터 두고 응답에 버전을 실어 재시도가 같은 결정을 다시 받게 하기\n\n1번은 재시도가 다른 게이트로 붙으면 또 깨지고, 2번은 구독이 끊긴 노드가 구멍을 만들 수 있습니다." },
+      { turn: 31, who: "동균", kind: "human", text: "아 그 redis pubsub 그거 지난번에 파티션나고 더블차감됐잖아. 그냥 store에 버전 하나 찍고 토큰으로 같이해. 아니 잠깐 토큰 그 jwt 말고", edit: "아 그 redis pubsub 그거 지난번에 파티션나고 더블차감됐잖아. 그냥 store에 버전 하나 찍고 토큰으로 같이해." },
+      { turn: 32, who: "Claude", kind: "tool", text: "Read src/gateway/rate_limit.py" },
+      { turn: 33, who: "Claude", kind: "llm", text: "rate_limit.py가 프로세스 dict라서 지금 증상이랑 맞습니다. 제가 말한 토큰은 jwt 아닙니다. store 버전이 찍힌 opaque id예요. 클라이언트가 재시도할 때 그 id를 다시 들고 오면 같은 거절/허용이 나옵니다.\n\npubsub는 이 파일로는 아예 안 막힙니다. 구독 끊긴 노드가 로컬 dict를 그대로 쓰거든요." },
+      { turn: 34, who: "동균", kind: "human", text: "짧게. pubsub 안 쓴다 그거 문서에 박아. 이중차감." },
+      { turn: 35, who: "Claude", kind: "sot", name: "session_drop", args: "turns: [4, 5, 11, 12]\nreason: 번복·액세스 로그는 근거 아님", result: "4턴 버림" },
+      { turn: 36, who: "Claude", kind: "sot", name: "session_edit", args: "turn: 31\n- ㅋㅋ 없음 (원문에 없음)\n- jwt 혼선 한 줄 삭제", result: "t31 고침" },
+      { turn: 37, who: "Claude", kind: "sot", name: "session_join", args: "turns: [18, 19] → t18s\nkeep: pubsub는 파티션에서 이중차감", result: "t18-19 합침" },
+      { turn: 38, who: "Claude", kind: "sot", name: "session_cite", args: "turns: t31', t34, t18s\nmemo: §3 pub/sub 기각 · 이중차감", result: "e_3a91" },
+      { turn: 39, who: "Claude", kind: "sot", name: "sot_update", args: "path: sot/rate-limit-token.md\nanchor: §3\ncite: e_3a91", result: "wrote", link: "sot/rate-limit-token.md#n", jump: "n" },
+      { turn: 40, who: "동균", kind: "human", text: "ㅇㅋ 세션 원본은 그대로고, 넘어간 건 손대서 고른 턴만." },
+    ];
+
+    const TURNS_LOCAL = [
+      { turn: 1, who: "동균", kind: "human", text: "jwt로 버전 찍으면 안 되나. 파싱하기 쉬운데" },
+      { turn: 2, who: "Claude", kind: "llm", text: "만료/서명이 붙으면 재시도 재현이랑 안 맞습니다. 아직 문서에 안 올리는 게 맞아요." },
+      { turn: 3, who: "동균", kind: "human", text: "ㅇㅋ 이 세션은 그냥 두자. 문서엔 안 올리고." },
+    ];
+    const TURNS_PRIV = [
+      { turn: 1, who: "동균", kind: "human", text: "스테이징 숫자 아직 밖에 말하면 안 됨. 이 대화는 로컬에만." },
+      { turn: 2, who: "Claude", kind: "llm", text: "알겠습니다. sot_update 안 합니다. 이 세션은 비공개로 남습니다." },
+    ];
+    const TURNS_SHARED = [
+      { turn: 1, who: "동균", kind: "human", text: "여기 같이 쓰는 세션. wrap 얘기 여기서 하자. 내 실험은 안 가져옴." },
+      { turn: 2, who: "민지", kind: "mj", text: "토큰 wrap되면? 그거 문서에 올리기 전에 여기서만 말하자." },
+      { turn: 3, who: "Claude", kind: "llm", text: "같이 쓰는 세션이라 둘 다 이 대화를 본다. 그래도 문서에 올리는 건 sot_update다. 지금은 안 씀." },
+      { turn: 4, who: "민지", kind: "mj", text: "ㅇㅋ 비공개 세션에 있던 숫자는 여기에 붙이지 마." },
+      { turn: 5, who: "동균", kind: "human", text: "그거 ses_priv에만 있음. 이 창엔 안 넣음." },
+    ];
+
+    const BRANCHES = [
+      { id: "main", kind: "sot", title: "문서", meta: "sot/rate-limit-token.md", tags: [["게시됨", "merged"]] },
+      { id: "ses_8f2a", kind: "session", title: "ses_8f2a", meta: "세션 원본 41턴 · 문서에 나간 건 e_3a91", tags: [["근거 1", "merged"]], merged: true, private: false, early: true, turns: null, commit: "e_3a91" },
+      { id: "ses_b2e9", kind: "session", title: "ses_b2e9", meta: "jwt 실험 · 문서에 없음", tags: [["내 세션", "local"], ["반영 안 됨", "local"]], merged: false, private: false, turns: "local" },
+      { id: "ses_priv", kind: "session", title: "ses_priv", meta: "이 머신에만 있음 · SoT에 안 뜸", tags: [["비공개", "priv"]], merged: false, private: true, turns: "priv" },
+      { id: "ses_shared", kind: "session", title: "ses_shared", meta: "같이 쓰는 세션 · 동균·민지 · 문서에 없음", tags: [["같이 씀", "shared"], ["반영 안 됨", "local"]], merged: false, private: false, shared: true, turns: "shared" },
+    ];
+
+    const BLOCKS = {
+      p: { title: "1. 문제", naked: false, quotes: [{ turn: 29, text: "같은 클라이언트가 429 받았다가 바로 200 나옴. 게이트 2대인데 카운터가 각자임" }] },
+      d: { title: "2. 결정", naked: false, quotes: [{ turn: 31, text: "그냥 store에 버전 하나 찍고 토큰으로 같이해. 아니 잠깐 토큰 그 jwt 말고" }, { turn: 33, text: "store 버전이 찍힌 opaque id예요. jwt 아닙니다." }] },
+      n: { title: "3. 안 하는 것", naked: false, quotes: [{ turn: 31, text: "아 그 redis pubsub 그거 지난번에 파티션나고 더블차감됐잖아" }, { turn: 34, text: "짧게. pubsub 안 쓴다 그거 문서에 박아. 이중차감." }] },
+      c: { title: "4. 클라이언트 계약", naked: false, quotes: [{ turn: 36, text: "session_cite · e_3a91 · t31,t34" }] },
+      x: { title: "초안 · 근거 없음", naked: true, quotes: [] },
+    };
+
+    function toast(msg) {
+      const el = $("#toast");
+      el.textContent = msg;
+      el.classList.add("on");
+      setTimeout(() => el.classList.remove("on"), 1800);
+    }
+
+    function branchOf(id) {
+      return BRANCHES.find((b) => b.id === id) || BRANCHES[1];
+    }
+
+    function setView(v) {
+      if (v === "shared") { openSession("ses_shared", null, false); return; }
+      if (v === "session") state.asCommit = false;
+      state.view = v;
+      render();
+    }
+
+    function render() {
+      $$(".demo-bar [data-view]").forEach((b) => {
+        const on = b.dataset.view === state.view
+          || (b.dataset.view === "shared" && state.view === "session" && state.branch === "ses_shared")
+          || (b.dataset.view === "session" && state.view === "session" && state.branch !== "ses_shared");
+        b.classList.toggle("on", on);
+      });
+      $$(".view").forEach((el) => el.classList.remove("on"));
+      const viewId = state.view === "session" ? "view-session"
+        : state.view === "branches" ? "view-branches"
+        : "view-sot";
+      $("#" + viewId).classList.add("on");
+      $("#view-sot").classList.add("rail-open");
+      $("#view-session").classList.add("rail-open");
+      renderHeader();
+      if (state.view === "sot") renderSot();
+      if (state.view === "session") renderSession();
+      if (state.view === "branches") renderBranches();
+    }
+
+    function renderHeader() {
+      const actions = $("#header-actions");
+      const crumb = $("#crumb");
+      const br = branchOf(state.branch);
+      if (state.view === "sot") {
+        crumb.innerHTML = "문서 · <b>요청 제한 토큰</b>";
+        actions.innerHTML = `
+          <span class="chip merged">게시됨</span>
+          <button class="btn" data-view="branches">세션 목록</button>`;
+      } else if (state.view === "session") {
+        crumb.innerHTML = `세션 · <b>${br.title}</b>`;
+        actions.innerHTML = `
+          <span class="chip ${br.private ? "priv" : br.merged ? "merged" : "local"}">${br.private ? "비공개" : br.merged ? "반영됨" : "반영 안 됨"}</span>
+          <button class="btn" data-view="sot">문서</button>
+          <button class="btn" data-view="branches">세션 목록</button>`;
+      } else {
+        crumb.innerHTML = "세션 목록";
+        actions.innerHTML = `<button class="btn" data-view="sot">문서</button>`;
+      }
+      $$(".header-actions [data-view], .brand[data-view]").forEach((b) => {
+        b.onclick = (e) => { e.preventDefault(); setView(b.dataset.view); };
+      });
+    }
+
+    function renderSot() {
+      $("#doc-rev").textContent = "문서 · 근거 연결된 것만";
+      $$(".block").forEach((el) => el.classList.toggle("on", el.dataset.block === state.block));
+      $$(".outline button").forEach((el) => el.classList.toggle("on", el.dataset.block === state.block));
+      renderRail();
+      $$("[data-open-ses]").forEach((b) => b.onclick = (e) => {
+        e.stopPropagation();
+        openSession("ses_8f2a", null, true);
+      });
+    }
+
+    function renderRail() {
+      const b = BLOCKS[state.block];
+      const rail = $("#rail");
+      if (b.naked) {
+        rail.innerHTML = `
+          <h3>근거</h3>
+          <h4>${b.title}</h4>
+          <p class="empty">sot_update를 안 탄 문장이다. 채팅에 붙여 넣거나 손으로 적으면 세션 링크가 안 생긴다.</p>
+          <div class="card">
+            <div class="who">할 수 있는 것</div>
+            <p style="font-size:13px;color:var(--gray-700)">이 구간에서 세션을 시작하면, 이후 문장은 session id를 갖게 된다.</p>
+          </div>
+          <div class="actions">
+            <button class="btn primary" id="start-ses">이 구간부터 세션 시작</button>
+          </div>`;
+        $("#start-ses").onclick = () => toast("데모에선 본편 세션만 열어둠");
+        return;
+      }
+      const quotes = b.quotes.map((q) => `
+        <button class="quote" type="button" data-turn="${q.turn}">
+          <div class="t">ses_8f2a · t${q.turn} · 대화 원문</div>
+          “${q.text}”
+        </button>`).join("");
+      rail.innerHTML = `
+        <h3>문서에 연결된 근거</h3>
+        <h4>${b.title}</h4>
+        <p class="warn-note">열리는 건 41턴 전체가 아니다. 근거로 고른 턴만 열린다.</p>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="chip ses-a" data-open-ses="ses_8f2a">e_3a91</button>
+          <span class="chip merged">근거</span>
+        </div>
+        <div class="card" style="display:flex;flex-direction:column;gap:8px">
+          <div class="who">근거로 고른 말 · t31, t34</div>
+          ${quotes}
+        </div>
+        <div class="actions">
+          <button class="btn primary" data-open-ses="ses_8f2a">이 근거 보기</button>
+        </div>`;
+      $$("[data-open-ses]", rail).forEach((btn) => btn.onclick = () => openSession("ses_8f2a", btn.dataset.turn, true));
+      $$(".quote", rail).forEach((btn) => btn.onclick = () => openSession("ses_8f2a", btn.dataset.turn, true));
+    }
+
+    function openSession(id, turn, asCommit) {
+      if (id === "a" || !id) id = "ses_8f2a";
+      state.branch = id;
+      state.asCommit = !!asCommit;
+      if (turn) state.jumpTurn = Number(turn);
+      else state.jumpTurn = null;
+      state.view = "session";
+      render();
+    }
+
+    function turnsFor(br) {
+      if (br.turns === "local") return { early: "", rest: TURNS_LOCAL };
+      if (br.turns === "priv") return { early: "", rest: TURNS_PRIV };
+      if (br.turns === "shared") return { early: "", rest: TURNS_SHARED };
+      return { early: EARLY, rest: TURNS_A };
+    }
+
+    function renderSession() {
+      const br = branchOf(state.branch);
+      const commitView = state.asCommit && br.commit;
+      $("#ses-id").textContent = commitView ? br.commit : br.title;
+      $("#ses-id").className = "chip mono " + (commitView ? "ses-a" : br.private ? "priv" : br.shared ? "shared" : br.merged ? "ses-a" : "local");
+      $("#ses-owner").textContent = commitView ? "근거 · t31, t34만" : br.shared ? "동균 · 민지 · Claude" : br.private ? "이 머신 · 비공개" : "동균 · Claude";
+      $("#armed-chip").textContent = commitView ? "세션 원본 아님" : br.shared ? "같이 씀" : br.merged ? "세션 원본" : "반영 안 됨";
+      const banner = $("#ses-banner");
+      banner.className = "banner" + (commitView || br.shared || br.private ? " recv" : "");
+      banner.textContent = commitView
+        ? "근거는 손댄 턴이다. 대화를 통째로 다시 쓴 게 아니라, 버리고·고치고·합친 뒤 고른 것."
+        : br.private
+          ? "비공개 세션이다. 여기서 턴을 지우고 고쳐도 밖에 안 나간다. 근거로 골라야 나간다."
+          : br.shared
+            ? "같이 쓰는 세션이다. 같이 말하고, LLM이 턴을 버리거나 고치거나 합칠 수 있다. 그래도 근거로 고르기 전엔 문서에 없다."
+            : br.merged
+              ? "세션 원본이다. LLM이 t35–t37에서 턴에 손댔고, 문서에 나간 건 e_3a91뿐이다."
+              : "내 세션이다. 턴에 손댈 수 있고, 아직 고른 근거가 없다.";
+
+      const pack = turnsFor(br);
+      const include = commitView ? [31, 34, 35, 36, 37, 38, 39] : null;
+      const early = (!commitView && pack.early) ? pack.early.map((m) => renderMsg(m, true)).join("") : "";
+      const restSrc = include ? pack.rest.filter((m) => include.includes(m.turn)) : pack.rest;
+      const rest = restSrc.map((m) => renderMsg(m)).join("");
+      const log = $("#thread-log");
+      log.innerHTML = early
+        ? `${early}<div class="hist-mark">t1–28 · 세션 원본 · 근거에 안 넣음</div>${rest}`
+        : (commitView ? `<div class="hist-mark">e_3a91 · 고른 턴 t31 t34 · 나머지 제외</div>${rest}` : rest);
+      $("#to-top").onclick = () => {
+        const first = log.querySelector(".msg");
+        if (first) first.scrollIntoView({ block: "start" });
+      };
+      if (state.jumpTurn) {
+        const el = log.querySelector(`.msg[data-turn="${state.jumpTurn}"]`);
+        if (el) el.scrollIntoView({ block: "center" });
+      }
+      $$("[data-jump]", log).forEach((b) => b.onclick = () => {
+        state.block = b.dataset.jump;
+        setView("sot");
+      });
+      renderClaimSide();
+      $("#composer-input").placeholder = br.shared ? "같이 쓰는 세션에 말하기" : br.private ? "이 머신에서만 말하기" : "이 세션에서 이어서 말하기";
+    }
+
+    function renderMsg(m, early) {
+      if (m.kind === "tool") {
+        return `<div class="msg ${early ? "early" : ""} ${state.jumpTurn === m.turn ? "jump" : ""}" data-turn="${m.turn}">
+          <div class="av llm">C</div>
+          <div class="tool">tool · ${m.text}<span class="turn-n">t${m.turn}</span></div>
+        </div>`;
+      }
+      if (m.kind === "sot") {
+        const link = m.link
+          ? `<button class="chip ses-a" type="button" data-jump="${m.jump}">${m.link}</button>`
+          : (m.jump ? `<button class="chip" type="button" data-jump="${m.jump}">문서에서 보기</button>` : "");
+        return `<div class="msg ${early ? "early" : ""} ${state.jumpTurn === m.turn ? "jump" : ""}" data-turn="${m.turn}">
+          <div class="av llm">C</div>
+          <div class="tool-card">
+            <div class="name">${m.name}<em>t${m.turn}</em></div>
+            <pre>${m.args}</pre>
+            <div class="out">→ ${m.result} ${link}</div>
+          </div>
+        </div>`;
+      }
+      const av = m.kind === "llm" ? "llm" : m.kind === "mj" ? "mj" : "human";
+      const edited = state.asCommit && m.edit;
+      const body = edited || m.text;
+      const paras = body.split("\n").filter(Boolean).map((t) => `<p>${t}</p>`).join("");
+      return `<div class="msg ${early ? "early" : ""} ${state.jumpTurn === m.turn ? "jump" : ""}" data-turn="${m.turn}">
+        <div class="av ${av}">${m.kind === "llm" ? "C" : m.who[0]}</div>
+        <div class="bubble">
+          <div class="who">${m.who}<span class="turn-n">t${m.turn}${edited ? " · edited" : ""}</span></div>
+          ${paras}
+          ${!edited && m.pre ? `<pre>${m.pre}</pre>` : ""}
+        </div>
+      </div>`;
+    }
+
+    function renderClaimSide() {
+      const br = branchOf(state.branch);
+      const commitView = state.asCommit && br.commit;
+      const link = br.merged
+        ? `<button class="btn ghost" style="justify-content:flex-start;height:auto;padding:6px 4px" data-jump="n">문서 · §3 ← e_3a91</button>`
+        : `<p class="empty">고른 근거가 없어서 문서에 연결이 없다.</p>`;
+      $("#claim-side").innerHTML = `
+        <div>
+          <h3>${commitView ? "근거" : "세션 원본"}</h3>
+          <h4>${commitView ? br.commit : br.title}</h4>
+          <p class="warn-note" style="margin-top:8px">${commitView ? "t31은 session_edit된 원문. 대화 전체를 다시 쓴 재구성이 아니다." : "세션은 턴을 버리고·고치고·합칠 수 있고, LLM이 그 도구를 친다. 그 다음 근거로 고른다."}</p>
+        </div>
+        <div class="card">
+          <div class="who">${commitView ? "이 근거" : "LLM이 치는 도구"}</div>
+          <p style="font-size:13px;line-height:1.55">${commitView ? "버림 t4–12 · 합침 t18-19 · 고침 t31 · 근거 e_3a91" : "session_drop(turns)<br>session_edit(turn, patch)<br>session_join(range)<br>session_cite(turns)<br>sot_update(cite)"}</p>
+        </div>
+        <div>
+          <h3>문서</h3>
+          <div class="card" style="font-size:13px">${link}</div>
+        </div>
+        ${commitView ? `<button class="btn" id="open-wt">세션 원본 열기 · 손대기 전</button>` : `<button class="btn primary" id="do-commit">${br.commit ? "손댄 기록 보기 t35" : "LLM이 턴 손보기"}</button>`}`;
+      $$("[data-jump]").forEach((b) => b.onclick = () => { state.block = b.dataset.jump; setView("sot"); });
+      const wt = $("#open-wt");
+      if (wt) wt.onclick = () => openSession(br.id, null, false);
+      const dc = $("#do-commit");
+      if (dc) dc.onclick = () => {
+        if (br.commit) { openSession(br.id, 35, false); return; }
+        state.proposed = true;
+        toast("LLM이 t1 버리기 · t2 고치기 제안. 대화 통째 재작성은 아님.");
+        renderClaimSide();
+      };
+    }
+
+    function renderBranches() {
+      $("#branch-list").innerHTML = BRANCHES.map((b) => `
+        <button class="branch-row ${state.branch === b.id && b.kind === "session" ? "on" : ""}" type="button" data-br="${b.id}">
+          <div>
+            <div class="id">${b.title}</div>
+            <div class="meta">${b.meta}</div>
+          </div>
+          <div class="tags">${b.tags.map(([t, c]) => `<span class="chip ${c}">${t}</span>`).join("")}</div>
+        </button>`).join("");
+      $$("[data-br]").forEach((btn) => btn.onclick = () => {
+        const id = btn.dataset.br;
+        if (id === "main") setView("sot");
+        else openSession(id, null, false);
+      });
+    }
+
+    $$(".demo-bar [data-view]").forEach((b) => b.onclick = () => setView(b.dataset.view));
+    $$(".outline button").forEach((b) => b.onclick = () => { state.block = b.dataset.block; renderSot(); });
+    $$(".block").forEach((b) => b.onclick = () => { state.block = b.dataset.block; renderSot(); });
+    $("#composer").onsubmit = (e) => { e.preventDefault(); toast("데모에선 안 보냄. 이 세션은 그대로다."); };
+
+    render();
+  </script>
+</body>
+</html>
