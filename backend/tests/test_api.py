@@ -1,9 +1,9 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from sot.agent import build_agent
 from sot.api import create_app
 from sot.domain.service import SOTService
+from sot.legacy_agent import build_agent
 from sot.store.memory import MemorySOTRepository
 
 

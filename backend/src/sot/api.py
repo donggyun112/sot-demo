@@ -14,7 +14,6 @@ from pydantic_ai.ui.ag_ui import AGUIAdapter
 from starlette.responses import Response
 from starlette.types import Lifespan
 
-from sot.agent import AgentDeps
 from sot.domain.errors import DomainError
 from sot.domain.models import (
     ApprovalResult,
@@ -34,6 +33,7 @@ from sot.domain.models import (
     Turn,
 )
 from sot.domain.service import DEVELOPMENT_USERS, SOTService
+from sot.legacy_agent import AgentDeps
 
 NonEmptyText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 

@@ -6,9 +6,9 @@ from httpx import ASGITransport, AsyncClient
 from pydantic_ai.messages import ModelMessage
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 
-from sot.agent import build_agent
 from sot.api import create_app
 from sot.domain.service import SOTService
+from sot.legacy_agent import build_agent
 from sot.store.memory import MemorySOTRepository
 
 BRANCH_ID = "019504e8-4b7c-7f3a-8c2d-123456789abc"

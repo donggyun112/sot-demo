@@ -1,5 +1,5 @@
 """SOT platform backend."""
 
-from sot.agent import AgentDeps, build_agent, build_model
+from sot.legacy_agent import AgentDeps, build_agent, build_model
 
 __all__ = ["AgentDeps", "build_agent", "build_model"]

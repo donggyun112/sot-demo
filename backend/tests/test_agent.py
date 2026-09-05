@@ -6,9 +6,9 @@ from pydantic_ai.models.fallback import FallbackModel
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.test import TestModel
 
-from sot.agent import AgentDeps, build_agent, build_model
 from sot.domain.models import NewTurn, ProposalStatus
 from sot.domain.service import SOTService
+from sot.legacy_agent import AgentDeps, build_agent, build_model
 from sot.store.memory import MemorySOTRepository
 
 

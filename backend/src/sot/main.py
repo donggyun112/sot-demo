@@ -7,9 +7,9 @@ from pathlib import Path
 from fastapi import FastAPI
 from psycopg_pool import AsyncConnectionPool
 
-from sot.agent import build_agent, build_model
 from sot.api import create_app
 from sot.domain.service import SOTService
+from sot.legacy_agent import build_agent, build_model
 from sot.settings import Settings
 from sot.store.postgres import PostgresSOTRepository, apply_migrations
 
