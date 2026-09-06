@@ -90,7 +90,7 @@ class SessionAccess:
         session = await self._repository.load_session(tx, workspace_id, session_id)
         if session is None:
             raise SessionNotFound()
-        if permission is not SessionPermission.READ:
+        if permission not in {SessionPermission.READ, SessionPermission.REVOKE_TOSS}:
             session.require_open()
         return SessionView(
             session.id,
@@ -656,6 +656,28 @@ class BundleAccess:
         self._repository = repository
         self._authorizer = authorizer
         self._members = members
+
+    async def require_revocation(
+        self,
+        tx: TransactionContext,
+        *,
+        actor: Actor,
+        workspace_id: WorkspaceId,
+        bundle_id: BundleId,
+    ) -> None:
+        await self._members.require_member(tx, workspace_id, actor.user_id)
+        session_id = await self._repository.session_for_bundle(
+            tx, workspace_id, bundle_id
+        )
+        if session_id is None:
+            raise SessionNotFound()
+        await self._authorizer.require(
+            tx,
+            actor=actor,
+            workspace_id=workspace_id,
+            session_id=session_id,
+            permission=SessionPermission.REVOKE_TOSS,
+        )
 
     async def require_snapshot(
         self,

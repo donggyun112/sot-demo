@@ -68,7 +68,7 @@ class ShareableBundleSnapshot:
 
 
 class ShareableBundleReader(Protocol):
-    """Authorize publishing on the bundle's actual owning session, then snapshot."""
+    """Authorize publishing on the bundle's actual open owning session, then snapshot."""
 
     async def require_shareable_snapshot(
         self,
@@ -78,6 +78,21 @@ class ShareableBundleReader(Protocol):
         workspace_id: WorkspaceId,
         bundle_id: BundleId,
     ) -> ShareableBundleSnapshot: ...
+
+
+class BundleRevocationAuthorizer(Protocol):
+    """Authorize the actual bundle owner to revoke a link, including closed sessions."""
+
+    async def require_revocation(
+        self,
+        tx: TransactionContext,
+        *,
+        actor: Actor,
+        workspace_id: WorkspaceId,
+        bundle_id: BundleId,
+    ) -> None:
+        """Check workspace and owning-session owner permission; return no private state."""
+        ...
 
 
 class CiteCreator(Protocol):
@@ -225,6 +240,7 @@ __all__ = [
     "BranchVersionGuard",
     "BundleItem",
     "BundleReader",
+    "BundleRevocationAuthorizer",
     "BundleSnapshot",
     "CiteCreator",
     "CompletedTurnsAppender",

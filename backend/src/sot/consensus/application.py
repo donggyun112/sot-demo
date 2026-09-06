@@ -288,6 +288,7 @@ class ReviseProposal:
         additional_approver_ids: frozenset[UserId] | None = None,
     ) -> ProposalView:
         async with self._uow_factory().transaction() as tx:
+            await self._sources.members.require_member(tx, workspace_id, actor.user_id)
             proposal = await self._repository.get_for_update(
                 tx, workspace_id, proposal_id
             )

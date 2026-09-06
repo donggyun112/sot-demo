@@ -29,6 +29,7 @@ class SessionPermission(StrEnum):
     MANAGE_MEMBERS = "session.manage_members"
     PUBLISH_BUNDLE = "session.publish_bundle"
     CREATE_TOSS = "session.create_toss"
+    REVOKE_TOSS = "session.revoke_toss"
     CREATE_PROPOSAL = "session.create_proposal"
 
 

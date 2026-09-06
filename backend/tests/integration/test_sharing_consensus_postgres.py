@@ -36,6 +36,7 @@ from sot.identity.postgres import PostgresIdentityRepository
 from sot.identity.tokens import SOTAccessTokenCodec
 from sot.session.application import (
     BundleAccess,
+    CloseSession,
     RequiredApprovers,
     SessionAccess,
     VersionGuard,
@@ -715,3 +716,99 @@ async def test_additional_approvers_remain_version_owned_snapshots(
             {s.other.user_id}
         )
         assert len(loaded.approvals) == 3
+
+
+async def test_production_owner_revokes_closed_session_toss_with_unchanged_permissions(
+    consensus: SharingConsensus, api: httpx.AsyncClient
+) -> None:
+    e, s = consensus, consensus.state
+    prefix = f"/api/v1/workspaces/{s.workspace_id}"
+    created = await api.post(
+        prefix + f"/bundles/{e.bundle.id}/tosses",
+        headers=bearer(s.owner.user_id),
+        json={},
+    )
+    assert created.status_code == 201
+    link_id, token = UUID(created.json()["id"]), created.json()["token"]
+    members = WorkspaceAccess(PostgresWorkspaceRepository())
+    await CloseSession(s.sessions, SessionAccess(s.sessions, members), s.uow).execute(
+        s.owner, s.workspace_id, s.session.id
+    )
+    create_after_close = await api.post(
+        prefix + f"/bundles/{e.bundle.id}/tosses",
+        headers=bearer(s.owner.user_id),
+        json={},
+    )
+    assert (
+        create_after_close.status_code == 409
+        and create_after_close.json()["error"]["code"] == "session_closed"
+    )
+    path = prefix + f"/tosses/{link_id}"
+    assert (await api.delete(path, headers=bearer(s.other.user_id))).status_code == 404
+    assert (
+        await api.delete(
+            f"/api/v1/workspaces/{s.other_workspace_id}/tosses/{link_id}",
+            headers=bearer(s.other.user_id),
+        )
+    ).status_code == 404
+    async with s.uow().transaction() as tx:
+        await s.sessions.add_member(
+            tx,
+            s.workspace_id,
+            SessionMember(
+                s.workspace_id, s.session.id, s.other.user_id, SessionRole.EDITOR
+            ),
+        )
+    denied = await api.delete(path, headers=bearer(s.other.user_id))
+    assert (
+        denied.status_code == 403
+        and denied.json()["error"]["code"] == "session_forbidden"
+    )
+    public = await api.get(f"/api/v1/tosses/{token}")
+    assert public.status_code == 200
+    revoked = await api.delete(path, headers=bearer(s.owner.user_id))
+    assert revoked.status_code == 204
+    hidden = await api.get(f"/api/v1/tosses/{token}")
+    assert (
+        hidden.status_code == 404
+        and hidden.headers["cache-control"] == "private, no-store"
+    )
+    assert (await api.delete(path, headers=bearer(s.owner.user_id))).status_code == 204
+    async with s.uow().transaction() as tx:
+        link = await e.shares.find_link(tx, s.workspace_id, link_id)
+        assert link and link.revoked_by == s.owner.user_id
+        assert await s.sessions.load_bundle(tx, s.workspace_id, e.bundle.id) == e.bundle
+
+
+@pytest.mark.parametrize("workspace_member", [False, True])
+async def test_production_revision_absent_private_responses_match(
+    consensus: SharingConsensus, api: httpx.AsyncClient, workspace_member: bool
+) -> None:
+    e, s = consensus, consensus.state
+    pid = await e.approved()
+    if not workspace_member:
+        async with s.uow().transaction() as tx:
+            assert isinstance(tx, PostgresTransactionContext)
+            await tx.connection.execute(
+                "DELETE FROM sot.sot_workspace_member WHERE workspace_id=%s AND user_id=%s",
+                (s.workspace_id, s.other.user_id),
+            )
+    responses = []
+    for candidate in (uuid4(), pid):
+        response = await api.put(
+            f"/api/v1/workspaces/{s.workspace_id}/proposals/{candidate}",
+            headers=bearer(s.other.user_id),
+            json={
+                "expected_version": 1,
+                "content": "private change",
+                "bundle_ids": [],
+                "citations": [],
+            },
+        )
+        responses.append((response.status_code, response.json()["error"]["code"]))
+    expected = (
+        (404, "proposal_not_found")
+        if workspace_member
+        else (403, "workspace_forbidden")
+    )
+    assert responses == [expected, expected]

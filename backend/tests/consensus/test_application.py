@@ -30,6 +30,7 @@ from sot.document.contracts import (
     RevisionView,
 )
 from sot.identity.contracts import Actor
+from sot.session.application import SessionAccess
 from sot.session.contracts import (
     BranchContext,
     BundleItem,
@@ -38,6 +39,7 @@ from sot.session.contracts import (
     SessionStatus,
     SessionView,
 )
+from sot.session.domain import Session, SessionMember, SessionRole
 from sot.shared.errors import Conflict, Forbidden, InvalidInput, NotFound
 from sot.shared.ids import (
     BranchId,
@@ -49,7 +51,11 @@ from sot.shared.ids import (
     WorkspaceId,
 )
 from sot.shared.unit_of_work import TransactionContext
+from sot.workspace.application import WorkspaceAccess
 from sot.workspace.contracts import WorkspaceMembership, WorkspaceRole
+from sot.workspace.domain import WorkspaceForbidden
+from tests.session.test_application import Memory as SessionMemory
+from tests.workspace.test_application import MemoryStore as WorkspaceMemory
 
 NOW = datetime(2026, 9, 6, tzinfo=UTC)
 ALICE, BOB, CAROL, DAN = (UserId(uuid4()) for _ in range(4))
@@ -1075,3 +1081,56 @@ async def test_revision_revalidates_access_to_previously_cited_bundle(
             citations=(ProposalCitation(BUNDLE, 0, "main"),),
         )
     assert env.store.proposals[proposal_id] == original
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("workspace_member", [False, True])
+async def test_revision_normalizes_absent_and_private_proposals_with_real_authorizers(
+    env: Harness, workspace_member: bool
+) -> None:
+    proposal_id = await env.initial()
+
+    class Workspaces(WorkspaceMemory):
+        def check(self, tx: TransactionContext) -> None:
+            env.store.tx(tx)
+
+    class Sessions(SessionMemory):
+        def check(self, tx: TransactionContext) -> None:
+            env.store.tx(tx)
+
+    workspaces, sessions = Workspaces(), Sessions()
+    sessions.sessions[WORKSPACE, SESSION] = Session(
+        SESSION, WORKSPACE, DOCUMENT, ALICE, NOW
+    )
+    sessions.members[WORKSPACE, SESSION, ALICE] = SessionMember(
+        WORKSPACE, SESSION, ALICE, SessionRole.OWNER
+    )
+    if workspace_member:
+        workspaces.members[WORKSPACE, CAROL] = WorkspaceMembership(
+            WORKSPACE, CAROL, WorkspaceRole.OWNER
+        )
+    members = WorkspaceAccess(workspaces)
+    sources = ProposalSources(
+        SessionAccess(sessions, members), env.access, env.access, env.access, members
+    )
+    revise = ReviseProposal(env.store, sources, lambda: env.store, FixedClock())
+    outcomes = []
+    for candidate in (ProposalId(uuid4()), proposal_id):
+        with pytest.raises((Forbidden, NotFound)) as caught:
+            await revise.execute(
+                Actor(CAROL),
+                WORKSPACE,
+                candidate,
+                expected_version=1,
+                content="private revision",
+                bundle_ids=(),
+                citations=(),
+            )
+        outcomes.append((type(caught.value), caught.value.code))
+    expected = (
+        (ProposalNotFound, "proposal_not_found")
+        if workspace_member
+        else (WorkspaceForbidden, "workspace_forbidden")
+    )
+    assert outcomes == [expected, expected]
+    assert env.store.proposals[proposal_id].version == 1

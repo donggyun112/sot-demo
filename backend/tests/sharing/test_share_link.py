@@ -11,12 +11,17 @@ from uuid import UUID, uuid4
 import pytest
 
 from sot.identity.contracts import Actor, IdentityAttribution, UserNotFound
-from sot.session.application import BundleAccess
-from sot.session.domain import SessionForbidden, SessionMember, SessionRole
+from sot.session.application import BundleAccess, CloseSession
+from sot.session.domain import (
+    SessionClosed,
+    SessionForbidden,
+    SessionMember,
+    SessionRole,
+)
 from sot.shared.errors import InvalidInput
 from sot.shared.ids import BundleId, UserId, WorkspaceId
 from sot.shared.unit_of_work import TransactionContext
-from sot.sharing.application import CreateShareLink, RevokeShareLink
+from sot.sharing.application import CreateShareLink, ReadPublicBundle, RevokeShareLink
 from sot.sharing.domain import (
     AttributionSnapshot,
     PublicBundleSnapshot,
@@ -167,8 +172,10 @@ async def test_create_uses_actual_publisher_and_stores_only_hash() -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("role", [SessionRole.VIEWER, SessionRole.EDITOR])
+@pytest.mark.parametrize("closed", [False, True])
 async def test_owning_other_session_cannot_create_or_revoke_link(
     role: SessionRole,
+    closed: bool,
 ) -> None:
     store, owner, workspace_id, bundle_id = await shared_fixture()
     result = await create_handler(store).execute(owner, workspace_id, bundle_id)
@@ -183,6 +190,10 @@ async def test_owning_other_session_cannot_create_or_revoke_link(
     store.source.members[workspace_id, bundle.session_id, attacker.user_id] = (
         SessionMember(workspace_id, bundle.session_id, attacker.user_id, role)
     )
+    if closed:
+        await CloseSession(
+            store.source, access(store.source), lambda: store.source
+        ).execute(owner, workspace_id, bundle.session_id)
     with pytest.raises(SessionForbidden):
         await create_handler(store).execute(attacker, workspace_id, bundle_id)
     with pytest.raises(SessionForbidden):
@@ -233,3 +244,44 @@ async def test_failed_revoke_rolls_back_link_state() -> None:
     with pytest.raises(RuntimeError):
         await revoke_handler(store).execute(actor, workspace_id, result.link_id)
     assert store.links[result.link_id].status(NOW) is ShareLinkStatus.ACTIVE
+
+
+@pytest.mark.asyncio
+async def test_owner_can_revoke_after_session_close_without_reopening_creation() -> (
+    None
+):
+    store, actor, workspace_id, bundle_id = await shared_fixture()
+    link = await create_handler(store).execute(actor, workspace_id, bundle_id)
+    bundle = store.source.bundles[workspace_id, bundle_id]
+    await CloseSession(
+        store.source, access(store.source), lambda: store.source
+    ).execute(actor, workspace_id, bundle.session_id)
+    reader = ReadPublicBundle(store, lambda: store, store)
+    snapshot = await reader.execute(link.raw_token)
+    with pytest.raises(SessionClosed):
+        await create_handler(store).execute(actor, workspace_id, bundle_id)
+    with pytest.raises(ShareLinkNotFound):
+        await revoke_handler(store).execute(actor, WorkspaceId(uuid4()), link.link_id)
+    before = store.source.transactions
+    await revoke_handler(store).execute(actor, workspace_id, link.link_id)
+    assert store.source.transactions == before + 1
+    with pytest.raises(ShareLinkNotFound):
+        await reader.execute(link.raw_token)
+    assert store.links[link.link_id].snapshot == snapshot
+    assert store.source.bundles[workspace_id, bundle_id] == bundle
+
+
+@pytest.mark.asyncio
+async def test_closed_session_owner_with_workspace_viewer_role_cannot_revoke() -> None:
+    store, actor, workspace_id, bundle_id = await shared_fixture()
+    link = await create_handler(store).execute(actor, workspace_id, bundle_id)
+    bundle = store.source.bundles[workspace_id, bundle_id]
+    await CloseSession(
+        store.source, access(store.source), lambda: store.source
+    ).execute(actor, workspace_id, bundle.session_id)
+    store.source.workspace_members[workspace_id, actor.user_id] = WorkspaceMembership(
+        workspace_id, actor.user_id, WorkspaceRole.VIEWER
+    )
+    with pytest.raises(SessionForbidden):
+        await revoke_handler(store).execute(actor, workspace_id, link.link_id)
+    assert store.links[link.link_id].status(NOW) is ShareLinkStatus.ACTIVE

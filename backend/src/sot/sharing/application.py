@@ -7,6 +7,7 @@ from uuid import UUID
 
 from sot.identity.contracts import Actor, IdentityAttributionReader
 from sot.session.contracts import (
+    BundleRevocationAuthorizer,
     ForkAttribution,
     ForkedSessionResult,
     ForkSeedItem,
@@ -91,7 +92,7 @@ class RevokeShareLink:
     def __init__(
         self,
         repository: ShareLinkRepository,
-        bundles: ShareableBundleReader,
+        bundles: BundleRevocationAuthorizer,
         uow_factory: UnitOfWorkFactory,
         clock: Clock,
     ) -> None:
@@ -107,7 +108,7 @@ class RevokeShareLink:
             link = await self._repository.find_link(tx, workspace_id, link_id)
             if link is None:
                 raise ShareLinkNotFound()
-            await self._bundles.require_shareable_snapshot(
+            await self._bundles.require_revocation(
                 tx, actor=actor, workspace_id=workspace_id, bundle_id=link.bundle_id
             )
             await self._repository.save_link(

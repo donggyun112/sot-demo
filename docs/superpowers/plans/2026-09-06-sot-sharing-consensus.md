@@ -15,6 +15,7 @@
 - Complete `2026-09-06-sot-document-session.md` first.
 - ShareLink is the only sharing state: `active -> revoked` or time-derived `expired`.
 - A Bundle is an immutable session-owned snapshot; revoking a ShareLink never mutates or deletes its Bundle.
+- Link creation requires the owning Session to be open; its owner can revoke an existing link after the Session closes, subject to current workspace permission.
 - Public toss access reveals only BundleItem and allowed attribution fields, never private Turns, Session membership, or Workspace membership.
 - A fork copies the public snapshot into a new private Session/Branch in an explicitly selected destination workspace.
 - A fork grants no source permission, has no live source read, survives later revocation, and exposes only its stored attribution snapshot.
@@ -53,7 +54,7 @@
 
 **Interfaces:**
 
-- Consumes: `ShareableBundleReader` from `session.contracts`, `IdentityAttributionReader` from `identity.contracts`, `Clock`, `UnitOfWorkFactory`.
+- Consumes: `ShareableBundleReader` and `BundleRevocationAuthorizer` from `session.contracts`, `IdentityAttributionReader` from `identity.contracts`, `Clock`, `UnitOfWorkFactory`.
 - Produces: `CreateShareLink`, `RevokeShareLink`, `ReadPublicBundle`, `PublicBundleSnapshot`, and token-hash repository contracts.
 
 - [ ] **Step 1: Write failing lifecycle tests**
@@ -106,13 +107,15 @@ Do not place raw token, workspace ID, private Session ID, Turn objects, or membe
 
 - [ ] **Step 4: Implement command/query handlers**
 
-`CreateShareLink` authenticates the actor and calls `ShareableBundleReader.require_shareable_snapshot(tx, actor=actor, workspace_id=workspace_id, bundle_id=bundle_id)`. Session resolves the Bundle's actual owning Session and enforces owner-only `SessionPermission.PUBLISH_BUNDLE`; sharing must not combine an ordinary `BundleReader` result with a separately supplied Session ID. The immutable internal `ShareableBundleSnapshot` wrapper carries the safe `BundleSnapshot` and its actual `published_by` identity. Publisher ID stays out of `BundleSnapshot` and every public DTO.
+`CreateShareLink` authenticates the actor and calls `ShareableBundleReader.require_shareable_snapshot(tx, actor=actor, workspace_id=workspace_id, bundle_id=bundle_id)`. Session resolves the Bundle's actual owning Session and enforces owner-only `SessionPermission.PUBLISH_BUNDLE` and an open Session; sharing must not combine an ordinary `BundleReader` result with a separately supplied Session ID. The immutable internal `ShareableBundleSnapshot` wrapper carries the safe `BundleSnapshot` and its actual `published_by` identity. Publisher ID stays out of `BundleSnapshot` and every public DTO.
 
 Approved attribution ruling: `author_display_name` means the display name of the user who actually published the Bundle, not the ShareLink creator. `IdentityAttributionReader.require_attribution(tx, published_by)` returns only frozen `IdentityAttribution(display_name)`. Sharing freezes that name at ShareLink creation into a complete sharing-owned `PublicBundleSnapshot`; later profile changes never change existing public snapshots or forks. Task 1 adds the narrow identity contract and a fake; Task 5 wires its production implementation without exposing a full User or cross-module SQL joins.
 
-The handler generates `secrets.token_urlsafe(32)`, stores only SHA-256 bytes, and returns the raw token once. `RevokeShareLink` uses workspace-scoped lookup and passes the stored link's Bundle ID through the same owner-bound capability. `ReadPublicBundle` hashes its token, rejects revoked/expired links, and returns the stored public snapshot without actor/workspace authorization or source identity/session reads.
+The handler generates `secrets.token_urlsafe(32)`, stores only SHA-256 bytes, and returns the raw token once. `RevokeShareLink` uses workspace-scoped lookup and passes the stored link's Bundle ID to the separate session-owned `BundleRevocationAuthorizer.require_revocation(tx, actor=actor, workspace_id=workspace_id, bundle_id=link.bundle_id)`. This capability checks current workspace permission and owner permission on the Bundle's actual owning Session using `SessionPermission.REVOKE_TOSS`, returns `None`, and permits both open and closed Sessions. It does not load a Bundle snapshot or reuse the open-session publication capability. Link creation continues to require the original open publish capability. `ReadPublicBundle` hashes its token, rejects revoked/expired links, and returns the stored public snapshot without actor/workspace authorization or source identity/session reads.
 
 Test that owning Session A cannot authorize sharing Session B's Bundle when the actor is only a viewer/editor in B. No caller-provided Session ID may substitute for the Bundle's actual owner relationship.
+
+Test create → close Session → revoke → public 404, including production PostgreSQL/API composition. Creation after close must remain rejected; non-owner and cross-workspace revocation must remain denied. Proposal revision must check workspace membership before its repository lookup, and absent/private proposal IDs must produce the same result for unauthorized actors.
 
 - [ ] **Step 5: Run sharing tests and architecture checks**
 

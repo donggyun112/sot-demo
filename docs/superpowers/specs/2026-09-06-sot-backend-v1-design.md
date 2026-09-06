@@ -384,7 +384,8 @@ adapter, application handler, `AuthFacade`, Pydantic AI agent와 FastAPI router�
 다른 제품 모듈은 상대 모듈의 `contracts.py`에 선언된 capability `Protocol`과 immutable result DTO만
 참조한다. 예를 들어 consensus의 생성·수정은 `BundleReader`, merge는 `DocumentReader`와
 `DocumentPublisher`를 사용하며, sharing은
-`ShareableBundleReader`, agent는 `BranchContextReader`, `BranchVersionGuard`, `CompletedTurnsAppender`,
+생성에는 `ShareableBundleReader`, 철회에는 `BundleRevocationAuthorizer`를 사용한다. agent는
+`BranchContextReader`, `BranchVersionGuard`, `CompletedTurnsAppender`,
 `CiteCreator`, `ProposalCreator`에 의존한다. 내부
 application handler, Domain aggregate, repository port와 PostgreSQL adapter는 외부에 공개하지 않는다.
 
@@ -394,10 +395,16 @@ mutable Session aggregate의 load/save는 session application 내부에서만 �
 
 `ShareableBundleReader.require_shareable_snapshot()`는 actor, workspace ID, Bundle ID를 받아 Bundle의
 실제 소유 Session을 session 모듈 안에서 조회하고 그 Session의 owner 전용 `PUBLISH_BUNDLE` permission을
-검증한다. 별도로 전달받은 Session ID로 권한을 대신 검증하지 않는다. 반환값은 불변 내부 wrapper
+검증하며 Session이 open이어야 한다. 별도로 전달받은 Session ID로 권한을 대신 검증하지 않는다. 반환값은 불변 내부 wrapper
 `ShareableBundleSnapshot(snapshot: BundleSnapshot, published_by: UserId)`다. `published_by`는 실제 Bundle
 게시자이며 공유 링크 생성자를 대신 사용하지 않는다. 기존 `BundleSnapshot`과 모든 공개 응답에는 publisher ID나
 private Session/Workspace 소유 정보를 추가하지 않는다. 일반 `BundleReader`의 읽기 권한은 공유 권한이 아니다.
+
+`BundleRevocationAuthorizer.require_revocation()`는 actor, workspace ID, 저장된 ShareLink의 Bundle ID를
+받아 실제 소유 Session과 현재 workspace membership/role을 검증한다. Owner 전용 `REVOKE_TOSS`
+permission은 open/closed Session 모두에서 허용하며 `None`을 반환한다. Bundle snapshot이나 mutable
+Session을 공유 모듈에 반환하지 않는다. 철회는 `require_shareable_snapshot()`의 open/publish 검사를
+재사용하지 않으며, 생성의 open 조건과 다른 mutation의 closed 제한은 그대로 유지한다.
 
 Sharing은 `IdentityAttributionReader.require_attribution(tx, published_by)`로 표시 이름만 읽는다.
 공개 `author_display_name`은 **실제 Bundle 게시자의 표시 이름**이며 ShareLink 생성 시점에 고정한다.
@@ -713,6 +720,12 @@ Session 초대 자격과 workspace 수준 기능만 결정하고 private Session
 
 Toss 생성은 `ShareableBundleReader`로 그 Bundle의 실제 소유 Session에 대한 owner 권한을 검증한다.
 다른 Session의 owner이거나 대상 Session의 viewer/editor라는 사실로 대상 Bundle을 공유할 수 없다.
+
+Toss 철회는 `BundleRevocationAuthorizer`로 같은 실제 소유 Session의 owner 권한과 workspace 권한을
+확인하되 Session이 closed여도 허용한다. Session 종료로 공개 링크가 철회 불가능해져서는 안 된다.
+Proposal 수정은 workspace membership을 먼저 검증한 뒤 proposal을 조회한다. Workspace 외부 사용자에게는
+proposal 존재 여부와 무관하게 같은 workspace 권한 오류를 반환하고, workspace 내부에서 source Session에
+접근할 수 없는 사용자에게는 없는 proposal과 같은 `proposal_not_found`를 반환한다.
 
 인증된 fork 요청의 `workspace_id`는 새 detached Session(`document_id = None`)과 Branch가 속할
 destination workspace다. Document를 자동 생성하지 않고 source Document 링크도 저장하지 않는다. Handler는
