@@ -38,8 +38,9 @@
 - `backend/tests/agent/`: model, context, tool, completion, and AG-UI contract tests.
 - `frontend/src/auth.ts`: in-memory access token, refresh, and Google login flow.
 - `frontend/index.html`: Google Identity Services script and root document.
-- `frontend/src/api.ts`: Bearer and workspace-scoped REST client.
-- `frontend/src/types.ts`: canonical API projections.
+- `frontend/src/generated/api-schema.d.ts`: `openapi-typescript` output from the canonical FastAPI schema.
+- `frontend/src/api.ts`: `openapi-fetch` auth middleware and `openapi-react-query` client.
+- `frontend/src/types.ts`: UI-only aliases/projections derived from generated API types.
 - `frontend/src/components/AgentChat.tsx`: workspace-scoped stream and refetch-only completion.
 - `frontend/e2e/vertical-slice.spec.ts`: authenticated workspace/toss/fork/consensus/main path.
 - `backend/migrations/007_cutover.sql`: only compatibility views/data backfill required by cutover; no table deletion.
@@ -340,7 +341,69 @@ git add backend/src/sot/agent backend/src/sot/session/contracts.py backend/src/s
 git commit -m "feat: guard agent tools with branch versions"
 ```
 
-### Task 4: Connect the Existing React UI to Authentication and Workspace APIs
+### Task 4: Add Canonical Read Resources Required by the UI
+
+**Files:**
+
+- Modify: `backend/src/sot/workspace/{application,api,ports,postgres}.py`
+- Modify: `backend/src/sot/document/{application,api,ports,postgres}.py`
+- Modify: `backend/src/sot/session/{application,api,ports,postgres}.py`
+- Modify: `backend/src/sot/consensus/{application,api,ports,postgres}.py`
+- Modify: `backend/src/sot/bootstrap/app.py`
+- Create: `backend/tests/integration/test_frontend_reads_postgres.py`
+- Modify: focused workspace/document/session/consensus API tests as required
+
+**Interfaces:**
+
+- Produces resource-oriented, workspace-scoped reads for the current member, documents, sessions, branches, completed Turns, and Proposals.
+- Reuses the existing bundle-preview route for curation state; does not add a screen-specific aggregate or legacy bootstrap adapter.
+
+- [ ] **Step 1: Write failing resource-read contracts**
+
+Add exact authenticated routes:
+
+- `GET /api/v1/workspaces/{workspace_id}/members/me`
+- `GET /api/v1/workspaces/{workspace_id}/documents`
+- `GET /api/v1/workspaces/{workspace_id}/documents/{document_id}/sessions`
+- `GET /api/v1/workspaces/{workspace_id}/sessions/{session_id}/branches`
+- `GET /api/v1/workspaces/{workspace_id}/branches/{branch_id}/turns`
+- `GET /api/v1/workspaces/{workspace_id}/documents/{document_id}/proposals`
+
+The member response contains the current actor's role and sorted permission values. Branch responses contain their current version. Turn responses contain only completed canonical Turns and never provider chunks, system prompts, tool-envelope internals, or partial output.
+
+- [ ] **Step 2: Pin privacy and tenant behavior**
+
+Every route authenticates first and scopes repository access by `workspace_id`. Document lists require active Workspace membership. Session lists return only Sessions for which the actor is an active Session member. Branch and Turn reads require active membership in the owning Session, so an additional Proposal approver who is not a Session member cannot read private Branches or Turns. Proposal lists use the existing document/workspace decision visibility rules and must not expose private Turn content.
+
+Cross-workspace identifiers and unauthorized private resources use the existing stable not-found/forbidden policy without revealing resource existence. Add PostgreSQL integration cases for Alice/Bob tenant isolation and the approved "additional approver without private Session access" split.
+
+- [ ] **Step 3: Implement thin application queries and repository reads**
+
+Reuse the existing domain projections, access services, PostgreSQL UoW factory, FastAPI/Pydantic response models, and repository patterns. Add only the list/read ports missing from the canonical modules. Do not call the legacy `SOTService`, build a generic query framework, add a UI-shaped aggregate DTO, or duplicate authorization in SQL and route handlers.
+
+- [ ] **Step 4: Verify OpenAPI generation**
+
+Assert every new operation has a stable operation ID, closed request/response schema, explicit workspace path parameter, and Bearer security. Generate the schema in-process from `build_app(Settings(environment="test", models=("test",)))`; no running backend is required.
+
+- [ ] **Step 5: Run backend verification**
+
+```bash
+uv run --project backend pytest backend/tests/workspace backend/tests/document backend/tests/session backend/tests/consensus backend/tests/integration/test_frontend_reads_postgres.py -q
+uv run --project backend pytest backend/tests -m 'not e2e' -q
+uv run --project backend ruff check backend/src backend/tests
+uv run --project backend mypy backend/src backend/tests
+```
+
+Expected: all PASS.
+
+- [ ] **Step 6: Commit the canonical UI read resources**
+
+```bash
+git add backend/src/sot backend/tests
+git commit -m "feat: expose canonical workspace read resources"
+```
+
+### Task 5: Connect the Existing React UI to Authentication and Workspace APIs
 
 **Files:**
 
@@ -374,6 +437,8 @@ pnpm --dir frontend build
 Expected: all PASS before changing files. Do not discard or recreate existing UI/streaming edits.
 
 Before choosing the frontend boundaries, audit the current dependency graph and official integrations. In particular, compare a generated OpenAPI client (`openapi-typescript`/`openapi-fetch`) with handwritten DTO/request duplication, and compare TanStack Query with manual snapshot caching/invalidation. Record the choice and rejected alternatives in the task report; keep `@ag-ui/pydantic-ai` for the native AG-UI stream unless the audit finds a concrete incompatibility.
+
+The approved choice is `openapi-typescript` + `openapi-fetch` + `openapi-react-query` + TanStack Query. Generate types from the in-process canonical FastAPI OpenAPI document, use generated query/mutation hooks for REST resources, and invalidate only affected workspace/document/session/branch queries after mutations or `RUN_FINISHED`. Do not maintain a parallel handwritten REST DTO/client/cache layer.
 
 - [ ] **Step 2: Write failing auth storage tests**
 
@@ -439,7 +504,7 @@ git add frontend/src
 git commit -m "feat: connect UI to workspace authentication"
 ```
 
-### Task 5: Cut Over Bootstrap, E2E, Containers, and Documentation
+### Task 6: Cut Over Bootstrap, E2E, Containers, and Documentation
 
 **Files:**
 
