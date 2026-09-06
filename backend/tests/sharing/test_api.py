@@ -4,10 +4,13 @@ from uuid import uuid4
 
 import httpx
 import pytest
+from starlette.types import Receive, Scope, Send
 from uvicorn.logging import AccessFormatter
 
 from sot.bootstrap.app import build_app
 from sot.bootstrap.settings import Settings
+from sot.sharing.application import ReadPublicBundle
+from tests.sharing.test_share_link import create_handler, shared_fixture
 
 
 @pytest.mark.asyncio
@@ -46,7 +49,8 @@ def test_sharing_public_schema_is_explicit_and_private_ids_are_absent() -> None:
     assert set(fields) == {"bundle_id", "title", "items", "attribution"}
 
 
-def test_access_logs_redact_public_and_fork_token_paths() -> None:
+@pytest.mark.parametrize("prefix", ["", "/service"])
+def test_access_logs_redact_public_and_fork_token_paths(prefix: str) -> None:
     build_app(Settings(environment="test", models=("test",)))
     output = io.StringIO()
     handler = logging.StreamHandler(output)
@@ -60,7 +64,7 @@ def test_access_logs_redact_public_and_fork_token_paths() -> None:
             '%s - "%s %s HTTP/%s" %s',
             "client",
             "GET",
-            "/api/v1/tosses/secret-capability",
+            prefix + "/api/v1/tosses/secret-capability",
             "1.1",
             200,
         )
@@ -68,7 +72,7 @@ def test_access_logs_redact_public_and_fork_token_paths() -> None:
             '%s - "%s %s HTTP/%s" %s',
             "client",
             "POST",
-            f"/api/v1/workspaces/{uuid4()}/tosses/second-secret/fork",
+            prefix + f"/api/v1/workspaces/{uuid4()}/tosses/second-secret/fork",
             "1.1",
             201,
         )
@@ -93,3 +97,49 @@ async def test_public_internal_errors_are_safe_and_not_cached() -> None:
         "error": {"code": "internal_error", "message": "An internal error occurred"}
     }
     assert response.headers["cache-control"] == "private, no-store"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", [200, 404, 500])
+async def test_prefixed_public_responses_are_not_cached_and_tokens_are_redacted(
+    status: int, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    token = "missing-or-unavailable-capability"
+    if status != 500:
+        store, actor, workspace_id, bundle_id = await shared_fixture()
+        created = await create_handler(store).execute(actor, workspace_id, bundle_id)
+        reader = ReadPublicBundle(store, lambda: store, store)
+        # Use the real public handler/domain over the existing memory persistence;
+        # the 500 case retains the real unopened PostgreSQL dependency.
+        monkeypatch.setattr("sot.bootstrap.app.ReadPublicBundle", lambda *_: reader)
+        if status == 200:
+            token = created.raw_token
+    app = build_app(Settings(environment="test", models=("test",)))
+    scopes: list[Scope] = []
+
+    async def observed_app(scope: Scope, receive: Receive, send: Send) -> None:
+        try:
+            await app(scope, receive, send)
+        finally:
+            scopes.append(scope)
+
+    with caplog.at_level(logging.INFO, logger="httpx"):
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(
+                app=observed_app, root_path="/service", raise_app_exceptions=False
+            ),
+            base_url="https://test",
+        ) as client:
+            response = await client.get(f"/service/api/v1/tosses/{token}")
+    assert response.status_code == status
+    if status == 200:
+        assert response.json()["title"] == "Public"
+    else:
+        assert response.json()["error"]["code"] == (
+            "share_link_not_found" if status == 404 else "internal_error"
+        )
+    assert token not in caplog.text
+    assert scopes[0]["path"] == "/service/api/v1/tosses/[redacted]"
+    assert scopes[0]["raw_path"] == b"/service/api/v1/tosses/[redacted]"
+    assert response.headers.get("cache-control") == "private, no-store"
+    assert scopes[0]["sot_no_store"] is True

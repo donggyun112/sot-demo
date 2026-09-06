@@ -7,6 +7,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, Response
 from pydantic import AwareDatetime, BaseModel, ConfigDict
+from starlette._utils import get_route_path
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from sot.identity.contracts import Actor
@@ -61,13 +62,16 @@ class TossSecurityMiddleware:
             await self.app(scope, receive, send)
             return
         path = scope["path"]
+        public = (
+            get_route_path(scope).startswith("/api/v1/tosses/")
+            and scope["method"] == "GET"
+        )
         routed_scope = dict(scope)
         if _TOKEN_PATH.search(path):
             # The server keeps the original scope for access/error logging;
             # routing receives a private copy containing the capability.
             scope["path"] = _redact_path(path)
             scope["raw_path"] = scope["path"].encode()
-        public = path.startswith("/api/v1/tosses/") and scope["method"] == "GET"
         # The outer server-error handler sends 500 responses outside this middleware.
         scope["sot_no_store"] = public
 
