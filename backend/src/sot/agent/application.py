@@ -74,7 +74,7 @@ class CompletedRunWriter:
     def __init__(self, appender: CompletedTurnsAppender) -> None:
         self._appender = appender
 
-    async def execute(
+    async def write(
         self, deps: AgentDeps, *, messages: tuple[NewTurn, ...]
     ) -> CompletedTurnsResult:
         result = await self._appender.execute(
@@ -86,3 +86,9 @@ class CompletedRunWriter:
         )
         deps.lineage.advance_to(result.branch_version)
         return result
+
+    async def execute(
+        self, deps: AgentDeps, *, messages: tuple[NewTurn, ...]
+    ) -> CompletedTurnsResult:
+        """Compatibility alias for Task 1 callers; new lifecycle code uses write()."""
+        return await self.write(deps, messages=messages)

@@ -9,6 +9,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from psycopg_pool import AsyncConnectionPool
 
+from sot.agent.api import build_agent_router
 from sot.agent.application import AgentRunPreparer, CompletedRunWriter
 from sot.agent.models import build_agent, build_model
 from sot.api import create_app
@@ -234,12 +235,18 @@ def build_app(
         uow_factory,
         clock,
     )
-    application.state.canonical_agent = build_agent(build_model(settings.models))
-    application.state.agent_preparer = AgentRunPreparer(
+    canonical_agent = build_agent(build_model(settings.models))
+    agent_preparer = AgentRunPreparer(
         access, branch_access, uow_factory, curation, create_proposal
     )
-    application.state.completed_run_writer = CompletedRunWriter(
+    completed_run_writer = CompletedRunWriter(
         AppendCompletedTurns(sessions, branch_access, uow_factory, clock)
+    )
+    application.state.canonical_agent = canonical_agent
+    application.state.agent_preparer = agent_preparer
+    application.state.completed_run_writer = completed_run_writer
+    application.include_router(
+        build_agent_router(canonical_agent, agent_preparer, completed_run_writer, actor)
     )
     application.include_router(
         build_consensus_router(

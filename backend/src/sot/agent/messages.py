@@ -1,7 +1,8 @@
 """Translate canonical Turns at the model boundary, including versioned tool data."""
 
 import json
-from typing import Annotated, Literal
+from collections.abc import Sequence
+from typing import Annotated, Any, Literal
 
 from pydantic import (
     BaseModel,
@@ -15,7 +16,10 @@ from pydantic_ai.messages import (
     ModelMessage,
     ModelRequest,
     ModelResponse,
+    RetryPromptPart,
+    SystemPromptPart,
     TextPart,
+    ThinkingPart,
     ToolCallPart,
     ToolReturnPart,
     UserPromptPart,
@@ -44,6 +48,12 @@ class _ToolReturn(_ToolEnvelope):
 
 _TOOL_ENVELOPE: TypeAdapter[_ToolCall | _ToolReturn] = TypeAdapter(
     Annotated[_ToolCall | _ToolReturn, Field(discriminator="kind")]
+)
+_TOOL_ARGS: TypeAdapter[dict[str, JsonValue]] = TypeAdapter(
+    dict[str, JsonValue], config=ConfigDict(strict=True, allow_inf_nan=False)
+)
+_JSON_VALUE: TypeAdapter[JsonValue] = TypeAdapter(
+    JsonValue, config=ConfigDict(strict=True, allow_inf_nan=False)
 )
 
 
@@ -108,3 +118,65 @@ def turns_to_model_messages(turns: tuple[Turn, ...]) -> list[ModelMessage]:
         else:
             messages.append(ModelResponse(parts=[part], timestamp=turn.created_at))
     return messages
+
+
+def _normalized_tool_args(args: str | dict[str, Any] | None) -> dict[str, JsonValue]:
+    try:
+        value: object = {} if args is None else args
+        if isinstance(args, str):
+            value = json.loads(args)
+        if not isinstance(value, dict):
+            raise TypeError
+        return _TOOL_ARGS.validate_python(value)
+    except (json.JSONDecodeError, TypeError, ValidationError, ValueError):
+        raise ValueError("completed agent message is invalid") from None
+
+
+def completed_messages_to_new_turns(
+    messages: Sequence[ModelMessage],
+) -> tuple[NewTurn, ...]:
+    """Map only completed transcript parts into the closed Turn representation."""
+    turns: list[NewTurn] = []
+    try:
+        for message in messages:
+            if isinstance(message, ModelRequest):
+                for request_part in message.parts:
+                    if isinstance(request_part, SystemPromptPart | RetryPromptPart):
+                        continue
+                    if isinstance(request_part, UserPromptPart):
+                        if not isinstance(request_part.content, str):
+                            raise TypeError
+                        turns.append(NewTurn("user", request_part.content))
+                    elif isinstance(request_part, ToolReturnPart):
+                        turns.append(
+                            encode_tool_return(
+                                tool_name=request_part.tool_name,
+                                tool_call_id=request_part.tool_call_id,
+                                result=_JSON_VALUE.validate_python(
+                                    request_part.content
+                                ),
+                            )
+                        )
+                    else:
+                        raise TypeError
+            elif isinstance(message, ModelResponse):
+                for response_part in message.parts:
+                    if isinstance(response_part, ThinkingPart):
+                        continue
+                    if isinstance(response_part, TextPart):
+                        turns.append(NewTurn("assistant", response_part.content))
+                    elif isinstance(response_part, ToolCallPart):
+                        turns.append(
+                            encode_tool_call(
+                                tool_name=response_part.tool_name,
+                                tool_call_id=response_part.tool_call_id,
+                                args=_normalized_tool_args(response_part.args),
+                            )
+                        )
+                    else:
+                        raise TypeError
+            else:
+                raise TypeError
+    except (TypeError, ValidationError, ValueError):
+        raise ValueError("completed agent message is invalid") from None
+    return tuple(turns)
