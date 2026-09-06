@@ -535,3 +535,24 @@ async def test_branch_creation_and_required_approvers_are_session_scoped() -> No
     assert approvers == {actor.user_id, editor}
     assert context.document_id == document_id
     assert context.turns == ()
+
+
+@pytest.mark.asyncio
+async def test_detached_fork_branch_context_preserves_absent_document() -> None:
+    store, actor, workspace_id, _ = setup()
+    session = Session.create_detached_fork(workspace_id, actor.user_id, NOW)
+    branch = Branch.create(workspace_id, session.id, actor.user_id, NOW)
+    async with store.transaction() as tx:
+        await store.create_session(tx, workspace_id, session)
+        await store.add_member(
+            tx,
+            workspace_id,
+            SessionMember(workspace_id, session.id, actor.user_id, SessionRole.OWNER),
+        )
+        await store.create_branch(tx, workspace_id, branch)
+        context = await BranchAccess(store, access(store), store).read(
+            tx, actor=actor, workspace_id=workspace_id, branch_id=branch.id
+        )
+    assert context.document_id is None
+    assert context.session_id == session.id
+    assert context.workspace_id == workspace_id

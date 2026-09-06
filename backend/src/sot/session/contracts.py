@@ -43,7 +43,7 @@ class BranchMutationResult:
 class BranchContext:
     workspace_id: WorkspaceId
     session_id: SessionId
-    document_id: DocumentId
+    document_id: DocumentId | None
     branch_id: BranchId
     version: int
     turns: tuple[Turn, ...]
@@ -106,6 +106,12 @@ class ForkedSessionResult:
 
 
 class SessionForkWriter(Protocol):
+    """Create a detached Session via Session.create_detached_fork and seed its branch.
+
+    document_id stays None. Never create a destination document automatically or
+    retain a source document link; source_bundle_id is opaque provenance only.
+    """
+
     async def create_from_public_bundle(
         self,
         tx: TransactionContext,

@@ -89,7 +89,7 @@ class SessionMember:
 class Session:
     id: SessionId
     workspace_id: WorkspaceId
-    document_id: DocumentId
+    document_id: DocumentId | None
     created_by: UserId
     created_at: datetime
     status: SessionStatus = SessionStatus.OPEN
@@ -102,7 +102,16 @@ class Session:
         created_by: UserId,
         now: datetime,
     ) -> Session:
+        if document_id is None:
+            raise InvalidInput("session_document_required", "A document is required")
         return cls(SessionId(uuid4()), workspace_id, document_id, created_by, now)
+
+    @classmethod
+    def create_detached_fork(
+        cls, workspace_id: WorkspaceId, created_by: UserId, now: datetime
+    ) -> Session:
+        """Create a public-bundle fork without any source/destination document link."""
+        return cls(SessionId(uuid4()), workspace_id, None, created_by, now)
 
     def require_open(self) -> None:
         if self.status is not SessionStatus.OPEN:

@@ -99,3 +99,31 @@ def test_closing_session_is_terminal() -> None:
         session.require_open()
     with pytest.raises(SessionClosed):
         session.close()
+
+
+def test_normal_session_requires_and_retains_document() -> None:
+    workspace_id, document_id, user_id = (
+        WorkspaceId(uuid4()),
+        DocumentId(uuid4()),
+        UserId(uuid4()),
+    )
+    session = Session.create(workspace_id, document_id, user_id, NOW)
+    assert session.document_id == document_id
+    with pytest.raises(InvalidInput):
+        Session.create(workspace_id, None, user_id, NOW)  # type: ignore[arg-type]
+
+
+def test_detached_public_fork_has_no_document_link() -> None:
+    workspace_id, user_id = WorkspaceId(uuid4()), UserId(uuid4())
+    session = Session.create_detached_fork(workspace_id, user_id, NOW)
+    assert session.workspace_id == workspace_id
+    assert session.created_by == user_id
+    assert session.document_id is None
+    assert session.status is SessionStatus.OPEN
+    with pytest.raises(TypeError):
+        Session.create_detached_fork(
+            workspace_id,
+            user_id,
+            NOW,
+            source_document_id=DocumentId(uuid4()),  # type: ignore[call-arg]
+        )
