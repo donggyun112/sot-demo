@@ -153,3 +153,39 @@ async def test_local_composition_imports_without_google_and_fails_login_safely()
         )
         assert response.status_code == 401
         assert response.json() == {"detail": "Authentication failed"}
+
+
+@pytest.mark.asyncio
+async def test_composed_auth_cors_allows_credentials_only_for_configured_origins() -> (
+    None
+):
+    origin = "https://console.example.com"
+    app = build_app(Settings(environment="test", cors_origins=(origin,)))
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="https://api.example.com"
+    ) as client:
+        preflight = await client.options(
+            "/api/v1/auth/google",
+            headers={
+                "Origin": origin,
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "content-type",
+            },
+        )
+        assert preflight.status_code == 200
+        assert preflight.headers.get("access-control-allow-credentials") == "true"
+        assert preflight.headers.get("access-control-allow-origin") == origin
+        for request_origin in (origin, "https://untrusted.example.com"):
+            response = await client.post(
+                "/api/v1/auth/google",
+                json={"credential": "not-a-real-token"},
+                headers={"Origin": request_origin},
+            )
+            assert response.status_code == 401
+            if request_origin == origin:
+                assert (
+                    response.headers.get("access-control-allow-credentials") == "true"
+                )
+                assert response.headers.get("access-control-allow-origin") == origin
+            else:
+                assert "access-control-allow-origin" not in response.headers

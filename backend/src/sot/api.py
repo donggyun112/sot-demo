@@ -160,6 +160,7 @@ def create_app(
     application.add_middleware(
         CORSMiddleware,
         allow_origins=list(cors_origins),
+        allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
