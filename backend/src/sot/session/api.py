@@ -15,7 +15,11 @@ from sot.session.application import (
     PreviewBundle,
     PublishBundle,
 )
-from sot.session.contracts import BranchMutationResult, CreatedSessionResult
+from sot.session.contracts import (
+    BranchMutationResult,
+    CreatedSessionResult,
+    SessionView,
+)
 from sot.session.domain import (
     Branch,
     BundleItem,
@@ -23,7 +27,6 @@ from sot.session.domain import (
     DropTurn,
     EditTurn,
     JoinTurns,
-    Session,
     SessionStatus,
 )
 from sot.shared.ids import BranchId, DocumentId, SessionId, WorkspaceId
@@ -100,7 +103,7 @@ class SessionResponse(BaseModel):
     status: SessionStatus
 
     @classmethod
-    def from_session(cls, value: Session) -> "SessionResponse":
+    def from_session(cls, value: SessionView) -> "SessionResponse":
         return cls(
             id=value.id,
             workspace_id=value.workspace_id,

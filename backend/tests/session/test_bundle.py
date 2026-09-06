@@ -6,11 +6,11 @@ from uuid import uuid4
 import pytest
 
 from sot.identity.contracts import Actor
-from sot.session import application, domain
+from sot.session import application, contracts, domain
 from sot.shared.ids import BundleId, UserId, WorkspaceId
 from sot.workspace.contracts import WorkspaceMembership, WorkspaceRole
 from sot.workspace.domain import WorkspaceNotFound
-from tests.session.test_application import NOW, FixedClock, access
+from tests.session.test_application import NOW, FixedClock, access, creator
 from tests.session.test_curation import CuratedMemory, curation, prepared, source_branch
 
 
@@ -39,6 +39,75 @@ def publisher(store: CuratedMemory) -> application.PublishBundle:
         lambda: store,
         FixedClock(),
     )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("role", [domain.SessionRole.VIEWER, domain.SessionRole.EDITOR])
+async def test_shareable_bundle_requires_owner_of_its_actual_session(
+    role: domain.SessionRole,
+) -> None:
+    store, owner_b, branch_b = await prepared()
+    result = await publisher(store).execute(
+        owner_b, branch_b.workspace_id, branch_b.id, expected_version=1, title="B"
+    )
+    actor = Actor(UserId(uuid4()))
+    store.workspace_members[branch_b.workspace_id, actor.user_id] = WorkspaceMembership(
+        branch_b.workspace_id, actor.user_id, WorkspaceRole.MEMBER
+    )
+    document_id = store.sessions[branch_b.workspace_id, branch_b.session_id].document_id
+    assert document_id is not None
+    session_a = await creator(store).execute(actor, branch_b.workspace_id, document_id)
+    store.members[branch_b.workspace_id, branch_b.session_id, actor.user_id] = (
+        domain.SessionMember(
+            branch_b.workspace_id, branch_b.session_id, actor.user_id, role
+        )
+    )
+    bundle_id = BundleId(result.resource_id)
+    access_bundle = application.BundleAccess(store, access(store), store)
+    reader: contracts.ShareableBundleReader = access_bundle
+    async with store.transaction() as tx:
+        await access(store).require(
+            tx,
+            actor=actor,
+            workspace_id=branch_b.workspace_id,
+            session_id=session_a.session_id,
+            permission=domain.SessionPermission.PUBLISH_BUNDLE,
+        )
+        readable = await access_bundle.require_snapshot(
+            tx, actor=actor, workspace_id=branch_b.workspace_id, bundle_id=bundle_id
+        )
+        assert readable.title == "B"
+        store.reads.clear()
+        with pytest.raises(domain.SessionForbidden):
+            await reader.require_shareable_snapshot(
+                tx, actor=actor, workspace_id=branch_b.workspace_id, bundle_id=bundle_id
+            )
+    assert "bundle_content" not in store.reads
+    assert store.branches[branch_b.workspace_id, branch_b.id].version == 2
+
+
+@pytest.mark.asyncio
+async def test_shareable_bundle_returns_safe_snapshot_in_caller_transaction() -> None:
+    store, owner, branch = await prepared()
+    result = await publisher(store).execute(
+        owner, branch.workspace_id, branch.id, expected_version=1, title="Public"
+    )
+    reader: contracts.ShareableBundleReader = application.BundleAccess(
+        store, access(store), store
+    )
+    before = store.transactions
+    async with store.transaction() as tx:
+        snapshot = await reader.require_shareable_snapshot(
+            tx,
+            actor=owner,
+            workspace_id=branch.workspace_id,
+            bundle_id=BundleId(result.resource_id),
+        )
+    assert store.transactions == before + 1
+    assert [item.content for item in snapshot.items] == ["Q", "private"]
+    assert set(asdict(snapshot)) == {"bundle_id", "title", "items", "published_at"}
+    with pytest.raises(FrozenInstanceError):
+        snapshot.title = "mutation"  # type: ignore[misc]
 
 
 @pytest.mark.asyncio

@@ -11,6 +11,7 @@ from sot.session.contracts import (
     BundleSnapshot,
     CreatedSessionResult,
     SessionAuthorizer,
+    SessionView,
 )
 from sot.session.domain import (
     Branch,
@@ -64,7 +65,7 @@ class SessionAccess:
         workspace_id: WorkspaceId,
         session_id: SessionId,
         permission: SessionPermission,
-    ) -> Session:
+    ) -> SessionView:
         workspace_member = await self._members.require_member(
             tx, workspace_id, actor.user_id
         )
@@ -80,7 +81,14 @@ class SessionAccess:
             raise SessionNotFound()
         if permission is not SessionPermission.READ:
             session.require_open()
-        return session
+        return SessionView(
+            session.id,
+            session.workspace_id,
+            session.document_id,
+            session.created_by,
+            session.created_at,
+            session.status,
+        )
 
 
 class BranchAccess:
@@ -178,7 +186,7 @@ class GetSession:
 
     async def execute(
         self, actor: Actor, workspace_id: WorkspaceId, session_id: SessionId
-    ) -> Session:
+    ) -> SessionView:
         async with self._uow_factory().transaction() as tx:
             return await self._authorizer.require(
                 tx,
@@ -271,13 +279,16 @@ class CloseSession:
         self, actor: Actor, workspace_id: WorkspaceId, session_id: SessionId
     ) -> None:
         async with self._uow_factory().transaction() as tx:
-            session = await self._authorizer.require(
+            await self._authorizer.require(
                 tx,
                 actor=actor,
                 workspace_id=workspace_id,
                 session_id=session_id,
                 permission=SessionPermission.MANAGE_MEMBERS,
             )
+            session = await self._repository.load_session(tx, workspace_id, session_id)
+            if session is None:
+                raise SessionNotFound()
             session.close()
             await self._repository.save_session(tx, workspace_id, session)
 
@@ -579,6 +590,39 @@ class BundleAccess:
         workspace_id: WorkspaceId,
         bundle_id: BundleId,
     ) -> BundleSnapshot:
+        return await self._require_snapshot(
+            tx,
+            actor=actor,
+            workspace_id=workspace_id,
+            bundle_id=bundle_id,
+            permission=SessionPermission.READ,
+        )
+
+    async def require_shareable_snapshot(
+        self,
+        tx: TransactionContext,
+        *,
+        actor: Actor,
+        workspace_id: WorkspaceId,
+        bundle_id: BundleId,
+    ) -> BundleSnapshot:
+        return await self._require_snapshot(
+            tx,
+            actor=actor,
+            workspace_id=workspace_id,
+            bundle_id=bundle_id,
+            permission=SessionPermission.PUBLISH_BUNDLE,
+        )
+
+    async def _require_snapshot(
+        self,
+        tx: TransactionContext,
+        *,
+        actor: Actor,
+        workspace_id: WorkspaceId,
+        bundle_id: BundleId,
+        permission: SessionPermission,
+    ) -> BundleSnapshot:
         await self._members.require_member(tx, workspace_id, actor.user_id)
         session_id = await self._repository.session_for_bundle(
             tx, workspace_id, bundle_id
@@ -590,7 +634,7 @@ class BundleAccess:
             actor=actor,
             workspace_id=workspace_id,
             session_id=session_id,
-            permission=SessionPermission.READ,
+            permission=permission,
         )
         bundle = await self._repository.load_bundle(tx, workspace_id, bundle_id)
         if bundle is None or bundle.session_id != session_id:

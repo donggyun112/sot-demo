@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from copy import deepcopy
-from dataclasses import dataclass, field
+from dataclasses import FrozenInstanceError, dataclass, field
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -12,6 +12,7 @@ import pytest
 from sot.document.contracts import DocumentSummary, DocumentView, RevisionView
 from sot.document.domain import DocumentNotFound, RevisionId
 from sot.identity.contracts import Actor
+from sot.session import contracts
 from sot.session.application import (
     AppendCompletedTurns,
     BranchAccess,
@@ -33,6 +34,7 @@ from sot.session.domain import (
     SessionMember,
     SessionMemberAlreadyExists,
     SessionNotFound,
+    SessionPermission,
     SessionRole,
     SessionStatus,
     Turn,
@@ -258,6 +260,49 @@ def access(store: Memory) -> SessionAccess:
 
 
 @pytest.mark.asyncio
+async def test_authorized_session_is_an_immutable_view_without_transitions() -> None:
+    store, actor, workspace_id, document_id = setup()
+    created = await creator(store).execute(actor, workspace_id, document_id)
+    authorizer: contracts.SessionAuthorizer = access(store)
+    async with store.transaction() as tx:
+        view = await authorizer.require(
+            tx,
+            actor=actor,
+            workspace_id=workspace_id,
+            session_id=created.session_id,
+            permission=SessionPermission.READ,
+        )
+
+    with pytest.raises(FrozenInstanceError):
+        view.status = SessionStatus.CLOSED  # type: ignore[misc]
+    assert not hasattr(view, "close")
+    assert not isinstance(view, Session)
+    assert (
+        view.id,
+        view.workspace_id,
+        view.document_id,
+        view.created_by,
+        view.created_at,
+        view.status,
+    ) == (
+        created.session_id,
+        workspace_id,
+        document_id,
+        actor.user_id,
+        NOW,
+        SessionStatus.OPEN,
+    )
+    await CloseSession(store, authorizer, lambda: store).execute(
+        actor, workspace_id, created.session_id
+    )
+    closed = await GetSession(authorizer, lambda: store).execute(
+        actor, workspace_id, created.session_id
+    )
+    assert closed.status is SessionStatus.CLOSED
+    assert view.status is SessionStatus.OPEN
+
+
+@pytest.mark.asyncio
 async def test_creation_and_failed_initial_branch_are_atomic() -> None:
     store, actor, workspace_id, document_id = setup()
     result = await creator(store).execute(actor, workspace_id, document_id)
@@ -431,18 +476,29 @@ async def test_append_and_caller_owned_guard_use_conditional_versions() -> None:
     store, actor, workspace_id, document_id = setup()
     result = await creator(store).execute(actor, workspace_id, document_id)
     branch_access = BranchAccess(store, access(store), store)
-    append = AppendCompletedTurns(store, branch_access, lambda: store, FixedClock())
+    append: contracts.CompletedTurnsAppender = AppendCompletedTurns(
+        store, branch_access, lambda: store, FixedClock()
+    )
     added = await append.execute(
         actor,
         workspace_id,
         result.branch_id,
         expected_version=0,
-        messages=(NewTurn("user", "Q"), NewTurn("assistant", "A")),
+        messages=(
+            NewTurn("user", "Q"),
+            NewTurn("tool", "completed tool result"),
+            NewTurn("assistant", "A"),
+        ),
     )
     assert added.branch_version == 1
     assert [
         t.ordinal for t in store.branches[workspace_id, result.branch_id].turns
-    ] == [1, 2]
+    ] == [1, 2, 3]
+    assert [(turn.role, turn.content) for turn in added.turns] == [
+        ("user", "Q"),
+        ("tool", "completed tool result"),
+        ("assistant", "A"),
+    ]
     store.conflict = True
     with pytest.raises(VersionConflict):
         await append.execute(
@@ -452,7 +508,7 @@ async def test_append_and_caller_owned_guard_use_conditional_versions() -> None:
             expected_version=1,
             messages=(NewTurn("tool", "lost"),),
         )
-    assert len(store.branches[workspace_id, result.branch_id].turns) == 2
+    assert store.branches[workspace_id, result.branch_id].turns == added.turns
     store.conflict = False
     before = store.transactions
     async with store.transaction() as tx:

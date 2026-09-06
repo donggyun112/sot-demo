@@ -75,6 +75,41 @@ def test_join_uses_ordered_source_ids_and_replays_operations() -> None:
     assert projection.items[0].provenance == "edited"
 
 
+def test_partial_join_selection_is_rejected_without_projection_mutation() -> None:
+    branch = source_branch()
+    projection = domain.CurationProjection.from_turns(branch.turns)
+    projection.apply(
+        domain.JoinTurns((branch.turns[0].id, branch.turns[1].id), "joined")
+    )
+    before = projection.items
+    with pytest.raises(InvalidInput) as error:
+        projection.apply(
+            domain.JoinTurns((branch.turns[1].id, branch.turns[2].id), "partial")
+        )
+    assert error.value.code == "curation_selection_partial"
+    assert projection.items == before
+    assert [turn.content for turn in branch.turns] == [
+        "question",
+        "private wording",
+        "third",
+        "private tool payload",
+    ]
+
+
+def test_join_preserves_reversed_sources_at_first_selected_position() -> None:
+    branch = source_branch()
+    projection = domain.CurationProjection.from_turns(branch.turns)
+    projection.apply(
+        domain.JoinTurns((branch.turns[2].id, branch.turns[0].id), "summary")
+    )
+    assert [
+        (item.source_ids, item.role, item.content) for item in projection.items
+    ] == [
+        ((branch.turns[2].id, branch.turns[0].id), "user", "summary"),
+        ((branch.turns[1].id,), "assistant", "private wording"),
+    ]
+
+
 @pytest.mark.parametrize("kind", ["unknown", "duplicate", "empty", "dropped", "tool"])
 def test_invalid_selection_does_not_change_projection(kind: str) -> None:
     branch = source_branch()

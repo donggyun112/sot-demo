@@ -10,7 +10,6 @@ from sot.session.domain import (
     BundleItem,
     CompletedTurnsResult,
     NewTurn,
-    Session,
     SessionMember,
     SessionPermission,
     SessionRole,
@@ -59,6 +58,19 @@ class BundleReader(Protocol):
     ) -> BundleSnapshot: ...
 
 
+class ShareableBundleReader(Protocol):
+    """Authorize publishing on the bundle's actual owning session, then snapshot."""
+
+    async def require_shareable_snapshot(
+        self,
+        tx: TransactionContext,
+        *,
+        actor: Actor,
+        workspace_id: WorkspaceId,
+        bundle_id: BundleId,
+    ) -> BundleSnapshot: ...
+
+
 class CiteCreator(Protocol):
     async def create_from_agent(
         self,
@@ -82,6 +94,16 @@ class BranchContext:
     turns: tuple[Turn, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class SessionView:
+    id: SessionId
+    workspace_id: WorkspaceId
+    document_id: DocumentId | None
+    created_by: UserId
+    created_at: datetime
+    status: SessionStatus
+
+
 class SessionAuthorizer(Protocol):
     async def require(
         self,
@@ -91,7 +113,21 @@ class SessionAuthorizer(Protocol):
         workspace_id: WorkspaceId,
         session_id: SessionId,
         permission: SessionPermission,
-    ) -> Session: ...
+    ) -> SessionView: ...
+
+
+class CompletedTurnsAppender(Protocol):
+    """Commit completed messages and the expected-version advance atomically."""
+
+    async def execute(
+        self,
+        actor: Actor,
+        workspace_id: WorkspaceId,
+        branch_id: BranchId,
+        *,
+        expected_version: int,
+        messages: tuple[NewTurn, ...],
+    ) -> CompletedTurnsResult: ...
 
 
 class BranchContextReader(Protocol):
@@ -178,6 +214,7 @@ __all__ = [
     "BundleReader",
     "BundleSnapshot",
     "CiteCreator",
+    "CompletedTurnsAppender",
     "CompletedTurnsResult",
     "CreatedSessionResult",
     "ForkAttribution",
@@ -191,5 +228,7 @@ __all__ = [
     "SessionPermission",
     "SessionRole",
     "SessionStatus",
+    "SessionView",
+    "ShareableBundleReader",
     "Turn",
 ]
