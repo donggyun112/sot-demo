@@ -124,7 +124,10 @@ async def test_agent_uses_db_history_plus_only_latest_client_user_input() -> Non
     assert "forged" not in repr(seen_messages)
     assert len(seen_info) == 1
     assert INSTRUCTIONS in str(seen_info[0].instructions)
-    assert seen_info[0].function_tools == []
+    assert {tool.name for tool in seen_info[0].function_tools} == {
+        "session_cite",
+        "sot_update",
+    }
     assert event_payloads(response.text)[-1]["type"] == "RUN_FINISHED"
 
 

@@ -27,6 +27,8 @@ from sot.shared.ids import (
 )
 from sot.shared.unit_of_work import TransactionContext
 
+type TurnId = UUID
+
 
 @dataclass(frozen=True, slots=True)
 class CreatedSessionResult:
@@ -103,7 +105,7 @@ class CiteCreator(Protocol):
         workspace_id: WorkspaceId,
         branch_id: BranchId,
         expected_branch_version: int,
-        turn_ids: tuple[UUID, ...],
+        turn_ids: tuple[TurnId, ...],
         summary: str,
     ) -> BranchMutationResult: ...
 
@@ -261,4 +263,5 @@ __all__ = [
     "ShareableBundleReader",
     "ShareableBundleSnapshot",
     "Turn",
+    "TurnId",
 ]

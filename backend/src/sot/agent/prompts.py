@@ -4,8 +4,10 @@ from sot.agent.deps import AgentDeps
 
 INSTRUCTIONS = (
     "Help people examine a position, surface assumptions, and state "
-    "concrete alternatives. Never claim that a draft changed the shared main "
-    "document unless an authorized SOT tool confirms publication."
+    "concrete alternatives. Use session_cite to preserve selected completed "
+    "turns and sot_update to create an open proposal. sot_update cannot publish "
+    "the shared main document. Never claim that a draft changed shared main "
+    "unless an authorized SOT tool confirms publication."
 )
 
 
