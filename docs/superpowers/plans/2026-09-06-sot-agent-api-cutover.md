@@ -546,7 +546,9 @@ login Alice -> select workspace -> create private session
 -> curate -> publish Bundle -> create toss
 -> public read without auth
 -> login Bob -> choose Bob workspace -> detached fork
--> create Proposal -> Bob approves -> Alice approves
+-> Alice creates Proposal from her original document-linked Session
+-> Bob, as an Alice-workspace approver without private Session access, approves
+-> Alice approves
 -> verify status approved and main unchanged
 -> Alice with document.publish merges
 -> verify new main revision and provenance
@@ -562,7 +564,7 @@ Expected: FAIL until bootstrap, containers, seed data, and UI all use canonical 
 
 - [ ] **Step 3: Add only required compatibility migration/backfill**
 
-`007_cutover.sql` inserts deterministic local-demo identities, one workspace, memberships, document, and revision only when canonical rows are absent. Use Alice `00000000-0000-4000-8000-0000000000a1`, Bob `00000000-0000-4000-8000-0000000000b0`, workspace `00000000-0000-4000-8000-000000000100`, and document `00000000-0000-4000-8000-000000000200`. Use `INSERT ... ON CONFLICT DO NOTHING`, record the source as `legacy-001`, and do not drop or rewrite 001 tables.
+`007_cutover.sql` may backfill canonical rows only from actual legacy source rows and must be a no-op on an empty production database. It must not install deterministic demo users, workspaces, or documents. Put Alice/Bob and their two workspaces in the disposable `backend/tests/e2e_app.py` setup (or create them through canonical test APIs), use conflict-safe inserts there, and do not drop or rewrite 001 tables.
 
 - [ ] **Step 4: Make canonical `build_app()` the only runtime composition**
 
