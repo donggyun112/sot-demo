@@ -54,9 +54,7 @@ def _result(document: Document, revision: Revision) -> RevisionResult:
 
 
 class DocumentAccess(DocumentReader):
-    def __init__(
-        self, query: DocumentQuery, authorizer: WorkspaceAuthorizer
-    ) -> None:
+    def __init__(self, query: DocumentQuery, authorizer: WorkspaceAuthorizer) -> None:
         self._query = query
         self._authorizer = authorizer
 
@@ -129,6 +127,40 @@ class GetDocument:
             )
 
 
+class GetRevision:
+    def __init__(
+        self,
+        query: DocumentQuery,
+        authorizer: WorkspaceAuthorizer,
+        uow_factory: UnitOfWorkFactory,
+    ) -> None:
+        self._query = query
+        self._authorizer = authorizer
+        self._uow_factory = uow_factory
+
+    async def execute(
+        self,
+        actor: Actor,
+        workspace_id: WorkspaceId,
+        document_id: DocumentId,
+        number: int,
+    ) -> RevisionView:
+        async with self._uow_factory().transaction() as tx:
+            await self._authorizer.require(
+                tx, actor, workspace_id, Permission.DOCUMENT_READ
+            )
+            result = await self._query.get_revision(
+                tx, workspace_id, document_id, number
+            )
+            if result is None or (
+                result.workspace_id,
+                result.document_id,
+                result.number,
+            ) != (workspace_id, document_id, number):
+                raise DocumentNotFound()
+            return result
+
+
 class PublishDocumentRevision:
     """Publish inside the transaction owned by the caller."""
 
@@ -182,5 +214,6 @@ __all__ = [
     "CreateDocument",
     "DocumentAccess",
     "GetDocument",
+    "GetRevision",
     "PublishDocumentRevision",
 ]

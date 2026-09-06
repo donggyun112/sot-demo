@@ -12,6 +12,7 @@ from sot.document.application import (
     CreateDocument,
     DocumentAccess,
     GetDocument,
+    GetRevision,
     PublishDocumentRevision,
 )
 from sot.document.contracts import (
@@ -145,6 +146,24 @@ class MemoryDocuments:
         revision = self.revisions[workspace_id, document_id][-1]
         return document_view(document, revision)
 
+    async def get_revision(
+        self,
+        tx: TransactionContext,
+        workspace_id: WorkspaceId,
+        document_id: DocumentId,
+        number: int,
+    ) -> RevisionView | None:
+        self.check(tx)
+        assert self.authorized
+        self.events.append("query_revision")
+        self.lookups.append((workspace_id, document_id))
+        for revision in self.revisions.get((workspace_id, document_id), []):
+            if revision.number == number:
+                return document_view(
+                    self.documents[workspace_id, document_id], revision
+                ).current_revision
+        return None
+
 
 def document_view(document: Document, revision: Revision) -> DocumentView:
     return DocumentView(
@@ -199,9 +218,9 @@ async def test_get_document_scopes_lookup_and_hides_another_workspace() -> None:
     store = MemoryDocuments()
     actor = Actor(UserId(uuid4()))
     source_workspace, routed_workspace = WorkspaceId(uuid4()), WorkspaceId(uuid4())
-    created = await CreateDocument(
-        store, store, lambda: store, FixedClock()
-    ).execute(actor, source_workspace, title="Policy", content="first")
+    created = await CreateDocument(store, store, lambda: store, FixedClock()).execute(
+        actor, source_workspace, title="Policy", content="first"
+    )
     store.authorized = False
 
     with pytest.raises(DocumentNotFound):
@@ -239,9 +258,9 @@ async def test_publish_joins_callers_transaction_and_requires_publish_permission
 ):
     store = MemoryDocuments()
     actor, workspace_id = Actor(UserId(uuid4())), WorkspaceId(uuid4())
-    created = await CreateDocument(
-        store, store, lambda: store, FixedClock()
-    ).execute(actor, workspace_id, title="Policy", content="first")
+    created = await CreateDocument(store, store, lambda: store, FixedClock()).execute(
+        actor, workspace_id, title="Policy", content="first"
+    )
     store.authorized = False
     publisher = PublishDocumentRevision(store, store, FixedClock())
 
@@ -262,3 +281,25 @@ async def test_publish_joins_callers_transaction_and_requires_publish_permission
     assert store.transactions == 2
     assert store.permissions[-1] is Permission.DOCUMENT_PUBLISH
     assert store.save_expected_versions == [1]
+
+
+@pytest.mark.asyncio
+async def test_revision_read_authorizes_before_scoped_historical_lookup() -> None:
+    store = MemoryDocuments()
+    actor, workspace_id = Actor(UserId(uuid4())), WorkspaceId(uuid4())
+    created = await CreateDocument(store, store, lambda: store, FixedClock()).execute(
+        actor, workspace_id, title="Policy", content="first"
+    )
+    getter = GetRevision(store, store, lambda: store)
+    result = await getter.execute(actor, workspace_id, created.document.id, 1)
+    assert result.content == "first"
+    assert store.events[-2:] == ["authorize", "query_revision"]
+    assert store.permissions[-1] is Permission.DOCUMENT_READ
+    for routed_workspace, number in ((WorkspaceId(uuid4()), 1), (workspace_id, 99)):
+        with pytest.raises(DocumentNotFound):
+            await getter.execute(actor, routed_workspace, created.document.id, number)
+    store.events.clear()
+    store.denied = True
+    with pytest.raises(WorkspaceForbidden):
+        await getter.execute(actor, workspace_id, created.document.id, 1)
+    assert store.events == ["authorize"]

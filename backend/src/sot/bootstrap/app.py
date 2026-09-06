@@ -13,6 +13,9 @@ from sot.api import create_app
 from sot.bootstrap.database import PostgresUnitOfWork
 from sot.bootstrap.errors import handle_sot_error, register_error_handlers
 from sot.bootstrap.settings import Settings
+from sot.document.api import build_document_router
+from sot.document.application import DocumentAccess, GetDocument, GetRevision
+from sot.document.postgres import PostgresDocumentRepository
 from sot.domain.service import SOTService
 from sot.identity.api import build_auth_router, resolve_actor, resolve_development_actor
 from sot.identity.application import AuthFacade
@@ -25,6 +28,18 @@ from sot.identity.providers.google import (
 )
 from sot.identity.tokens import SOTAccessTokenCodec
 from sot.legacy_agent import build_agent, build_model
+from sot.session.api import build_session_router
+from sot.session.application import (
+    ApplyCuration,
+    BranchAccess,
+    CreateBranch,
+    CreateSession,
+    GetSession,
+    PreviewBundle,
+    PublishBundle,
+    SessionAccess,
+)
+from sot.session.postgres import PostgresSessionRepository
 from sot.store.postgres import PostgresSOTRepository
 from sot.workspace.api import build_workspace_router
 from sot.workspace.application import (
@@ -127,6 +142,31 @@ def build_app(
         )
     )
     application.state.pool = pool
+    documents = PostgresDocumentRepository()
+    document_access = DocumentAccess(documents, access)
+    sessions = PostgresSessionRepository()
+    session_access = SessionAccess(sessions, access)
+    branch_access = BranchAccess(sessions, session_access, access)
+    application.include_router(
+        build_document_router(
+            GetDocument(document_access, uow_factory),
+            GetRevision(documents, access, uow_factory),
+            actor,
+        )
+    )
+    application.include_router(
+        build_session_router(
+            CreateSession(sessions, access, document_access, uow_factory, clock),
+            GetSession(session_access, uow_factory),
+            CreateBranch(sessions, session_access, uow_factory, clock),
+            ApplyCuration(sessions, sessions, branch_access, uow_factory, clock),
+            PreviewBundle(sessions, branch_access, uow_factory),
+            PublishBundle(
+                sessions, sessions, sessions, branch_access, uow_factory, clock
+            ),
+            actor,
+        )
+    )
     return application
 
 

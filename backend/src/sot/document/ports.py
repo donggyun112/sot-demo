@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from sot.document.contracts import DocumentView
+from sot.document.contracts import DocumentView, RevisionView
 from sot.document.domain import Document, Revision
 from sot.shared.ids import DocumentId, WorkspaceId
 from sot.shared.unit_of_work import TransactionContext
@@ -44,6 +44,14 @@ class DocumentQuery(Protocol):
         workspace_id: WorkspaceId,
         document_id: DocumentId,
     ) -> DocumentView | None: ...
+
+    async def get_revision(
+        self,
+        tx: TransactionContext,
+        workspace_id: WorkspaceId,
+        document_id: DocumentId,
+        number: int,
+    ) -> RevisionView | None: ...
 
 
 __all__ = ["DocumentQuery", "DocumentRepository"]
