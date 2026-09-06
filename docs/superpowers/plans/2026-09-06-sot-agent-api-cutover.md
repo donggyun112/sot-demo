@@ -22,6 +22,7 @@
 - The server commits completed user/assistant/tool Turns before emitting `RUN_FINISHED`. Persistence or version conflict emits `RUN_ERROR` and creates no completed transcript.
 - Access tokens stay in frontend memory; refresh tokens remain HttpOnly cookies. All authenticated product URLs explicitly contain `workspace_id`.
 - Preserve unrelated current frontend edits while applying this plan.
+- Before implementing each task, record a reuse audit in its report: check the existing codebase, standard/platform capabilities, already-installed dependencies, and maintained libraries. Prefer those over custom infrastructure; retain custom code only for SOT-specific policy, authorization, transaction, or persistence mapping that no selected library owns. Do not add a dependency when an existing native capability already satisfies the requirement.
 
 ---
 
@@ -371,6 +372,8 @@ pnpm --dir frontend build
 ```
 
 Expected: all PASS before changing files. Do not discard or recreate existing UI/streaming edits.
+
+Before choosing the frontend boundaries, audit the current dependency graph and official integrations. In particular, compare a generated OpenAPI client (`openapi-typescript`/`openapi-fetch`) with handwritten DTO/request duplication, and compare TanStack Query with manual snapshot caching/invalidation. Record the choice and rejected alternatives in the task report; keep `@ag-ui/pydantic-ai` for the native AG-UI stream unless the audit finds a concrete incompatibility.
 
 - [ ] **Step 2: Write failing auth storage tests**
 
