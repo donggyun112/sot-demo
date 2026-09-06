@@ -16,7 +16,12 @@ from sot.consensus.application import (
     ReadProposal,
     ReviseProposal,
 )
-from sot.consensus.domain import ApprovalDecision, Proposal, ProposalStatus
+from sot.consensus.domain import (
+    ApprovalDecision,
+    Proposal,
+    ProposalNotFound,
+    ProposalStatus,
+)
 from sot.document.contracts import (
     DocumentSummary,
     DocumentView,
@@ -134,7 +139,9 @@ class Capabilities:
         self.revision_id = BASE_REVISION
         self.bundle_ids = {BUNDLE}
         self.session_reads = 0
+        self.session_views = 0
         self.bundle_reads = 0
+        self.document_reads = 0
 
     async def require_member(
         self,
@@ -165,6 +172,7 @@ class Capabilities:
             and actor.user_id not in self.editors
         ):
             raise Forbidden("session_forbidden", "Session access denied")
+        self.session_views += 1
         return SessionView(
             SESSION, WORKSPACE, self.document_id, ALICE, NOW, SessionStatus.OPEN
         )
@@ -191,6 +199,7 @@ class Capabilities:
         await self.require_member(tx, workspace_id, actor.user_id)
         if document_id != DOCUMENT:
             raise NotFound("document_not_found", "Document not found")
+        self.document_reads += 1
         return DocumentView(
             DocumentSummary(DOCUMENT, WORKSPACE, "Document", self.revision_id, 1),
             RevisionView(
@@ -745,3 +754,125 @@ async def test_prior_explicit_approver_loses_access_after_removal_in_revision(
             expected_version=2,
             decision=ApprovalDecision.APPROVE,
         )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("operation", ["read", "reader_capability", "revise", "decide"])
+async def test_hidden_and_absent_proposals_have_identical_safe_errors(
+    env: Harness,
+    operation: str,
+) -> None:
+    proposal_id = await env.initial()
+    original = dict(env.store.proposals)
+    content_reads = (
+        env.access.session_views,
+        env.access.bundle_reads,
+        env.access.document_reads,
+    )
+    errors: list[tuple[type[NotFound], str, str]] = []
+    for target in (ProposalId(uuid4()), proposal_id):
+        with pytest.raises(NotFound) as caught:
+            if operation == "read":
+                await env.read.execute(Actor(CAROL), WORKSPACE, target)
+            elif operation == "reader_capability":
+                async with env.store.transaction() as tx:
+                    await env.read.require_proposal(
+                        tx,
+                        actor=Actor(CAROL),
+                        workspace_id=WORKSPACE,
+                        proposal_id=target,
+                    )
+            elif operation == "revise":
+                await env.revise.execute(
+                    Actor(CAROL),
+                    WORKSPACE,
+                    target,
+                    expected_version=999,
+                    content="Must not be saved",
+                    bundle_ids=(BUNDLE,),
+                )
+            else:
+                await env.decide.execute(
+                    Actor(CAROL),
+                    WORKSPACE,
+                    target,
+                    expected_version=999,
+                    decision=ApprovalDecision.APPROVE,
+                )
+        errors.append((type(caught.value), caught.value.code, caught.value.message))
+    assert (
+        errors == [(ProposalNotFound, "proposal_not_found", "Proposal not found")] * 2
+    )
+    assert env.store.proposals == original
+    assert (
+        env.access.session_views,
+        env.access.bundle_reads,
+        env.access.document_reads,
+    ) == content_reads
+
+
+@pytest.mark.asyncio
+async def test_known_source_viewer_permission_error_remains_forbidden(
+    env: Harness,
+) -> None:
+    proposal_id = await env.initial()
+    with pytest.raises(Forbidden) as caught:
+        await env.revise.execute(
+            Actor(DAN),
+            WORKSPACE,
+            proposal_id,
+            expected_version=1,
+            content="Cannot edit",
+            bundle_ids=(),
+        )
+    assert (caught.value.code, caught.value.message) == (
+        "session_forbidden",
+        "Session access denied",
+    )
+    assert env.store.proposals[proposal_id].version == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("operation", ["read", "revise", "decide"])
+async def test_workspace_forbidden_is_not_normalized_to_proposal_not_found(
+    env: Harness,
+    monkeypatch: pytest.MonkeyPatch,
+    operation: str,
+) -> None:
+    proposal_id = await env.initial()
+
+    async def deny_workspace(
+        tx: TransactionContext,
+        workspace_id: WorkspaceId,
+        user_id: UserId,
+    ) -> WorkspaceMembership:
+        raise Forbidden("workspace_forbidden", "Workspace access denied")
+
+    monkeypatch.setattr(env.access, "require_member", deny_workspace)
+    with pytest.raises(Forbidden) as caught:
+        if operation == "read":
+            await env.read.execute(Actor(ALICE), WORKSPACE, proposal_id)
+        elif operation == "revise":
+            await env.revise.execute(
+                Actor(ALICE),
+                WORKSPACE,
+                proposal_id,
+                expected_version=1,
+                content="Denied",
+                bundle_ids=(),
+            )
+        else:
+            await env.decide.execute(
+                Actor(ALICE),
+                WORKSPACE,
+                proposal_id,
+                expected_version=1,
+                decision=ApprovalDecision.APPROVE,
+            )
+    assert type(caught.value) is Forbidden
+    assert (caught.value.code, caught.value.message) == (
+        "workspace_forbidden",
+        "Workspace access denied",
+    )
+    assert env.store.proposals[proposal_id].version == 1
+    assert env.store.proposals[proposal_id].approvals == ()

@@ -18,7 +18,7 @@ from sot.session.contracts import (
     SessionPermission,
 )
 from sot.shared.clock import Clock
-from sot.shared.errors import Forbidden, InvalidInput
+from sot.shared.errors import Forbidden, InvalidInput, NotFound
 from sot.shared.ids import (
     BranchId,
     BundleId,
@@ -261,13 +261,16 @@ class ReviseProposal:
             if proposal is None:
                 raise ProposalNotFound()
             # Authorize before reporting version/status or creator-only restrictions.
-            await self._sources.sessions.require(
-                tx,
-                actor=actor,
-                workspace_id=workspace_id,
-                session_id=proposal.source_session_id,
-                permission=SessionPermission.CREATE_PROPOSAL,
-            )
+            try:
+                await self._sources.sessions.require(
+                    tx,
+                    actor=actor,
+                    workspace_id=workspace_id,
+                    session_id=proposal.source_session_id,
+                    permission=SessionPermission.CREATE_PROPOSAL,
+                )
+            except NotFound:
+                raise ProposalNotFound() from None
             proposal.require_version(expected_version)
             extras = proposal.current_version.additional_approver_ids
             if (
@@ -380,11 +383,14 @@ class ReadProposal:
         if proposal is None:
             raise ProposalNotFound()
         if actor.user_id not in proposal.required_approvers:
-            await self._sessions.require(
-                tx,
-                actor=actor,
-                workspace_id=workspace_id,
-                session_id=proposal.source_session_id,
-                permission=SessionPermission.READ,
-            )
+            try:
+                await self._sessions.require(
+                    tx,
+                    actor=actor,
+                    workspace_id=workspace_id,
+                    session_id=proposal.source_session_id,
+                    permission=SessionPermission.READ,
+                )
+            except NotFound:
+                raise ProposalNotFound() from None
         return _view(proposal)
