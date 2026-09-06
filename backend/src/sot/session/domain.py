@@ -7,7 +7,14 @@ from typing import Literal
 from uuid import UUID, uuid4
 
 from sot.shared.errors import Conflict, Forbidden, InvalidInput, NotFound
-from sot.shared.ids import BranchId, DocumentId, SessionId, UserId, WorkspaceId
+from sot.shared.ids import (
+    BranchId,
+    BundleId,
+    DocumentId,
+    SessionId,
+    UserId,
+    WorkspaceId,
+)
 
 
 class SessionRole(StrEnum):
@@ -194,3 +201,133 @@ class Branch:
         self.turns += turns
         self.version += 1
         return CompletedTurnsResult(turns, self.version)
+
+
+@dataclass(frozen=True, slots=True)
+class DropTurn:
+    turn_id: UUID
+
+
+@dataclass(frozen=True, slots=True)
+class EditTurn:
+    turn_id: UUID
+    content: str
+
+
+@dataclass(frozen=True, slots=True)
+class JoinTurns:
+    turn_ids: tuple[UUID, ...]
+    content: str
+
+
+CurationOperation = DropTurn | EditTurn | JoinTurns
+
+
+@dataclass(frozen=True, slots=True)
+class BundleItem:
+    source_ids: tuple[UUID, ...]
+    role: Literal["user", "assistant"]
+    content: str
+    provenance: Literal["copied", "edited"]
+
+
+@dataclass(slots=True)
+class CurationProjection:
+    items: tuple[BundleItem, ...]
+
+    @classmethod
+    def from_turns(cls, turns: tuple[Turn, ...]) -> CurationProjection:
+        # Tool payloads are private execution data, not public conversation items.
+        return cls(
+            tuple(
+                BundleItem((turn.id,), turn.role, turn.content, "copied")
+                for turn in turns
+                if turn.role in {"user", "assistant"}
+            )
+        )
+
+    def apply(self, operation: CurationOperation) -> None:
+        ids = (
+            operation.turn_ids
+            if isinstance(operation, JoinTurns)
+            else (operation.turn_id,)
+        )
+        if not ids or len(ids) != len(set(ids)):
+            raise InvalidInput(
+                "curation_selection_invalid", "Select distinct source turns"
+            )
+        positions = [
+            i
+            for i, item in enumerate(self.items)
+            if set(ids).intersection(item.source_ids)
+        ]
+        available = {source for i in positions for source in self.items[i].source_ids}
+        if not set(ids).issubset(available):
+            raise InvalidInput(
+                "curation_turn_not_found", "Selected turn is not in the projection"
+            )
+        if isinstance(operation, JoinTurns) and set(ids) != available:
+            raise InvalidInput(
+                "curation_selection_partial", "Select every source of a joined item"
+            )
+        if isinstance(operation, DropTurn):
+            self.items = tuple(
+                item for i, item in enumerate(self.items) if i not in positions
+            )
+            return
+        source_ids = (
+            ids
+            if isinstance(operation, JoinTurns)
+            else self.items[positions[0]].source_ids
+        )
+        replacement = BundleItem(
+            source_ids, self.items[positions[0]].role, operation.content, "edited"
+        )
+        self.items = tuple(
+            replacement if i == positions[0] else item
+            for i, item in enumerate(self.items)
+            if i == positions[0] or i not in positions
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class CurationRecord:
+    id: UUID
+    branch_id: BranchId
+    ordinal: int
+    operation: CurationOperation
+    created_by: UserId
+    created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class Bundle:
+    id: BundleId
+    workspace_id: WorkspaceId
+    session_id: SessionId
+    branch_id: BranchId
+    title: str
+    items: tuple[BundleItem, ...]
+    published_by: UserId
+    published_at: datetime
+
+    @classmethod
+    def publish(
+        cls,
+        branch: Branch,
+        items: tuple[BundleItem, ...],
+        user_id: UserId,
+        now: datetime,
+        *,
+        title: str,
+    ) -> Bundle:
+        return cls(
+            BundleId(uuid4()),
+            branch.workspace_id,
+            branch.session_id,
+            branch.id,
+            title,
+            tuple(items),
+            user_id,
+            now,
+        )

@@ -1,8 +1,60 @@
 from typing import Protocol
 
-from sot.session.domain import Branch, Session, SessionMember, Turn
-from sot.shared.ids import BranchId, SessionId, UserId, WorkspaceId
+from sot.session.domain import (
+    Branch,
+    Bundle,
+    CurationRecord,
+    Session,
+    SessionMember,
+    Turn,
+)
+from sot.shared.ids import BranchId, BundleId, SessionId, UserId, WorkspaceId
 from sot.shared.unit_of_work import TransactionContext
+
+
+class CurationRepository(Protocol):
+    async def list_curation(
+        self,
+        tx: TransactionContext,
+        workspace_id: WorkspaceId,
+        branch_id: BranchId,
+    ) -> tuple[CurationRecord, ...]:
+        """Return operations in ascending ordinal order, after private authorization."""
+        ...
+
+    async def append_curation(
+        self,
+        tx: TransactionContext,
+        workspace_id: WorkspaceId,
+        record: CurationRecord,
+    ) -> None: ...
+
+
+class BundleRepository(Protocol):
+    async def create_bundle(
+        self,
+        tx: TransactionContext,
+        workspace_id: WorkspaceId,
+        bundle: Bundle,
+    ) -> None:
+        """Insert immutable bundle and all items in caller transaction; never upsert."""
+        ...
+
+    async def session_for_bundle(
+        self,
+        tx: TransactionContext,
+        workspace_id: WorkspaceId,
+        bundle_id: BundleId,
+    ) -> SessionId | None:
+        """Resolve ownership metadata only, without loading private bundle content."""
+        ...
+
+    async def load_bundle(
+        self,
+        tx: TransactionContext,
+        workspace_id: WorkspaceId,
+        bundle_id: BundleId,
+    ) -> Bundle | None: ...
 
 
 class SessionRepository(Protocol):

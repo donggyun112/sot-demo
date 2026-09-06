@@ -7,6 +7,7 @@ from uuid import UUID
 
 from sot.identity.contracts import Actor
 from sot.session.domain import (
+    BundleItem,
     CompletedTurnsResult,
     NewTurn,
     Session,
@@ -37,6 +38,38 @@ class CreatedSessionResult:
 class BranchMutationResult:
     resource_id: UUID
     branch_version: int
+
+
+@dataclass(frozen=True, slots=True)
+class BundleSnapshot:
+    bundle_id: BundleId
+    title: str
+    items: tuple[BundleItem, ...]
+    published_at: datetime
+
+
+class BundleReader(Protocol):
+    async def require_snapshot(
+        self,
+        tx: TransactionContext,
+        *,
+        actor: Actor,
+        workspace_id: WorkspaceId,
+        bundle_id: BundleId,
+    ) -> BundleSnapshot: ...
+
+
+class CiteCreator(Protocol):
+    async def create_from_agent(
+        self,
+        *,
+        actor: Actor,
+        workspace_id: WorkspaceId,
+        branch_id: BranchId,
+        expected_branch_version: int,
+        turn_ids: tuple[UUID, ...],
+        summary: str,
+    ) -> BranchMutationResult: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -141,6 +174,10 @@ __all__ = [
     "BranchContextReader",
     "BranchMutationResult",
     "BranchVersionGuard",
+    "BundleItem",
+    "BundleReader",
+    "BundleSnapshot",
+    "CiteCreator",
     "CompletedTurnsResult",
     "CreatedSessionResult",
     "ForkAttribution",

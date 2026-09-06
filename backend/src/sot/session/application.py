@@ -1,16 +1,26 @@
 from __future__ import annotations
 
+from uuid import UUID, uuid4
+
 from sot.document.contracts import DocumentReader
 from sot.identity.contracts import Actor
 from sot.session.contracts import (
     BranchContext,
     BranchContextReader,
+    BranchMutationResult,
+    BundleSnapshot,
     CreatedSessionResult,
     SessionAuthorizer,
 )
 from sot.session.domain import (
     Branch,
+    Bundle,
+    BundleItem,
     CompletedTurnsResult,
+    CurationOperation,
+    CurationProjection,
+    CurationRecord,
+    JoinTurns,
     NewTurn,
     Session,
     SessionForbidden,
@@ -21,9 +31,16 @@ from sot.session.domain import (
     VersionConflict,
     is_allowed,
 )
-from sot.session.ports import SessionRepository
+from sot.session.ports import BundleRepository, CurationRepository, SessionRepository
 from sot.shared.clock import Clock
-from sot.shared.ids import BranchId, DocumentId, SessionId, UserId, WorkspaceId
+from sot.shared.ids import (
+    BranchId,
+    BundleId,
+    DocumentId,
+    SessionId,
+    UserId,
+    WorkspaceId,
+)
 from sot.shared.unit_of_work import TransactionContext, UnitOfWorkFactory
 from sot.workspace.contracts import (
     Permission,
@@ -368,4 +385,216 @@ class RequiredApprovers:
             member.user_id
             for member in members
             if member.role in {SessionRole.OWNER, SessionRole.EDITOR}
+        )
+
+
+async def _projection(
+    repository: CurationRepository,
+    tx: TransactionContext,
+    context: BranchContext,
+) -> tuple[CurationProjection, int]:
+    records = await repository.list_curation(
+        tx, context.workspace_id, context.branch_id
+    )
+    projection = CurationProjection.from_turns(context.turns)
+    for record in records:
+        projection.apply(record.operation)
+    return projection, len(records)
+
+
+class ApplyCuration:
+    def __init__(
+        self,
+        repository: CurationRepository,
+        branches: SessionRepository,
+        reader: BranchContextReader,
+        uow_factory: UnitOfWorkFactory,
+        clock: Clock,
+    ) -> None:
+        self._repository = repository
+        self._branches = branches
+        self._reader = reader
+        self._uow_factory = uow_factory
+        self._clock = clock
+
+    async def execute(
+        self,
+        actor: Actor,
+        workspace_id: WorkspaceId,
+        branch_id: BranchId,
+        *,
+        expected_version: int,
+        operation: CurationOperation,
+    ) -> BranchMutationResult:
+        async with self._uow_factory().transaction() as tx:
+            context = await self._reader.read(
+                tx,
+                actor=actor,
+                workspace_id=workspace_id,
+                branch_id=branch_id,
+                permission=SessionPermission.EDIT,
+            )
+            if context.version != expected_version:
+                raise VersionConflict()
+            projection, count = await _projection(self._repository, tx, context)
+            projection.apply(operation)
+            version = await self._branches.advance_version(
+                tx,
+                workspace_id,
+                branch_id,
+                expected_version=expected_version,
+            )
+            if version is None:
+                raise VersionConflict()
+            record = CurationRecord(
+                uuid4(),
+                branch_id,
+                count + 1,
+                operation,
+                actor.user_id,
+                self._clock.now(),
+            )
+            await self._repository.append_curation(tx, workspace_id, record)
+            return BranchMutationResult(record.id, version)
+
+    async def create_from_agent(
+        self,
+        *,
+        actor: Actor,
+        workspace_id: WorkspaceId,
+        branch_id: BranchId,
+        expected_branch_version: int,
+        turn_ids: tuple[UUID, ...],
+        summary: str,
+    ) -> BranchMutationResult:
+        return await self.execute(
+            actor,
+            workspace_id,
+            branch_id,
+            expected_version=expected_branch_version,
+            operation=JoinTurns(turn_ids, summary),
+        )
+
+
+class PreviewBundle:
+    def __init__(
+        self,
+        repository: CurationRepository,
+        reader: BranchContextReader,
+        uow_factory: UnitOfWorkFactory,
+    ) -> None:
+        self._repository = repository
+        self._reader = reader
+        self._uow_factory = uow_factory
+
+    async def execute(
+        self,
+        actor: Actor,
+        workspace_id: WorkspaceId,
+        branch_id: BranchId,
+    ) -> tuple[BundleItem, ...]:
+        async with self._uow_factory().transaction() as tx:
+            context = await self._reader.read(
+                tx,
+                actor=actor,
+                workspace_id=workspace_id,
+                branch_id=branch_id,
+            )
+            projection, _ = await _projection(self._repository, tx, context)
+            return projection.items
+
+
+class PublishBundle:
+    def __init__(
+        self,
+        repository: BundleRepository,
+        curation: CurationRepository,
+        branches: SessionRepository,
+        reader: BranchContextReader,
+        uow_factory: UnitOfWorkFactory,
+        clock: Clock,
+    ) -> None:
+        self._repository = repository
+        self._curation = curation
+        self._branches = branches
+        self._reader = reader
+        self._uow_factory = uow_factory
+        self._clock = clock
+
+    async def execute(
+        self,
+        actor: Actor,
+        workspace_id: WorkspaceId,
+        branch_id: BranchId,
+        *,
+        expected_version: int,
+        title: str,
+    ) -> BranchMutationResult:
+        async with self._uow_factory().transaction() as tx:
+            context = await self._reader.read(
+                tx,
+                actor=actor,
+                workspace_id=workspace_id,
+                branch_id=branch_id,
+                permission=SessionPermission.PUBLISH_BUNDLE,
+            )
+            if context.version != expected_version:
+                raise VersionConflict()
+            projection, _ = await _projection(self._curation, tx, context)
+            version = await self._branches.advance_version(
+                tx,
+                workspace_id,
+                branch_id,
+                expected_version=expected_version,
+            )
+            if version is None:
+                raise VersionConflict()
+            now = self._clock.now()
+            branch = Branch(
+                branch_id, workspace_id, context.session_id, actor.user_id, now
+            )
+            bundle = Bundle.publish(
+                branch, projection.items, actor.user_id, now, title=title
+            )
+            await self._repository.create_bundle(tx, workspace_id, bundle)
+            return BranchMutationResult(bundle.id, version)
+
+
+class BundleAccess:
+    def __init__(
+        self,
+        repository: BundleRepository,
+        authorizer: SessionAuthorizer,
+        members: WorkspaceMemberReader,
+    ) -> None:
+        self._repository = repository
+        self._authorizer = authorizer
+        self._members = members
+
+    async def require_snapshot(
+        self,
+        tx: TransactionContext,
+        *,
+        actor: Actor,
+        workspace_id: WorkspaceId,
+        bundle_id: BundleId,
+    ) -> BundleSnapshot:
+        await self._members.require_member(tx, workspace_id, actor.user_id)
+        session_id = await self._repository.session_for_bundle(
+            tx, workspace_id, bundle_id
+        )
+        if session_id is None:
+            raise SessionNotFound()
+        await self._authorizer.require(
+            tx,
+            actor=actor,
+            workspace_id=workspace_id,
+            session_id=session_id,
+            permission=SessionPermission.READ,
+        )
+        bundle = await self._repository.load_bundle(tx, workspace_id, bundle_id)
+        if bundle is None or bundle.session_id != session_id:
+            raise SessionNotFound()
+        return BundleSnapshot(
+            bundle.id, bundle.title, bundle.items, bundle.published_at
         )
