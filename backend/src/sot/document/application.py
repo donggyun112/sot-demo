@@ -54,16 +54,23 @@ def _result(document: Document, revision: Revision) -> RevisionResult:
 
 
 class DocumentAccess(DocumentReader):
-    def __init__(self, query: DocumentQuery) -> None:
+    def __init__(
+        self, query: DocumentQuery, authorizer: WorkspaceAuthorizer
+    ) -> None:
         self._query = query
+        self._authorizer = authorizer
 
     async def require_document(
         self,
         tx: TransactionContext,
         *,
+        actor: Actor,
         workspace_id: WorkspaceId,
         document_id: DocumentId,
     ) -> DocumentView:
+        await self._authorizer.require(
+            tx, actor, workspace_id, Permission.DOCUMENT_READ
+        )
         result = await self._query.get(tx, workspace_id, document_id)
         if result is None or result.document.workspace_id != workspace_id:
             raise DocumentNotFound()
@@ -105,22 +112,20 @@ class GetDocument:
     def __init__(
         self,
         reader: DocumentReader,
-        authorizer: WorkspaceAuthorizer,
         uow_factory: UnitOfWorkFactory,
     ) -> None:
         self._reader = reader
-        self._authorizer = authorizer
         self._uow_factory = uow_factory
 
     async def execute(
         self, actor: Actor, workspace_id: WorkspaceId, document_id: DocumentId
     ) -> DocumentView:
         async with self._uow_factory().transaction() as tx:
-            await self._authorizer.require(
-                tx, actor, workspace_id, Permission.DOCUMENT_READ
-            )
             return await self._reader.require_document(
-                tx, workspace_id=workspace_id, document_id=document_id
+                tx,
+                actor=actor,
+                workspace_id=workspace_id,
+                document_id=document_id,
             )
 
 
@@ -163,7 +168,13 @@ class PublishDocumentRevision:
             expected_version=expected_version,
             now=self._clock.now(),
         )
-        await self._repository.save_revision(tx, workspace_id, document, revision)
+        await self._repository.save_revision(
+            tx,
+            workspace_id,
+            document,
+            revision,
+            expected_version=expected_version,
+        )
         return _result(document, revision)
 
 

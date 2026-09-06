@@ -30,7 +30,11 @@ class DocumentRepository(Protocol):
         workspace_id: WorkspaceId,
         document: Document,
         revision: Revision,
-    ) -> None: ...
+        *,
+        expected_version: int,
+    ) -> None:
+        """Conditionally advance from expected_version or raise VersionConflict."""
+        ...
 
 
 class DocumentQuery(Protocol):

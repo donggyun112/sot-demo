@@ -25,7 +25,12 @@ from sot.document.domain import Document, DocumentNotFound, Revision
 from sot.identity.contracts import Actor
 from sot.shared.ids import DocumentId, ProposalId, UserId, WorkspaceId
 from sot.shared.unit_of_work import TransactionContext
-from sot.workspace.domain import Permission, WorkspaceMembership, WorkspaceRole
+from sot.workspace.domain import (
+    Permission,
+    WorkspaceForbidden,
+    WorkspaceMembership,
+    WorkspaceRole,
+)
 
 NOW = datetime(2026, 9, 6, tzinfo=UTC)
 
@@ -46,8 +51,11 @@ class MemoryDocuments:
     active: object | None = None
     transactions: int = 0
     authorized: bool = False
+    denied: bool = False
     permissions: list[Permission] = field(default_factory=list)
     lookups: list[tuple[WorkspaceId, DocumentId]] = field(default_factory=list)
+    events: list[str] = field(default_factory=list)
+    save_expected_versions: list[int] = field(default_factory=list)
 
     def check(self, tx: TransactionContext) -> None:
         assert self.active is tx
@@ -70,6 +78,9 @@ class MemoryDocuments:
         permission: Permission,
     ) -> WorkspaceMembership:
         self.check(tx)
+        self.events.append("authorize")
+        if self.denied:
+            raise WorkspaceForbidden()
         self.authorized = True
         self.permissions.append(permission)
         return WorkspaceMembership(workspace_id, actor.user_id, WorkspaceRole.OWNER)
@@ -96,6 +107,7 @@ class MemoryDocuments:
     ) -> Document | None:
         self.check(tx)
         assert self.authorized
+        self.events.append("query")
         self.lookups.append((workspace_id, document_id))
         return self.documents.get((workspace_id, document_id))
 
@@ -105,9 +117,13 @@ class MemoryDocuments:
         workspace_id: WorkspaceId,
         document: Document,
         revision: Revision,
+        *,
+        expected_version: int,
     ) -> None:
         self.check(tx)
         assert self.authorized
+        assert document.version == expected_version + 1
+        self.save_expected_versions.append(expected_version)
         key = workspace_id, document.id
         assert key in self.documents
         self.documents[key] = document
@@ -121,6 +137,7 @@ class MemoryDocuments:
     ) -> DocumentView | None:
         self.check(tx)
         assert self.authorized
+        self.events.append("query")
         self.lookups.append((workspace_id, document_id))
         document = self.documents.get((workspace_id, document_id))
         if document is None:
@@ -188,12 +205,32 @@ async def test_get_document_scopes_lookup_and_hides_another_workspace() -> None:
     store.authorized = False
 
     with pytest.raises(DocumentNotFound):
-        await GetDocument(DocumentAccess(store), store, lambda: store).execute(
+        await GetDocument(DocumentAccess(store, store), lambda: store).execute(
             actor, routed_workspace, created.document.id
         )
 
     assert store.lookups[-1] == (routed_workspace, created.document.id)
     assert store.permissions[-1] is Permission.DOCUMENT_READ
+    assert store.events[-2:] == ["authorize", "query"]
+
+
+@pytest.mark.asyncio
+async def test_document_reader_denial_never_queries_the_document() -> None:
+    store = MemoryDocuments(denied=True)
+    actor, workspace_id = Actor(UserId(uuid4())), WorkspaceId(uuid4())
+    reader = DocumentAccess(store, store)
+
+    async with store.transaction() as tx:
+        with pytest.raises(WorkspaceForbidden):
+            await reader.require_document(
+                tx,
+                actor=actor,
+                workspace_id=workspace_id,
+                document_id=DocumentId(uuid4()),
+            )
+
+    assert store.events == ["authorize"]
+    assert store.lookups == []
 
 
 @pytest.mark.asyncio
@@ -224,3 +261,4 @@ async def test_publish_joins_callers_transaction_and_requires_publish_permission
     assert result.document.version == 2
     assert store.transactions == 2
     assert store.permissions[-1] is Permission.DOCUMENT_PUBLISH
+    assert store.save_expected_versions == [1]

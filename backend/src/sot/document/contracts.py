@@ -56,6 +56,7 @@ class DocumentReader(Protocol):
         self,
         tx: TransactionContext,
         *,
+        actor: Actor,
         workspace_id: WorkspaceId,
         document_id: DocumentId,
     ) -> DocumentView: ...
