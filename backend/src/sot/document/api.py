@@ -6,7 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Path, Request
 from pydantic import BaseModel, ConfigDict
 
-from sot.document.application import GetDocument, GetRevision
+from sot.document.application import GetDocument, GetRevision, ListDocuments
 from sot.document.contracts import DocumentSummary, DocumentView, RevisionView
 from sot.identity.contracts import Actor
 from sot.shared.ids import DocumentId, WorkspaceId
@@ -88,9 +88,19 @@ class DocumentResponse(BaseModel):
 def build_document_router(
     get_document: GetDocument,
     get_revision: GetRevision,
+    list_documents: ListDocuments,
     actor: Callable[[Request], Awaitable[Actor]],
 ) -> APIRouter:
     router = APIRouter(prefix="/api/v1/workspaces/{workspace_id}/documents")
+
+    @router.get("", operation_id="list_workspace_documents")
+    async def list_for_workspace(
+        workspace_id: UUID, current: Annotated[Actor, Depends(actor)]
+    ) -> tuple[DocumentSummaryResponse, ...]:
+        return tuple(
+            DocumentSummaryResponse.from_summary(item)
+            for item in await list_documents.execute(current, WorkspaceId(workspace_id))
+        )
 
     @router.get("/{document_id}")
     async def get(

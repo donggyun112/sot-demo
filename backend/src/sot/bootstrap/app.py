@@ -4,9 +4,11 @@ import secrets
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
+from typing import Annotated
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from psycopg_pool import AsyncConnectionPool
 
 from sot.agent.api import build_agent_router
@@ -20,6 +22,7 @@ from sot.consensus.api import build_consensus_router
 from sot.consensus.application import (
     CreateProposal,
     DecideProposal,
+    ListDocumentProposals,
     MergeProposal,
     ProposalSources,
     ReadProposal,
@@ -32,6 +35,7 @@ from sot.document.application import (
     DocumentPublicationAccess,
     GetDocument,
     GetRevision,
+    ListDocuments,
     PublishDocumentRevision,
 )
 from sot.document.postgres import PostgresDocumentRepository
@@ -57,6 +61,9 @@ from sot.session.application import (
     CreateSession,
     CreateSessionFork,
     GetSession,
+    ListBranchTurns,
+    ListDocumentSessions,
+    ListSessionBranches,
     PreviewBundle,
     PublishBundle,
     RequiredApprovers,
@@ -81,6 +88,7 @@ from sot.workspace.api import build_workspace_router
 from sot.workspace.application import (
     AddWorkspaceMember,
     CreateWorkspace,
+    GetCurrentWorkspaceMember,
     GetWorkspace,
     ListActorWorkspaces,
     WorkspaceAccess,
@@ -131,7 +139,13 @@ def build_app(
     workspace = PostgresWorkspaceRepository()
     access = WorkspaceAccess(workspace)
 
-    async def actor(request: Request) -> Actor:
+    async def actor(
+        request: Request,
+        _credentials: Annotated[
+            HTTPAuthorizationCredentials | None, Depends(HTTPBearer(auto_error=False))
+        ] = None,
+    ) -> Actor:
+        # Document Bearer auth while preserving the facade's stable auth errors.
         if settings.development_auth and "authorization" not in request.headers:
             return await resolve_development_actor(request, facade, settings)
         return await resolve_actor(request, facade)
@@ -176,6 +190,7 @@ def build_app(
             AddWorkspaceMember(workspace, access, facade, uow_factory),
             ListActorWorkspaces(workspace, uow_factory),
             GetWorkspace(workspace, access, uow_factory),
+            GetCurrentWorkspaceMember(access, uow_factory),
             actor,
         )
     )
@@ -190,6 +205,7 @@ def build_app(
         build_document_router(
             GetDocument(document_access, uow_factory),
             GetRevision(documents, access, uow_factory),
+            ListDocuments(documents, access, uow_factory),
             actor,
         )
     )
@@ -203,6 +219,11 @@ def build_app(
             PublishBundle(
                 sessions, sessions, sessions, branch_access, uow_factory, clock
             ),
+            ListDocumentSessions(
+                sessions, document_access, session_access, uow_factory
+            ),
+            ListSessionBranches(sessions, session_access, uow_factory),
+            ListBranchTurns(branch_access, uow_factory),
             actor,
         )
     )
@@ -224,6 +245,7 @@ def build_app(
         )
     )
     proposals = PostgresProposalRepository()
+    proposal_reader = ReadProposal(proposals, session_access, access, uow_factory)
     sources = ProposalSources(
         session_access, document_access, bundles, RequiredApprovers(sessions), access
     )
@@ -251,7 +273,7 @@ def build_app(
     application.include_router(
         build_consensus_router(
             create_proposal,
-            ReadProposal(proposals, session_access, access, uow_factory),
+            proposal_reader,
             ReviseProposal(proposals, sources, uow_factory, clock),
             DecideProposal(proposals, access, uow_factory, clock),
             MergeProposal(
@@ -260,6 +282,9 @@ def build_app(
                 DocumentPublicationAccess(documents, access),
                 PublishDocumentRevision(documents, access, clock),
                 uow_factory,
+            ),
+            ListDocumentProposals(
+                proposals, document_access, proposal_reader, uow_factory
             ),
             actor,
         )

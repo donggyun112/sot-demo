@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from sot.document.contracts import DocumentView, RevisionView
+from sot.document.contracts import DocumentSummary, DocumentView, RevisionView
 from sot.document.domain import Document, Revision
 from sot.shared.ids import DocumentId, WorkspaceId
 from sot.shared.unit_of_work import TransactionContext
@@ -62,4 +62,15 @@ class DocumentPublicationQuery(Protocol):
         ...
 
 
-__all__ = ["DocumentPublicationQuery", "DocumentQuery", "DocumentRepository"]
+class DocumentListQuery(Protocol):
+    async def list_documents(
+        self, tx: TransactionContext, workspace_id: WorkspaceId
+    ) -> tuple[DocumentSummary, ...]: ...
+
+
+__all__ = [
+    "DocumentListQuery",
+    "DocumentPublicationQuery",
+    "DocumentQuery",
+    "DocumentRepository",
+]

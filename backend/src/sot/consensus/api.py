@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
 from sot.consensus.application import (
     CreateProposal,
     DecideProposal,
+    ListDocumentProposals,
     MergeProposal,
     ReadProposal,
     ReviseProposal,
@@ -241,9 +242,25 @@ def build_consensus_router(
     revise: ReviseProposal,
     decide: DecideProposal,
     merge: MergeProposal,
+    list_proposals: ListDocumentProposals,
     actor: Callable[[Request], Awaitable[Actor]],
 ) -> APIRouter:
     router = APIRouter(prefix="/api/v1/workspaces/{workspace_id}")
+
+    @router.get(
+        "/documents/{document_id}/proposals", operation_id="list_document_proposals"
+    )
+    async def proposals_for_document(
+        workspace_id: UUID,
+        document_id: UUID,
+        current: Annotated[Actor, Depends(actor)],
+    ) -> tuple[ProposalResponse, ...]:
+        return tuple(
+            ProposalResponse.from_view(item)
+            for item in await list_proposals.execute(
+                current, WorkspaceId(workspace_id), DocumentId(document_id)
+            )
+        )
 
     @router.post("/documents/{document_id}/proposals", status_code=201)
     async def create_proposal(

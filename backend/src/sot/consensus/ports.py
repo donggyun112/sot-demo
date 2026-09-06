@@ -3,8 +3,16 @@ from __future__ import annotations
 from typing import Protocol
 
 from sot.consensus.domain import Proposal
-from sot.shared.ids import ProposalId, WorkspaceId
+from sot.shared.ids import DocumentId, ProposalId, WorkspaceId
 from sot.shared.unit_of_work import TransactionContext
+
+
+class ProposalListQuery(Protocol):
+    async def list_proposal_ids(
+        self, tx: TransactionContext, workspace_id: WorkspaceId, document_id: DocumentId
+    ) -> tuple[ProposalId, ...]:
+        """List scoped candidates; application decision visibility remains authoritative."""
+        ...
 
 
 class ProposalRepository(Protocol):

@@ -9,8 +9,29 @@ from sot.session.domain import (
     SessionMember,
     Turn,
 )
-from sot.shared.ids import BranchId, BundleId, SessionId, UserId, WorkspaceId
+from sot.shared.ids import (
+    BranchId,
+    BundleId,
+    DocumentId,
+    SessionId,
+    UserId,
+    WorkspaceId,
+)
 from sot.shared.unit_of_work import TransactionContext
+
+
+class SessionListQuery(Protocol):
+    async def list_session_ids(
+        self, tx: TransactionContext, workspace_id: WorkspaceId, document_id: DocumentId
+    ) -> tuple[SessionId, ...]:
+        """Return scoped candidates; the application authorizes each Session."""
+        ...
+
+    async def list_branches(
+        self, tx: TransactionContext, workspace_id: WorkspaceId, session_id: SessionId
+    ) -> tuple[Branch, ...]:
+        """Read metadata only after Session authorization; do not load Turns."""
+        ...
 
 
 class ForkOriginRepository(Protocol):

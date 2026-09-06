@@ -21,6 +21,22 @@ def connection(tx: TransactionContext) -> AsyncConnection[Any]:
 
 
 class PostgresDocumentRepository:
+    async def list_documents(
+        self, tx: TransactionContext, workspace_id: WorkspaceId
+    ) -> tuple[DocumentSummary, ...]:
+        rows = await (
+            await connection(tx).execute(
+                "SELECT id,workspace_id,title,current_revision_id,version "
+                "FROM sot.sot_document WHERE workspace_id=%s "
+                "AND current_revision_id IS NOT NULL ORDER BY title,id",
+                (workspace_id,),
+            )
+        ).fetchall()
+        return tuple(
+            DocumentSummary(DocumentId(r[0]), WorkspaceId(r[1]), r[2], r[3], r[4])
+            for r in rows
+        )
+
     async def get_for_update(
         self, tx: TransactionContext, workspace_id: WorkspaceId, document_id: DocumentId
     ) -> DocumentView | None:

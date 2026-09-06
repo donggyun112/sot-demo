@@ -35,6 +35,7 @@ from sot.session.domain import (
     SessionNotFound,
     SessionPermission,
     SessionRole,
+    Turn,
     VersionConflict,
     is_allowed,
 )
@@ -42,6 +43,7 @@ from sot.session.ports import (
     BundleRepository,
     CurationRepository,
     ForkOriginRepository,
+    SessionListQuery,
     SessionRepository,
 )
 from sot.shared.clock import Clock
@@ -270,6 +272,86 @@ class GetSession:
                 session_id=session_id,
                 permission=SessionPermission.READ,
             )
+
+
+class ListDocumentSessions:
+    def __init__(
+        self,
+        query: SessionListQuery,
+        documents: DocumentReader,
+        authorizer: SessionAuthorizer,
+        uow_factory: UnitOfWorkFactory,
+    ) -> None:
+        self._query, self._documents = query, documents
+        self._authorizer, self._uow_factory = authorizer, uow_factory
+
+    async def execute(
+        self, actor: Actor, workspace_id: WorkspaceId, document_id: DocumentId
+    ) -> tuple[SessionView, ...]:
+        async with self._uow_factory().transaction() as tx:
+            await self._documents.require_document(
+                tx, actor=actor, workspace_id=workspace_id, document_id=document_id
+            )
+            visible = []
+            for session_id in await self._query.list_session_ids(
+                tx, workspace_id, document_id
+            ):
+                try:
+                    visible.append(
+                        await self._authorizer.require(
+                            tx,
+                            actor=actor,
+                            workspace_id=workspace_id,
+                            session_id=session_id,
+                            permission=SessionPermission.READ,
+                        )
+                    )
+                except SessionNotFound:
+                    continue
+            return tuple(visible)
+
+
+class ListSessionBranches:
+    def __init__(
+        self,
+        query: SessionListQuery,
+        authorizer: SessionAuthorizer,
+        uow_factory: UnitOfWorkFactory,
+    ) -> None:
+        self._query, self._authorizer = query, authorizer
+        self._uow_factory = uow_factory
+
+    async def execute(
+        self, actor: Actor, workspace_id: WorkspaceId, session_id: SessionId
+    ) -> tuple[Branch, ...]:
+        async with self._uow_factory().transaction() as tx:
+            await self._authorizer.require(
+                tx,
+                actor=actor,
+                workspace_id=workspace_id,
+                session_id=session_id,
+                permission=SessionPermission.READ,
+            )
+            return await self._query.list_branches(tx, workspace_id, session_id)
+
+
+class ListBranchTurns:
+    def __init__(
+        self, reader: BranchContextReader, uow_factory: UnitOfWorkFactory
+    ) -> None:
+        self._reader, self._uow_factory = reader, uow_factory
+
+    async def execute(
+        self, actor: Actor, workspace_id: WorkspaceId, branch_id: BranchId
+    ) -> tuple[Turn, ...]:
+        async with self._uow_factory().transaction() as tx:
+            branch = await self._reader.read(
+                tx,
+                actor=actor,
+                workspace_id=workspace_id,
+                branch_id=branch_id,
+            )
+            return tuple(turn for turn in branch.turns if turn.role != "tool")
 
 
 class InviteSessionMember:

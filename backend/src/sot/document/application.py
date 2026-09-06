@@ -11,6 +11,7 @@ from sot.document.contracts import (
 )
 from sot.document.domain import Document, DocumentNotFound, Revision
 from sot.document.ports import (
+    DocumentListQuery,
     DocumentPublicationQuery,
     DocumentQuery,
     DocumentRepository,
@@ -157,6 +158,26 @@ class GetDocument:
             )
 
 
+class ListDocuments:
+    def __init__(
+        self,
+        query: DocumentListQuery,
+        authorizer: WorkspaceAuthorizer,
+        uow_factory: UnitOfWorkFactory,
+    ) -> None:
+        self._query, self._authorizer = query, authorizer
+        self._uow_factory = uow_factory
+
+    async def execute(
+        self, actor: Actor, workspace_id: WorkspaceId
+    ) -> tuple[DocumentSummary, ...]:
+        async with self._uow_factory().transaction() as tx:
+            await self._authorizer.require(
+                tx, actor, workspace_id, Permission.DOCUMENT_READ
+            )
+            return await self._query.list_documents(tx, workspace_id)
+
+
 class GetRevision:
     def __init__(
         self,
@@ -246,5 +267,6 @@ __all__ = [
     "DocumentPublicationAccess",
     "GetDocument",
     "GetRevision",
+    "ListDocuments",
     "PublishDocumentRevision",
 ]

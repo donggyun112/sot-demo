@@ -12,6 +12,9 @@ from sot.session.application import (
     CreateBranch,
     CreateSession,
     GetSession,
+    ListBranchTurns,
+    ListDocumentSessions,
+    ListSessionBranches,
     PreviewBundle,
     PublishBundle,
 )
@@ -145,6 +148,17 @@ class BranchMutationResponse(BaseModel):
         return cls(resource_id=value.resource_id, branch_version=value.branch_version)
 
 
+class TurnResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: UUID
+    workspace_id: UUID
+    branch_id: UUID
+    ordinal: int
+    role: Literal["user", "assistant"]
+    content: str
+    created_at: datetime
+
+
 class BundleItemResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
     source_ids: tuple[UUID, ...]
@@ -169,9 +183,62 @@ def build_session_router(
     apply_curation: ApplyCuration,
     preview_bundle: PreviewBundle,
     publish_bundle: PublishBundle,
+    list_sessions: ListDocumentSessions,
+    list_branches: ListSessionBranches,
+    list_turns: ListBranchTurns,
     actor: Callable[[Request], Awaitable[Actor]],
 ) -> APIRouter:
     router = APIRouter(prefix="/api/v1/workspaces/{workspace_id}")
+
+    @router.get(
+        "/documents/{document_id}/sessions", operation_id="list_document_sessions"
+    )
+    async def sessions_for_document(
+        workspace_id: UUID,
+        document_id: UUID,
+        current: Annotated[Actor, Depends(actor)],
+    ) -> tuple[SessionResponse, ...]:
+        return tuple(
+            SessionResponse.from_session(item)
+            for item in await list_sessions.execute(
+                current, WorkspaceId(workspace_id), DocumentId(document_id)
+            )
+        )
+
+    @router.get("/sessions/{session_id}/branches", operation_id="list_session_branches")
+    async def branches_for_session(
+        workspace_id: UUID,
+        session_id: UUID,
+        current: Annotated[Actor, Depends(actor)],
+    ) -> tuple[BranchResponse, ...]:
+        return tuple(
+            BranchResponse.from_branch(item)
+            for item in await list_branches.execute(
+                current, WorkspaceId(workspace_id), SessionId(session_id)
+            )
+        )
+
+    @router.get("/branches/{branch_id}/turns", operation_id="list_branch_turns")
+    async def turns_for_branch(
+        workspace_id: UUID,
+        branch_id: UUID,
+        current: Annotated[Actor, Depends(actor)],
+    ) -> tuple[TurnResponse, ...]:
+        return tuple(
+            TurnResponse(
+                id=turn.id,
+                workspace_id=turn.workspace_id,
+                branch_id=turn.branch_id,
+                ordinal=turn.ordinal,
+                role=turn.role,
+                content=turn.content,
+                created_at=turn.created_at,
+            )
+            for turn in await list_turns.execute(
+                current, WorkspaceId(workspace_id), BranchId(branch_id)
+            )
+            if turn.role != "tool"
+        )
 
     @router.post("/documents/{document_id}/sessions", status_code=201)
     async def create(

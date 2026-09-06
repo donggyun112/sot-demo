@@ -30,6 +30,18 @@ def connection(tx: TransactionContext) -> AsyncConnection[Any]:
 
 
 class PostgresProposalRepository:
+    async def list_proposal_ids(
+        self, tx: TransactionContext, workspace_id: WorkspaceId, document_id: DocumentId
+    ) -> tuple[ProposalId, ...]:
+        rows = await (
+            await connection(tx).execute(
+                "SELECT id FROM sot.sot_proposal WHERE workspace_id=%s AND document_id=%s "
+                "ORDER BY created_at,id",
+                (workspace_id, document_id),
+            )
+        ).fetchall()
+        return tuple(ProposalId(row[0]) for row in rows)
+
     async def find(
         self, tx: TransactionContext, workspace_id: WorkspaceId, proposal_id: ProposalId
     ) -> Proposal | None:

@@ -3,7 +3,7 @@ from uuid import uuid4
 from sot.identity.contracts import Actor, IdentityReader
 from sot.shared.ids import UserId, WorkspaceId
 from sot.shared.unit_of_work import TransactionContext, UnitOfWorkFactory
-from sot.workspace.contracts import WorkspaceAuthorizer
+from sot.workspace.contracts import WorkspaceAuthorizer, WorkspaceMemberReader
 from sot.workspace.domain import (
     Permission,
     Workspace,
@@ -99,6 +99,19 @@ class ListActorWorkspaces:
     async def execute(self, actor: Actor) -> tuple[Workspace, ...]:
         async with self._uow_factory().transaction() as tx:
             return await self._repository.list_for_user(tx, actor.user_id)
+
+
+class GetCurrentWorkspaceMember:
+    def __init__(
+        self, members: WorkspaceMemberReader, uow_factory: UnitOfWorkFactory
+    ) -> None:
+        self._members, self._uow_factory = members, uow_factory
+
+    async def execute(
+        self, actor: Actor, workspace_id: WorkspaceId
+    ) -> WorkspaceMembership:
+        async with self._uow_factory().transaction() as tx:
+            return await self._members.require_member(tx, workspace_id, actor.user_id)
 
 
 class GetWorkspace:

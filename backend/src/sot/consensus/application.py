@@ -3,14 +3,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
-from sot.consensus.contracts import MergeProposalResult, ProposalView
+from sot.consensus.contracts import MergeProposalResult, ProposalReader, ProposalView
 from sot.consensus.domain import (
     ApprovalDecision,
     Proposal,
     ProposalCitation,
     ProposalNotFound,
 )
-from sot.consensus.ports import ProposalRepository
+from sot.consensus.ports import ProposalListQuery, ProposalRepository
 from sot.document.contracts import (
     DocumentPublisher,
     DocumentReader,
@@ -454,6 +454,42 @@ class MergeProposal:
             return MergeProposalResult(
                 updated.id, updated.version, updated.status, publication
             )
+
+
+class ListDocumentProposals:
+    def __init__(
+        self,
+        query: ProposalListQuery,
+        documents: DocumentReader,
+        reader: ProposalReader,
+        uow_factory: UnitOfWorkFactory,
+    ) -> None:
+        self._query, self._documents = query, documents
+        self._reader, self._uow_factory = reader, uow_factory
+
+    async def execute(
+        self, actor: Actor, workspace_id: WorkspaceId, document_id: DocumentId
+    ) -> tuple[ProposalView, ...]:
+        async with self._uow_factory().transaction() as tx:
+            await self._documents.require_document(
+                tx, actor=actor, workspace_id=workspace_id, document_id=document_id
+            )
+            visible = []
+            for proposal_id in await self._query.list_proposal_ids(
+                tx, workspace_id, document_id
+            ):
+                try:
+                    visible.append(
+                        await self._reader.require_proposal(
+                            tx,
+                            actor=actor,
+                            workspace_id=workspace_id,
+                            proposal_id=proposal_id,
+                        )
+                    )
+                except ProposalNotFound:
+                    continue
+            return tuple(visible)
 
 
 class ReadProposal:

@@ -45,6 +45,41 @@ def require_scope(expected: WorkspaceId, actual: WorkspaceId) -> None:
 
 
 class PostgresSessionRepository:
+    async def list_session_ids(
+        self, tx: TransactionContext, workspace_id: WorkspaceId, document_id: DocumentId
+    ) -> tuple[SessionId, ...]:
+        rows = await (
+            await connection(tx).execute(
+                "SELECT id FROM sot.sot_session WHERE workspace_id=%s AND document_id=%s "
+                "ORDER BY created_at,id",
+                (workspace_id, document_id),
+            )
+        ).fetchall()
+        return tuple(SessionId(row[0]) for row in rows)
+
+    async def list_branches(
+        self, tx: TransactionContext, workspace_id: WorkspaceId, session_id: SessionId
+    ) -> tuple[Branch, ...]:
+        rows = await (
+            await connection(tx).execute(
+                "SELECT id,workspace_id,session_id,created_by,created_at,version "
+                "FROM sot.sot_branch WHERE workspace_id=%s AND session_id=%s "
+                "ORDER BY created_at,id",
+                (workspace_id, session_id),
+            )
+        ).fetchall()
+        return tuple(
+            Branch(
+                BranchId(r[0]),
+                WorkspaceId(r[1]),
+                SessionId(r[2]),
+                UserId(r[3]),
+                r[4],
+                r[5],
+            )
+            for r in rows
+        )
+
     async def create_origin(
         self, tx: TransactionContext, workspace_id: WorkspaceId, origin: ForkOrigin
     ) -> None:

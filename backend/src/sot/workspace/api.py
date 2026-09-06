@@ -10,10 +10,17 @@ from sot.shared.ids import UserId, WorkspaceId
 from sot.workspace.application import (
     AddWorkspaceMember,
     CreateWorkspace,
+    GetCurrentWorkspaceMember,
     GetWorkspace,
     ListActorWorkspaces,
 )
-from sot.workspace.domain import Workspace, WorkspaceMembership, WorkspaceRole
+from sot.workspace.domain import (
+    Permission,
+    Workspace,
+    WorkspaceMembership,
+    WorkspaceRole,
+    permissions_for,
+)
 
 
 class CreateWorkspaceRequest(BaseModel):
@@ -52,14 +59,33 @@ class WorkspaceMemberResponse(BaseModel):
         )
 
 
+class CurrentWorkspaceMemberResponse(WorkspaceMemberResponse):
+    permissions: tuple[Permission, ...]
+
+
 def build_workspace_router(
     create: CreateWorkspace,
     add_member: AddWorkspaceMember,
     list_workspaces: ListActorWorkspaces,
     get_workspace: GetWorkspace,
+    get_member: GetCurrentWorkspaceMember,
     actor: Callable[[Request], Awaitable[Actor]],
 ) -> APIRouter:
     router = APIRouter(prefix="/api/v1/workspaces")
+
+    @router.get(
+        "/{workspace_id}/members/me", operation_id="get_current_workspace_member"
+    )
+    async def current_member(
+        workspace_id: UUID, current: Annotated[Actor, Depends(actor)]
+    ) -> CurrentWorkspaceMemberResponse:
+        member = await get_member.execute(current, WorkspaceId(workspace_id))
+        return CurrentWorkspaceMemberResponse(
+            workspace_id=member.workspace_id,
+            user_id=member.user_id,
+            role=member.role,
+            permissions=tuple(sorted(permissions_for(member.role))),
+        )
 
     @router.get("")
     async def list_for_actor(

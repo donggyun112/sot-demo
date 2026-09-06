@@ -17,6 +17,7 @@ from sot.workspace.api import build_workspace_router
 from sot.workspace.application import (
     AddWorkspaceMember,
     CreateWorkspace,
+    GetCurrentWorkspaceMember,
     GetWorkspace,
     ListActorWorkspaces,
     WorkspaceAccess,
@@ -43,6 +44,7 @@ async def test_workspace_routes_use_bearer_actor_and_routed_workspace() -> None:
             AddWorkspaceMember(store, access, store, lambda: store),
             ListActorWorkspaces(store, lambda: store),
             GetWorkspace(store, access, lambda: store),
+            GetCurrentWorkspaceMember(access, lambda: store),
             actor,
         )
     )
@@ -226,6 +228,65 @@ def test_canonical_response_schema_uses_explicit_closed_wire_models() -> None:
         "content"
     ]["application/json"]["schema"]
     assert listing["items"] == {"$ref": "#/components/schemas/WorkspaceResponse"}
+
+
+def test_resource_read_openapi_contracts_are_closed_scoped_and_bearer_secured() -> None:
+    schema = build_app(Settings(environment="test", models=("test",))).openapi()
+    prefix = "/api/v1/workspaces/{workspace_id}"
+    contracts = (
+        (
+            "/members/me",
+            "get_current_workspace_member",
+            "CurrentWorkspaceMemberResponse",
+            False,
+        ),
+        ("/documents", "list_workspace_documents", "DocumentSummaryResponse", True),
+        (
+            "/documents/{document_id}/sessions",
+            "list_document_sessions",
+            "SessionResponse",
+            True,
+        ),
+        (
+            "/sessions/{session_id}/branches",
+            "list_session_branches",
+            "BranchResponse",
+            True,
+        ),
+        ("/branches/{branch_id}/turns", "list_branch_turns", "TurnResponse", True),
+        (
+            "/documents/{document_id}/proposals",
+            "list_document_proposals",
+            "ProposalResponse",
+            True,
+        ),
+    )
+    for suffix, operation_id, model, collection in contracts:
+        path = prefix + suffix
+        assert path in schema["paths"], path
+        operation = schema["paths"][path]["get"]
+        assert operation["operationId"] == operation_id
+        assert "requestBody" not in operation
+        assert any(
+            parameter["name"] == "workspace_id"
+            and parameter["in"] == "path"
+            and parameter["required"]
+            for parameter in operation["parameters"]
+        )
+        assert operation["security"] == [{"HTTPBearer": []}]
+        wire = operation["responses"]["200"]["content"]["application/json"]["schema"]
+        if collection:
+            assert wire["type"] == "array"
+            wire = wire["items"]
+        assert wire == {"$ref": f"#/components/schemas/{model}"}
+        assert schema["components"]["schemas"][model]["additionalProperties"] is False
+    assert schema["components"]["securitySchemes"]["HTTPBearer"] == {
+        "type": "http",
+        "scheme": "bearer",
+    }
+    assert schema["components"]["schemas"]["TurnResponse"]["properties"]["role"][
+        "enum"
+    ] == ["user", "assistant"]
 
 
 @pytest.mark.asyncio
