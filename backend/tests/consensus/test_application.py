@@ -876,3 +876,65 @@ async def test_workspace_forbidden_is_not_normalized_to_proposal_not_found(
     )
     assert env.store.proposals[proposal_id].version == 1
     assert env.store.proposals[proposal_id].approvals == ()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("save_fails", [False, True])
+async def test_revision_reuses_authorized_source_and_recomputes_approvers(
+    env: Harness,
+    monkeypatch: pytest.MonkeyPatch,
+    save_fails: bool,
+) -> None:
+    proposal_id = await env.initial()
+    original = env.store.proposals[proposal_id]
+    env.access.editors.add(DAN)
+    env.store.fail_save = save_fails
+    require = env.access.require
+    calls = 0
+
+    async def authorize_once(
+        tx: TransactionContext,
+        *,
+        actor: Actor,
+        workspace_id: WorkspaceId,
+        session_id: SessionId,
+        permission: SessionPermission,
+    ) -> SessionView:
+        nonlocal calls
+        calls += 1
+        if calls > 1:
+            raise NotFound("session_not_found", "Session not found")
+        return await require(
+            tx,
+            actor=actor,
+            workspace_id=workspace_id,
+            session_id=session_id,
+            permission=permission,
+        )
+
+    monkeypatch.setattr(env.access, "require", authorize_once)
+    if save_fails:
+        with pytest.raises(RuntimeError, match="storage unavailable"):
+            await env.revise.execute(
+                Actor(ALICE),
+                WORKSPACE,
+                proposal_id,
+                expected_version=1,
+                content="Must roll back",
+                bundle_ids=(),
+            )
+        assert env.store.proposals[proposal_id] == original
+    else:
+        revised = await env.revise.execute(
+            Actor(ALICE),
+            WORKSPACE,
+            proposal_id,
+            expected_version=1,
+            content="Authorized revision",
+            bundle_ids=(),
+        )
+        assert revised.version == 2
+        assert revised.current_version.required_approver_ids == frozenset(
+            {ALICE, BOB, DAN}
+        )
+    assert calls == 1

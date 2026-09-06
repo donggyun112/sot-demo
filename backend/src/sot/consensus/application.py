@@ -16,6 +16,7 @@ from sot.session.contracts import (
     SessionApproverReader,
     SessionAuthorizer,
     SessionPermission,
+    SessionView,
 )
 from sot.shared.clock import Clock
 from sot.shared.errors import Forbidden, InvalidInput, NotFound
@@ -62,19 +63,13 @@ class ProposalSources:
         *,
         actor: Actor,
         workspace_id: WorkspaceId,
-        session_id: SessionId,
+        session: SessionView,
         document_id: DocumentId,
         creator_id: UserId,
         bundle_ids: tuple[BundleId, ...],
         additional_approver_ids: frozenset[UserId],
     ) -> tuple[UUID, frozenset[UserId]]:
-        session = await self.sessions.require(
-            tx,
-            actor=actor,
-            workspace_id=workspace_id,
-            session_id=session_id,
-            permission=SessionPermission.CREATE_PROPOSAL,
-        )
+        """Use the caller's already-authorized immutable source within its tx."""
         if session.document_id is None:
             raise InvalidInput(
                 "proposal_document_required", "Proposal requires a document"
@@ -95,7 +90,7 @@ class ProposalSources:
             | await self.approvers.list_required_approvers(
                 tx,
                 workspace_id=workspace_id,
-                session_id=session_id,
+                session_id=session.id,
             )
         )
         for user_id in sorted(required, key=str):
@@ -164,11 +159,18 @@ class CreateProposal:
         bundle_ids: tuple[BundleId, ...],
         additional_approver_ids: frozenset[UserId],
     ) -> Proposal:
-        base_revision, required = await self._sources.prepare(
+        session = await self._sources.sessions.require(
             tx,
             actor=actor,
             workspace_id=workspace_id,
             session_id=source_session_id,
+            permission=SessionPermission.CREATE_PROPOSAL,
+        )
+        base_revision, required = await self._sources.prepare(
+            tx,
+            actor=actor,
+            workspace_id=workspace_id,
+            session=session,
             document_id=document_id,
             creator_id=actor.user_id,
             bundle_ids=bundle_ids,
@@ -262,7 +264,7 @@ class ReviseProposal:
                 raise ProposalNotFound()
             # Authorize before reporting version/status or creator-only restrictions.
             try:
-                await self._sources.sessions.require(
+                session = await self._sources.sessions.require(
                     tx,
                     actor=actor,
                     workspace_id=workspace_id,
@@ -287,7 +289,7 @@ class ReviseProposal:
                 tx,
                 actor=actor,
                 workspace_id=workspace_id,
-                session_id=proposal.source_session_id,
+                session=session,
                 document_id=proposal.document_id,
                 creator_id=proposal.created_by,
                 bundle_ids=bundle_ids,
