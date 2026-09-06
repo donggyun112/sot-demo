@@ -34,11 +34,11 @@ async def test_migrations_are_ordered_once_and_not_run_by_app_startup() -> None:
     await reset_sot_schema(DATABASE_URL)
     await run_migrations(DATABASE_URL, MIGRATIONS)
     await run_migrations(DATABASE_URL, MIGRATIONS)
-    assert await applied_versions(DATABASE_URL) == (1,)
+    assert await applied_versions(DATABASE_URL) == (1, 2)
 
     app = build_app(Settings(database_url=DATABASE_URL, models=("test",)))
     async with app.router.lifespan_context(app):
-        assert await applied_versions(DATABASE_URL) == (1,)
+        assert await applied_versions(DATABASE_URL) == (1, 2)
 
 
 @pytest.mark.asyncio
