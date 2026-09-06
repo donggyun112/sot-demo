@@ -1,6 +1,5 @@
 from pathlib import Path
 
-import psycopg
 import pytest
 from httpx import ASGITransport, AsyncClient
 from psycopg_pool import AsyncConnectionPool
@@ -11,17 +10,15 @@ from sot.main import build_app
 from sot.settings import Settings
 from sot.store.postgres import PostgresSOTRepository, apply_migrations
 
-DATABASE_URL = "postgresql://sot:sot@localhost:54329/sot"
 MIGRATIONS = Path(__file__).parents[2] / "migrations"
 
 
 @pytest.mark.asyncio
 @pytest.mark.integration
-async def test_published_revision_survives_repository_reconnect() -> None:
-    async with await psycopg.AsyncConnection.connect(DATABASE_URL) as connection:
-        await connection.execute("DROP SCHEMA IF EXISTS sot CASCADE")
-
-    first_pool = AsyncConnectionPool(DATABASE_URL, open=False)
+async def test_published_revision_survives_repository_reconnect(
+    database_url: str,
+) -> None:
+    first_pool = AsyncConnectionPool(database_url, open=False)
     await first_pool.open()
     await apply_migrations(first_pool, MIGRATIONS)
     service = SOTService(PostgresSOTRepository(first_pool))
@@ -60,7 +57,7 @@ async def test_published_revision_survives_repository_reconnect() -> None:
     assert published.revision is not None
     await first_pool.close()
 
-    second_pool = AsyncConnectionPool(DATABASE_URL, open=False)
+    second_pool = AsyncConnectionPool(database_url, open=False)
     await second_pool.open()
     reconnected = SOTService(PostgresSOTRepository(second_pool))
     revision = await reconnected.current_revision(document.id)
@@ -73,11 +70,19 @@ async def test_published_revision_survives_repository_reconnect() -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.integration
-async def test_application_lifespan_migrates_seeds_and_closes_pool() -> None:
-    async with await psycopg.AsyncConnection.connect(DATABASE_URL) as connection:
-        await connection.execute("DROP SCHEMA IF EXISTS sot CASCADE")
-
-    app = build_app(Settings(database_url=DATABASE_URL, models=("test",)))
+async def test_application_lifespan_leaves_explicitly_migrated_database_unseeded_and_closes_pool(
+    database_url: str,
+) -> None:
+    async with AsyncConnectionPool(database_url, open=False) as pool:
+        await apply_migrations(pool, MIGRATIONS)
+    app = build_app(
+        Settings(
+            database_url=database_url,
+            models=("test",),
+            environment="test",
+            development_auth=True,
+        )
+    )
 
     async with app.router.lifespan_context(app):
         async with AsyncClient(
@@ -86,7 +91,7 @@ async def test_application_lifespan_migrates_seeds_and_closes_pool() -> None:
             response = await client.get("/api/v1/bootstrap")
 
         assert response.status_code == 200
-        assert response.json()["documents"][0]["title"] == "요청 제한 토큰"
+        assert response.json()["documents"] == []
         assert not app.state.pool.closed
 
     assert app.state.pool.closed

@@ -10,13 +10,7 @@ from sot.bootstrap.app import build_app
 from sot.bootstrap.migrate import MigrationPlanError, run_migrations
 from sot.bootstrap.settings import Settings
 
-DATABASE_URL = "postgresql://sot:sot@localhost:54329/sot"
 MIGRATIONS = Path(__file__).parents[2] / "migrations"
-
-
-async def reset_sot_schema(database_url: str) -> None:
-    async with await psycopg.AsyncConnection.connect(database_url) as connection:
-        await connection.execute("DROP SCHEMA IF EXISTS sot CASCADE")
 
 
 async def applied_versions(database_url: str) -> tuple[int, ...]:
@@ -30,15 +24,35 @@ async def applied_versions(database_url: str) -> tuple[int, ...]:
 
 @pytest.mark.asyncio
 @pytest.mark.integration
-async def test_migrations_are_ordered_once_and_not_run_by_app_startup() -> None:
-    await reset_sot_schema(DATABASE_URL)
-    await run_migrations(DATABASE_URL, MIGRATIONS)
-    await run_migrations(DATABASE_URL, MIGRATIONS)
-    assert await applied_versions(DATABASE_URL) == (1, 2, 3)
+async def test_migrations_are_ordered_once_and_not_run_by_app_startup(
+    database_url: str,
+) -> None:
+    await run_migrations(database_url, MIGRATIONS)
+    await run_migrations(database_url, MIGRATIONS)
+    assert await applied_versions(database_url) == (1, 2, 3)
 
-    app = build_app(Settings(database_url=DATABASE_URL, models=("test",)))
+    app = build_app(Settings(database_url=database_url, models=("test",)))
     async with app.router.lifespan_context(app):
-        assert await applied_versions(DATABASE_URL) == (1, 2, 3)
+        assert await applied_versions(database_url) == (1, 2, 3)
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_recorded_migration_filename_mismatch_is_rejected(
+    database_url: str, tmp_path: Path
+) -> None:
+    (tmp_path / "001_first.sql").write_text("SELECT 1", encoding="utf-8")
+    await run_migrations(database_url, tmp_path)
+    (tmp_path / "001_first.sql").rename(tmp_path / "001_renamed.sql")
+    with pytest.raises(MigrationPlanError, match="filename mismatch"):
+        await run_migrations(database_url, tmp_path)
+    async with await psycopg.AsyncConnection.connect(database_url) as connection:
+        row = await (
+            await connection.execute(
+                "SELECT filename FROM sot.schema_migration WHERE version = 1"
+            )
+        ).fetchone()
+        assert row == ("001_first.sql",)
 
 
 @pytest.mark.asyncio

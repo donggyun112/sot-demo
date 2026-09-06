@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 from uuid import UUID, uuid4
 
-from sot.identity.contracts import Actor
+from sot.identity.contracts import Actor, UserNotFound
 from sot.identity.domain import AuthSession, AuthTokenInvalid, User
 from sot.identity.ports import AccessTokenCodec, IdentityRepository
 from sot.identity.providers.base import AuthProvider
@@ -110,13 +110,16 @@ class AuthFacade:
 
     async def require_actor(self, tx: TransactionContext, user_id: UserId) -> Actor:
         if await self._repository.get_user(tx, user_id) is None:
-            raise AuthTokenInvalid()
+            raise UserNotFound()
         return Actor(user_id)
 
     async def authenticate(self, access_token: str) -> Actor:
         user_id = self._codec.decode(access_token)
         async with self._uow_factory().transaction() as tx:
-            return await self.require_actor(tx, user_id)
+            try:
+                return await self.require_actor(tx, user_id)
+            except UserNotFound:
+                raise AuthTokenInvalid() from None
 
     async def user(self, actor: Actor) -> User:
         async with self._uow_factory().transaction() as tx:

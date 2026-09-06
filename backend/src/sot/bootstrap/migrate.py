@@ -63,7 +63,7 @@ def _migration_plan(migrations_path: Path) -> tuple[_Migration, ...]:
     return tuple(migrations)
 
 
-async def _create_ledger(connection: AsyncConnection[object]) -> None:
+async def _create_ledger(connection: AsyncConnection[tuple[object, ...]]) -> None:
     async with connection.transaction():
         await connection.execute(
             "SELECT pg_advisory_xact_lock(hashtext(%s))", (_MIGRATION_LOCK,)
@@ -81,17 +81,22 @@ async def _create_ledger(connection: AsyncConnection[object]) -> None:
 
 
 async def _apply_migration(
-    connection: AsyncConnection[object], migration: _Migration
+    connection: AsyncConnection[tuple[object, ...]], migration: _Migration
 ) -> None:
     async with connection.transaction():
         await connection.execute(
             "SELECT pg_advisory_xact_lock(hashtext(%s))", (_MIGRATION_LOCK,)
         )
         cursor = await connection.execute(
-            "SELECT 1 FROM sot.schema_migration WHERE version = %s",
+            "SELECT filename FROM sot.schema_migration WHERE version = %s",
             (migration.version,),
         )
-        if await cursor.fetchone() is not None:
+        recorded = await cursor.fetchone()
+        if recorded is not None:
+            if recorded[0] != migration.filename:
+                raise MigrationPlanError(
+                    f"migration filename mismatch for version {migration.version}"
+                )
             return
 
         await connection.execute(migration.path.read_text(encoding="utf-8"))

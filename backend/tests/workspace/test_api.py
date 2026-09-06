@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from uuid import uuid4
 
 import httpx
@@ -81,7 +82,7 @@ async def test_workspace_routes_use_bearer_actor_and_routed_workspace() -> None:
             headers=headers,
         )
         assert rejected.status_code == 403
-        assert rejected.json()["code"] == "workspace_forbidden"
+        assert rejected.json()["error"]["code"] == "workspace_forbidden"
         for extra in (
             {"workspace_id": workspace_id},
             {"actor": login.json()["user"]["id"]},
@@ -152,7 +153,102 @@ async def test_local_composition_imports_without_google_and_fails_login_safely()
             "/api/v1/auth/google", json={"credential": "not-a-real-token"}
         )
         assert response.status_code == 401
-        assert response.json() == {"detail": "Authentication failed"}
+        assert response.json() == {
+            "error": {"code": "auth_token_invalid", "message": "Authentication failed"}
+        }
+
+
+@pytest.mark.asyncio
+async def test_production_factory_exposes_only_canonical_authenticated_routes() -> None:
+    app = build_app(
+        Settings(
+            environment="production",
+            google_client_id="configured-client",
+            access_token_secret=SecretStr("s" * 32),
+            models=("test",),
+        )
+    )
+    paths = app.openapi()["paths"]
+    assert "/api/v1/bootstrap" not in paths
+    assert not any(path.startswith("/api/v1/documents") for path in paths)
+    assert {"/api/v1/me", "/api/v1/auth/google", "/api/v1/workspaces"} <= paths.keys()
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="https://test"
+    ) as client:
+        for path in ("/api/v1/bootstrap", "/api/v1/documents/example"):
+            assert (await client.get(path)).status_code == 404
+        response = await client.get("/api/v1/me", headers={"X-SOT-User": "alice"})
+        assert response.status_code == 401
+        assert response.json() == {
+            "error": {"code": "auth_token_invalid", "message": "Authentication failed"}
+        }
+
+
+@pytest.mark.asyncio
+async def test_composed_request_validation_has_safe_error_envelope() -> None:
+    app = build_app(Settings(environment="test", models=("test",)))
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="https://test"
+    ) as client:
+        for body in ({}, {"credential": ""}, {"credential": "secret", "admin": True}):
+            response = await client.post("/api/v1/auth/google", json=body)
+            assert response.status_code == 422
+            assert response.json() == {
+                "error": {
+                    "code": "invalid_request",
+                    "message": "Request validation failed",
+                }
+            }
+
+
+def test_canonical_response_schema_uses_explicit_closed_wire_models() -> None:
+    app = build_app(Settings(environment="test", models=("test",)))
+    schema = app.openapi()
+    expected = {
+        ("/api/v1/me", "get", "200"): "UserResponse",
+        ("/api/v1/auth/google", "post", "200"): "AuthResponse",
+        ("/api/v1/auth/refresh", "post", "200"): "AuthResponse",
+        ("/api/v1/workspaces", "post", "201"): "WorkspaceResponse",
+        ("/api/v1/workspaces/{workspace_id}", "get", "200"): "WorkspaceResponse",
+        (
+            "/api/v1/workspaces/{workspace_id}/members",
+            "post",
+            "201",
+        ): "WorkspaceMemberResponse",
+    }
+    for (path, method, status), model in expected.items():
+        wire = schema["paths"][path][method]["responses"][status]["content"][
+            "application/json"
+        ]["schema"]
+        assert wire == {"$ref": f"#/components/schemas/{model}"}
+        assert schema["components"]["schemas"][model]["additionalProperties"] is False
+    listing = schema["paths"]["/api/v1/workspaces"]["get"]["responses"]["200"][
+        "content"
+    ]["application/json"]["schema"]
+    assert listing["items"] == {"$ref": "#/components/schemas/WorkspaceResponse"}
+
+
+@pytest.mark.asyncio
+async def test_composed_unexpected_failure_does_not_expose_internal_details() -> None:
+    class FailingVerifier:
+        async def verify(self, credential: str, audience: str) -> Mapping[str, object]:
+            raise RuntimeError("provider secret and internal details")
+
+    app = build_app(
+        Settings(environment="test", google_client_id="configured"),
+        google_token_verifier=FailingVerifier(),
+    )
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app, raise_app_exceptions=False),
+        base_url="https://test",
+    ) as client:
+        response = await client.post(
+            "/api/v1/auth/google", json={"credential": "secret"}
+        )
+        assert response.status_code == 500
+        assert response.json() == {
+            "error": {"code": "internal_error", "message": "An internal error occurred"}
+        }
 
 
 @pytest.mark.asyncio

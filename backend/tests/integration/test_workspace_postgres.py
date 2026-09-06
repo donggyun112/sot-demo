@@ -30,8 +30,6 @@ from sot.workspace.domain import (
 )
 from sot.workspace.postgres import PostgresWorkspaceRepository
 
-DATABASE_URL = "postgresql://sot:sot@localhost:54329/sot"
-
 
 class StaticGoogleVerifier:
     async def verify(self, credential: str, audience: str) -> Mapping[str, object]:
@@ -46,9 +44,11 @@ class StaticGoogleVerifier:
 
 @pytest.mark.asyncio
 @pytest.mark.integration
-async def test_workspace_postgres_scoping_constraints_and_atomic_rollback() -> None:
-    await run_migrations(DATABASE_URL, Path(__file__).parents[2] / "migrations")
-    async with AsyncConnectionPool[Any](DATABASE_URL, open=False) as pool:
+async def test_workspace_postgres_scoping_constraints_and_atomic_rollback(
+    database_url: str,
+) -> None:
+    await run_migrations(database_url, Path(__file__).parents[2] / "migrations")
+    async with AsyncConnectionPool[Any](database_url, open=False) as pool:
         identity, repository = (
             PostgresIdentityRepository(),
             PostgresWorkspaceRepository(),
@@ -99,7 +99,7 @@ async def test_workspace_postgres_scoping_constraints_and_atomic_rollback() -> N
                 )
         async with uow().transaction() as tx:
             assert await repository.get(tx, rollback_id) is None
-        async with await psycopg.AsyncConnection.connect(DATABASE_URL) as connection:
+        async with await psycopg.AsyncConnection.connect(database_url) as connection:
             with pytest.raises(psycopg.errors.CheckViolation):
                 await connection.execute(
                     "INSERT INTO sot.sot_workspace_member(workspace_id,user_id,role) VALUES (%s,%s,'admin')",
@@ -109,12 +109,14 @@ async def test_workspace_postgres_scoping_constraints_and_atomic_rollback() -> N
 
 @pytest.mark.asyncio
 @pytest.mark.integration
-async def test_composed_google_auth_workspace_rbac_and_tenant_isolation() -> None:
-    await run_migrations(DATABASE_URL, Path(__file__).parents[2] / "migrations")
+async def test_composed_google_auth_workspace_rbac_and_tenant_isolation(
+    database_url: str,
+) -> None:
+    await run_migrations(database_url, Path(__file__).parents[2] / "migrations")
     app = build_app(
         Settings(
             environment="test",
-            database_url=DATABASE_URL,
+            database_url=database_url,
             google_client_id="test-client",
             access_token_secret=SecretStr("s" * 32),
         ),
@@ -170,13 +172,13 @@ async def test_composed_google_auth_workspace_rbac_and_tenant_isolation() -> Non
                 headers=other_headers,
             )
         ).status_code == 403
-        assert (
-            await client.post(
-                f"/api/v1/workspaces/{workspace_id}/members",
-                json=body,
-                headers=owner_headers,
-            )
-        ).status_code == 201
+        added = await client.post(
+            f"/api/v1/workspaces/{workspace_id}/members",
+            json=body,
+            headers=owner_headers,
+        )
+        assert added.status_code == 201
+        assert added.json() == {"workspace_id": workspace_id, **body}
         assert (
             await client.get(
                 f"/api/v1/workspaces/{workspace_id}", headers=other_headers
@@ -189,3 +191,94 @@ async def test_composed_google_auth_workspace_rbac_and_tenant_isolation() -> Non
                 headers=other_headers,
             )
         ).status_code == 403
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_composed_wire_contracts_and_safe_errors(database_url: str) -> None:
+    await run_migrations(database_url, Path(__file__).parents[2] / "migrations")
+    app = build_app(
+        Settings(
+            environment="production",
+            database_url=database_url,
+            google_client_id="test-client",
+            access_token_secret=SecretStr("s" * 32),
+        ),
+        google_token_verifier=StaticGoogleVerifier(),
+    )
+    async with (
+        app.router.lifespan_context(app),
+        httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="https://test"
+        ) as client,
+    ):
+        unauthenticated = await client.get("/api/v1/workspaces")
+        assert unauthenticated.status_code == 401
+        assert unauthenticated.json() == {
+            "error": {"code": "auth_token_invalid", "message": "Authentication failed"}
+        }
+        login = (
+            await client.post("/api/v1/auth/google", json={"credential": "wire-owner"})
+        ).json()
+        assert set(login) == {"access_token", "token_type", "user"}
+        assert login["token_type"] == "bearer"
+        user_id = login["user"]["id"]
+        assert login["user"] == {
+            "id": user_id,
+            "email": "wire-owner@example.com",
+            "display_name": "wire-owner@example.com",
+        }
+        headers = {"Authorization": f"Bearer {login['access_token']}"}
+        assert (await client.get("/api/v1/me", headers=headers)).json() == login["user"]
+        refreshed = await client.post("/api/v1/auth/refresh")
+        assert refreshed.status_code == 200
+        assert set(refreshed.json()) == {"access_token", "token_type", "user"}
+        created = await client.post(
+            "/api/v1/workspaces", json={"name": "Wire"}, headers=headers
+        )
+        workspace_id = created.json()["id"]
+        assert created.json() == {"id": workspace_id, "name": "Wire"}
+        duplicate = await client.post(
+            f"/api/v1/workspaces/{workspace_id}/members",
+            json={"user_id": user_id, "role": "member"},
+            headers=headers,
+        )
+        assert duplicate.status_code == 409
+        assert duplicate.json() == {
+            "error": {
+                "code": "workspace_member_exists",
+                "message": "Workspace member already exists",
+            }
+        }
+        forbidden = await client.get(f"/api/v1/workspaces/{uuid4()}", headers=headers)
+        assert forbidden.status_code == 403
+        assert forbidden.json() == {
+            "error": {
+                "code": "workspace_forbidden",
+                "message": "Workspace access denied",
+            }
+        }
+        for path, body in (
+            ("/api/v1/workspaces", {"name": "secret", "extra": "private"}),
+            (
+                f"/api/v1/workspaces/{workspace_id}/members",
+                {"user_id": "bad", "role": "admin"},
+            ),
+        ):
+            invalid = await client.post(path, json=body, headers=headers)
+            assert invalid.status_code == 422
+            assert invalid.json() == {
+                "error": {
+                    "code": "invalid_request",
+                    "message": "Request validation failed",
+                }
+            }
+        missing = await client.post(
+            f"/api/v1/workspaces/{workspace_id}/members",
+            json={"user_id": str(uuid4()), "role": "viewer"},
+            headers=headers,
+        )
+        assert missing.status_code == 404
+        assert missing.json() == {
+            "error": {"code": "user_not_found", "message": "User not found"}
+        }

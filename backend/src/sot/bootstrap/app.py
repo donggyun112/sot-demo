@@ -6,17 +6,17 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from psycopg_pool import AsyncConnectionPool
 
 from sot.api import create_app
 from sot.bootstrap.database import PostgresUnitOfWork
+from sot.bootstrap.errors import handle_sot_error, register_error_handlers
 from sot.bootstrap.settings import Settings
 from sot.domain.service import SOTService
 from sot.identity.api import build_auth_router, resolve_actor, resolve_development_actor
 from sot.identity.application import AuthFacade
 from sot.identity.contracts import Actor
-from sot.identity.domain import AuthTokenInvalid
 from sot.identity.postgres import PostgresIdentityRepository
 from sot.identity.providers.base import AuthProvider, GoogleTokenVerifier
 from sot.identity.providers.google import (
@@ -25,7 +25,6 @@ from sot.identity.providers.google import (
 )
 from sot.identity.tokens import SOTAccessTokenCodec
 from sot.legacy_agent import build_agent, build_model
-from sot.shared.errors import Conflict, Forbidden, InvalidInput, NotFound, SOTError
 from sot.store.postgres import PostgresSOTRepository
 from sot.workspace.api import build_workspace_router
 from sot.workspace.application import (
@@ -45,25 +44,6 @@ class SystemClock:
 
 # Local/test imports remain usable without persistent auth configuration.
 _LOCAL_TOKEN_SECRET = secrets.token_urlsafe(48)
-
-
-async def handle_sot_error(request: Request, error: Exception) -> JSONResponse:
-    if not isinstance(error, SOTError):
-        raise error
-    status = 400
-    if isinstance(error, AuthTokenInvalid):
-        status = 401
-    elif isinstance(error, Forbidden):
-        status = 403
-    elif isinstance(error, NotFound):
-        status = 404
-    elif isinstance(error, Conflict):
-        status = 409
-    elif isinstance(error, InvalidInput):
-        status = 422
-    return JSONResponse(
-        status_code=status, content={"code": error.code, "message": error.message}
-    )
 
 
 def build_app(
@@ -99,7 +79,6 @@ def build_app(
     )
     workspace = PostgresWorkspaceRepository()
     access = WorkspaceAccess(workspace)
-    service = SOTService(PostgresSOTRepository(pool))
 
     async def actor(request: Request) -> Actor:
         if settings.development_auth and "authorization" not in request.headers:
@@ -115,13 +94,28 @@ def build_app(
         finally:
             await pool.close()
 
-    application = create_app(
-        service=service,
-        agent=build_agent(build_model(settings.models)),
-        cors_origins=settings.cors_origins,
-        lifespan=lifespan,
-    )
-    application.add_exception_handler(SOTError, handle_sot_error)
+    if settings.environment in {"local", "test"} and settings.development_auth:
+        application = create_app(
+            service=SOTService(PostgresSOTRepository(pool)),
+            agent=build_agent(build_model(settings.models)),
+            cors_origins=settings.cors_origins,
+            lifespan=lifespan,
+        )
+    else:
+        application = FastAPI(title="SOT", lifespan=lifespan)
+        application.add_middleware(
+            CORSMiddleware,
+            allow_origins=list(settings.cors_origins),
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+
+        @application.get("/healthz")
+        async def health() -> dict[str, str]:
+            return {"service": "sot", "status": "ready"}
+
+    register_error_handlers(application)
     application.include_router(build_auth_router(facade, settings))
     application.include_router(
         build_workspace_router(
@@ -138,4 +132,4 @@ def build_app(
 
 app = build_app(Settings())
 
-__all__ = ["app", "build_app"]
+__all__ = ["app", "build_app", "handle_sot_error"]

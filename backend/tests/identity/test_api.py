@@ -5,6 +5,7 @@ import pytest
 from fastapi import FastAPI
 from pydantic import ValidationError
 
+from sot.bootstrap.errors import register_error_handlers
 from sot.bootstrap.settings import Settings
 from sot.identity.api import build_auth_router
 from tests.identity.test_auth_facade import make_facade
@@ -13,6 +14,7 @@ from tests.identity.test_auth_facade import make_facade
 def make_app(settings: Settings | None = None) -> FastAPI:
     facade, _, _, _ = make_facade()
     app = FastAPI()
+    register_error_handlers(app)
     app.include_router(
         build_auth_router(facade, settings or Settings(environment="test"))
     )

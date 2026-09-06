@@ -20,14 +20,14 @@ from sot.identity.tokens import SOTAccessTokenCodec
 from sot.shared.ids import UserId
 from tests.identity.test_auth_facade import FakeClock, FakeProvider
 
-DATABASE_URL = "postgresql://sot:sot@localhost:54329/sot"
-
 
 @pytest.mark.asyncio
 @pytest.mark.integration
-async def test_identity_transactions_rotation_concurrency_and_logout_all() -> None:
-    await run_migrations(DATABASE_URL, Path(__file__).parents[2] / "migrations")
-    async with AsyncConnectionPool[Any](DATABASE_URL, open=False) as pool:
+async def test_identity_transactions_rotation_concurrency_and_logout_all(
+    database_url: str,
+) -> None:
+    await run_migrations(database_url, Path(__file__).parents[2] / "migrations")
+    async with AsyncConnectionPool[Any](database_url, open=False) as pool:
         repo, clock = PostgresIdentityRepository(), FakeClock()
         uow = lambda: PostgresUnitOfWork(pool)
         facade = AuthFacade(
@@ -75,7 +75,7 @@ async def test_identity_transactions_rotation_concurrency_and_logout_all() -> No
                     tx, VerifiedIdentity("rollback", unique_subject, "x", "X")
                 )
                 raise RuntimeError("rollback")
-        async with await psycopg.AsyncConnection.connect(DATABASE_URL) as connection:
+        async with await psycopg.AsyncConnection.connect(database_url) as connection:
             row = await (
                 await connection.execute(
                     "SELECT count(*) FROM sot.sot_user_identity WHERE subject = %s",
