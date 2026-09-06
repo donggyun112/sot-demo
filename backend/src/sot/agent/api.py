@@ -11,6 +11,7 @@ from ag_ui.core import (
     RunAgentInput,
     RunErrorEvent,
     SystemMessage,
+    TextInputContent,
     UserMessage,
 )
 from fastapi import APIRouter, Depends, Request
@@ -64,6 +65,15 @@ class ServerOnlyAGUIAdapter(AGUIAdapter[AgentDeps, str]):
             raise ValueError
         if any(
             isinstance(message, SystemMessage | DeveloperMessage | ActivityMessage)
+            for message in run_input.messages
+        ):
+            raise ValueError
+        if any(
+            isinstance(message, UserMessage)
+            and not (
+                isinstance(message.content, str)
+                or all(isinstance(part, TextInputContent) for part in message.content)
+            )
             for message in run_input.messages
         ):
             raise ValueError

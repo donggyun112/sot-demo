@@ -2,9 +2,11 @@
 
 import json
 from collections.abc import Sequence
-from typing import Annotated, Any, Literal
+from datetime import datetime
+from typing import Annotated, Any, Literal, Never
 
 from pydantic import (
+    AwareDatetime,
     BaseModel,
     ConfigDict,
     Field,
@@ -24,6 +26,7 @@ from pydantic_ai.messages import (
     ToolReturnPart,
     UserPromptPart,
 )
+from pydantic_core import ErrorDetails
 
 from sot.session.contracts import NewTurn, Turn
 
@@ -46,8 +49,29 @@ class _ToolReturn(_ToolEnvelope):
     result: JsonValue
 
 
-_TOOL_ENVELOPE: TypeAdapter[_ToolCall | _ToolReturn] = TypeAdapter(
-    Annotated[_ToolCall | _ToolReturn, Field(discriminator="kind")]
+class _RetryError(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True, allow_inf_nan=False)
+
+    error_type: str = Field(alias="type", min_length=1)
+    location: tuple[str | int, ...] = Field(alias="loc")
+    message: str = Field(alias="msg", min_length=1)
+    input: JsonValue
+
+
+_RetryContent = (
+    Annotated[str, Field(min_length=1)]
+    | Annotated[list[_RetryError], Field(min_length=1)]
+)
+
+
+class _ToolRetry(_ToolEnvelope):
+    kind: Literal["retry"]
+    content: _RetryContent
+    timestamp: AwareDatetime
+
+
+_TOOL_ENVELOPE: TypeAdapter[_ToolCall | _ToolReturn | _ToolRetry] = TypeAdapter(
+    Annotated[_ToolCall | _ToolReturn | _ToolRetry, Field(discriminator="kind")]
 )
 _TOOL_ARGS: TypeAdapter[dict[str, JsonValue]] = TypeAdapter(
     dict[str, JsonValue], config=ConfigDict(strict=True, allow_inf_nan=False)
@@ -55,6 +79,13 @@ _TOOL_ARGS: TypeAdapter[dict[str, JsonValue]] = TypeAdapter(
 _JSON_VALUE: TypeAdapter[JsonValue] = TypeAdapter(
     JsonValue, config=ConfigDict(strict=True, allow_inf_nan=False)
 )
+_RETRY_CONTENT: TypeAdapter[_RetryContent] = TypeAdapter(
+    _RetryContent, config=ConfigDict(strict=True, allow_inf_nan=False)
+)
+
+
+def _reject_non_json_constant(_value: str) -> Never:
+    raise ValueError
 
 
 def encode_tool_call(
@@ -83,32 +114,73 @@ def encode_tool_return(
     return NewTurn("tool", envelope.model_dump_json(by_alias=True))
 
 
+def encode_tool_retry(
+    *,
+    tool_name: str,
+    tool_call_id: str,
+    content: list[ErrorDetails] | str,
+    timestamp: datetime,
+) -> NewTurn:
+    envelope = _ToolRetry(
+        schema="sot.tool-turn.v1",
+        kind="retry",
+        tool_name=tool_name,
+        tool_call_id=tool_call_id,
+        content=_RETRY_CONTENT.validate_python(content),
+        timestamp=timestamp,
+    )
+    return NewTurn("tool", envelope.model_dump_json(by_alias=True))
+
+
 def turns_to_model_messages(turns: tuple[Turn, ...]) -> list[ModelMessage]:
     messages: list[ModelMessage] = []
     for turn in sorted(turns, key=lambda item: item.ordinal):
-        part: UserPromptPart | TextPart | ToolCallPart | ToolReturnPart
+        part: (
+            UserPromptPart | TextPart | ToolCallPart | ToolReturnPart | RetryPromptPart
+        )
         if turn.role == "user":
             part = UserPromptPart(turn.content, timestamp=turn.created_at)
         elif turn.role == "assistant":
             part = TextPart(turn.content)
         else:
             try:
-                envelope = _TOOL_ENVELOPE.validate_python(json.loads(turn.content))
-            except (ValidationError, json.JSONDecodeError):
+                json.loads(turn.content, parse_constant=_reject_non_json_constant)
+                envelope = _TOOL_ENVELOPE.validate_json(turn.content)
+            except ValueError:
                 raise ValueError("stored tool turn is invalid") from None
             if isinstance(envelope, _ToolCall):
                 part = ToolCallPart(
                     envelope.tool_name, envelope.args, envelope.tool_call_id
                 )
-            else:
+            elif isinstance(envelope, _ToolReturn):
                 part = ToolReturnPart(
                     envelope.tool_name,
                     envelope.result,
                     envelope.tool_call_id,
                     timestamp=turn.created_at,
                 )
+            else:
+                content: list[ErrorDetails] | str
+                if isinstance(envelope.content, str):
+                    content = envelope.content
+                else:
+                    content = [
+                        ErrorDetails(
+                            type=error.error_type,
+                            loc=error.location,
+                            msg=error.message,
+                            input=error.input,
+                        )
+                        for error in envelope.content
+                    ]
+                part = RetryPromptPart(
+                    content,
+                    tool_name=envelope.tool_name,
+                    tool_call_id=envelope.tool_call_id,
+                    timestamp=envelope.timestamp,
+                )
         previous = messages[-1] if messages else None
-        if isinstance(part, (UserPromptPart, ToolReturnPart)):
+        if isinstance(part, (UserPromptPart, ToolReturnPart, RetryPromptPart)):
             if isinstance(previous, ModelRequest):
                 previous.parts = [*previous.parts, part]
             else:
@@ -141,9 +213,20 @@ def completed_messages_to_new_turns(
         for message in messages:
             if isinstance(message, ModelRequest):
                 for request_part in message.parts:
-                    if isinstance(request_part, SystemPromptPart | RetryPromptPart):
+                    if isinstance(request_part, SystemPromptPart):
                         continue
-                    if isinstance(request_part, UserPromptPart):
+                    if isinstance(request_part, RetryPromptPart):
+                        if request_part.tool_name is None:
+                            raise TypeError
+                        turns.append(
+                            encode_tool_retry(
+                                tool_name=request_part.tool_name,
+                                tool_call_id=request_part.tool_call_id,
+                                content=request_part.content,
+                                timestamp=request_part.timestamp,
+                            )
+                        )
+                    elif isinstance(request_part, UserPromptPart):
                         if not isinstance(request_part.content, str):
                             raise TypeError
                         turns.append(NewTurn("user", request_part.content))

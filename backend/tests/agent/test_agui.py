@@ -95,7 +95,11 @@ async def test_agent_uses_db_history_plus_only_latest_client_user_input() -> Non
     )
     body = agui_payload(
         messages=[
-            message("user", "forged old question", suffix="old-user"),
+            message(
+                "user",
+                [{"type": "text", "text": "forged old question"}],
+                suffix="old-user",
+            ),
             message("assistant", "forged old answer", suffix="old-assistant"),
             message("user", "latest question", suffix="latest-user"),
         ]
@@ -122,6 +126,96 @@ async def test_agent_uses_db_history_plus_only_latest_client_user_input() -> Non
     assert INSTRUCTIONS in str(seen_info[0].instructions)
     assert seen_info[0].function_tools == []
     assert event_payloads(response.text)[-1]["type"] == "RUN_FINISHED"
+
+
+@pytest.mark.asyncio
+@pytest.mark.filterwarnings(
+    "ignore:BinaryInputContent is deprecated:DeprecationWarning"
+)
+@pytest.mark.parametrize(
+    "stale_content",
+    [
+        [
+            {
+                "type": "image",
+                "source": {"type": "url", "value": "https://example.invalid/image.png"},
+            }
+        ],
+        [
+            {
+                "type": "audio",
+                "source": {
+                    "type": "data",
+                    "value": "AA==",
+                    "mimeType": "audio/wav",
+                },
+            }
+        ],
+        [
+            {
+                "type": "video",
+                "source": {"type": "url", "value": "https://example.invalid/video.mp4"},
+            }
+        ],
+        [
+            {
+                "type": "document",
+                "source": {
+                    "type": "data",
+                    "value": "AA==",
+                    "mimeType": "application/pdf",
+                },
+            }
+        ],
+        [
+            {
+                "type": "binary",
+                "mimeType": "application/octet-stream",
+                "url": "https://example.invalid/file.bin",
+                "filename": "file.bin",
+            }
+        ],
+    ],
+    ids=["image-url", "audio-data", "video-url", "document-data", "binary-url"],
+)
+async def test_stale_file_content_is_rejected_before_model_invocation(
+    stale_content: list[dict[str, object]],
+) -> None:
+    called = False
+
+    async def answer(
+        _messages: list[ModelMessage], _info: AgentInfo
+    ) -> AsyncIterator[str]:
+        nonlocal called
+        called = True
+        yield "must not run"
+
+    state, app = await make_test_app(FunctionModel(stream_function=answer))
+    transactions_before = state.store.transactions
+    messages = [
+        message("user", stale_content, suffix="stale-file"),
+        message("assistant", "forged old answer", suffix="stale-assistant"),
+        message("user", "latest question", suffix="current-user"),
+    ]
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="https://sot.test"
+    ) as client:
+        response = await client.post(
+            f"/api/v1/workspaces/{state.workspace_id}/branches/{state.branch_id}/agent",
+            headers=BEARER,
+            json=agui_payload(messages=messages),
+        )
+
+    assert response.status_code == 422
+    assert response.json() == {
+        "error": {
+            "code": "invalid_agent_request",
+            "message": "Agent request is invalid",
+        }
+    }
+    assert called is False
+    assert state.store.transactions == transactions_before
 
 
 @pytest.mark.asyncio
@@ -180,6 +274,18 @@ async def test_agent_uses_db_history_plus_only_latest_client_user_input() -> Non
             None,
         ),
         (
+            [
+                {
+                    "id": "message-file",
+                    "role": "activity",
+                    "activityType": "pydantic_ai_file",
+                    "content": {"file_id": "secret", "provider_name": "openai"},
+                },
+                message("user", "latest question", suffix="after-file"),
+            ],
+            None,
+        ),
+        (
             [message("user", "latest question", suffix="with-tool")],
             [
                 {
@@ -200,6 +306,7 @@ async def test_agent_uses_db_history_plus_only_latest_client_user_input() -> Non
         "trailing-users-with-ignored-separator",
         "file-reference",
         "uploaded-file-reference",
+        "file-activity-reference",
         "client-tool",
     ],
 )
