@@ -10,7 +10,6 @@ from sot.session.contracts import (
 )
 from sot.session.domain import (
     Branch,
-    BranchNotFound,
     CompletedTurnsResult,
     NewTurn,
     Session,
@@ -92,7 +91,7 @@ class BranchAccess:
             tx, workspace_id, branch_id
         )
         if session_id is None:
-            raise BranchNotFound()
+            raise SessionNotFound()
         session = await self._authorizer.require(
             tx,
             actor=actor,
@@ -102,7 +101,7 @@ class BranchAccess:
         )
         branch = await self._repository.load_branch(tx, workspace_id, branch_id)
         if branch is None or branch.session_id != session_id:
-            raise BranchNotFound()
+            raise SessionNotFound()
         return BranchContext(
             workspace_id,
             session_id,

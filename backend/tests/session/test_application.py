@@ -315,6 +315,34 @@ async def test_workspace_owner_without_invitation_cannot_read_private_content() 
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("existing", [False, True])
+async def test_private_branch_existence_is_hidden_from_uninvited_member(
+    existing: bool,
+) -> None:
+    store, actor, workspace_id, document_id = setup()
+    created = await creator(store).execute(actor, workspace_id, document_id)
+    outsider = Actor(UserId(uuid4()))
+    store.workspace_members[workspace_id, outsider.user_id] = WorkspaceMembership(
+        workspace_id, outsider.user_id, WorkspaceRole.OWNER
+    )
+    branch_id = created.branch_id if existing else BranchId(uuid4())
+    store.reads.clear()
+
+    async with store.transaction() as tx:
+        with pytest.raises(SessionNotFound) as error:
+            await BranchAccess(store, access(store), store).read(
+                tx, actor=outsider, workspace_id=workspace_id, branch_id=branch_id
+            )
+
+    assert error.value.code == "session_not_found"
+    assert store.reads == (
+        ["workspace", "branch_ownership", "workspace", "membership"]
+        if existing
+        else ["workspace", "branch_ownership"]
+    )
+
+
+@pytest.mark.asyncio
 async def test_invite_requires_workspace_member_and_owner_grant() -> None:
     store, actor, workspace_id, document_id = setup()
     result = await creator(store).execute(actor, workspace_id, document_id)
@@ -485,6 +513,12 @@ async def test_branch_creation_and_required_approvers_are_session_scoped() -> No
     assert branch.id != result.branch_id
     assert branch.version == 0
     editor, viewer = UserId(uuid4()), UserId(uuid4())
+    store.workspace_members[workspace_id, editor] = WorkspaceMembership(
+        workspace_id, editor, WorkspaceRole.MEMBER
+    )
+    store.workspace_members[workspace_id, viewer] = WorkspaceMembership(
+        workspace_id, viewer, WorkspaceRole.VIEWER
+    )
     store.members[workspace_id, result.session_id, editor] = SessionMember(
         workspace_id, result.session_id, editor, SessionRole.EDITOR
     )
