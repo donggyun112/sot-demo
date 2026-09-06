@@ -11,6 +11,9 @@ dependencies = [
     "uvicorn>=0.35,<1",
 ]
 
+[project.scripts]
+sot-migrate = "sot.bootstrap.migrate:main"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
