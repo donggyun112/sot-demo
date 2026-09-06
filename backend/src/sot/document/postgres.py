@@ -21,6 +21,17 @@ def connection(tx: TransactionContext) -> AsyncConnection[Any]:
 
 
 class PostgresDocumentRepository:
+    async def get_for_update(
+        self, tx: TransactionContext, workspace_id: WorkspaceId, document_id: DocumentId
+    ) -> DocumentView | None:
+        row = await (
+            await connection(tx).execute(
+                "SELECT id FROM sot.sot_document WHERE workspace_id=%s AND id=%s FOR UPDATE",
+                (workspace_id, document_id),
+            )
+        ).fetchone()
+        return await self.get(tx, workspace_id, document_id) if row else None
+
     async def create(
         self,
         tx: TransactionContext,

@@ -47,7 +47,10 @@ async def handle_http_error(request: Request, error: Exception) -> JSONResponse:
 
 
 async def handle_unexpected_error(request: Request, error: Exception) -> JSONResponse:
-    return error_response(500, "internal_error", "An internal error occurred")
+    response = error_response(500, "internal_error", "An internal error occurred")
+    if request.scope.get("sot_no_store"):
+        response.headers["Cache-Control"] = "private, no-store"
+    return response
 
 
 def register_error_handlers(app: FastAPI) -> None:

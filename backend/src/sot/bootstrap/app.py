@@ -13,8 +13,24 @@ from sot.api import create_app
 from sot.bootstrap.database import PostgresUnitOfWork
 from sot.bootstrap.errors import handle_sot_error, register_error_handlers
 from sot.bootstrap.settings import Settings
+from sot.consensus.api import build_consensus_router
+from sot.consensus.application import (
+    CreateProposal,
+    DecideProposal,
+    MergeProposal,
+    ProposalSources,
+    ReadProposal,
+    ReviseProposal,
+)
+from sot.consensus.postgres import PostgresProposalRepository
 from sot.document.api import build_document_router
-from sot.document.application import DocumentAccess, GetDocument, GetRevision
+from sot.document.application import (
+    DocumentAccess,
+    DocumentPublicationAccess,
+    GetDocument,
+    GetRevision,
+    PublishDocumentRevision,
+)
 from sot.document.postgres import PostgresDocumentRepository
 from sot.domain.service import SOTService
 from sot.identity.api import build_auth_router, resolve_actor, resolve_development_actor
@@ -32,14 +48,30 @@ from sot.session.api import build_session_router
 from sot.session.application import (
     ApplyCuration,
     BranchAccess,
+    BundleAccess,
     CreateBranch,
     CreateSession,
+    CreateSessionFork,
     GetSession,
     PreviewBundle,
     PublishBundle,
+    RequiredApprovers,
     SessionAccess,
+    VersionGuard,
 )
 from sot.session.postgres import PostgresSessionRepository
+from sot.sharing.api import (
+    TossSecurityMiddleware,
+    build_sharing_router,
+    install_toss_log_redaction,
+)
+from sot.sharing.application import (
+    CreateShareLink,
+    ForkSharedBundle,
+    ReadPublicBundle,
+    RevokeShareLink,
+)
+from sot.sharing.postgres import PostgresShareLinkRepository
 from sot.store.postgres import PostgresSOTRepository
 from sot.workspace.api import build_workspace_router
 from sot.workspace.application import (
@@ -131,6 +163,8 @@ def build_app(
             return {"service": "sot", "status": "ready"}
 
     register_error_handlers(application)
+    install_toss_log_redaction()
+    application.add_middleware(TossSecurityMiddleware)
     application.include_router(build_auth_router(facade, settings))
     application.include_router(
         build_workspace_router(
@@ -163,6 +197,50 @@ def build_app(
             PreviewBundle(sessions, branch_access, uow_factory),
             PublishBundle(
                 sessions, sessions, sessions, branch_access, uow_factory, clock
+            ),
+            actor,
+        )
+    )
+    bundles = BundleAccess(sessions, session_access, access)
+    shares = PostgresShareLinkRepository()
+    public_bundles = ReadPublicBundle(shares, uow_factory, clock)
+    application.include_router(
+        build_sharing_router(
+            CreateShareLink(shares, bundles, identity, uow_factory, clock),
+            RevokeShareLink(shares, bundles, uow_factory, clock),
+            public_bundles,
+            ForkSharedBundle(
+                public_bundles,
+                access,
+                CreateSessionFork(sessions, sessions, clock),
+                uow_factory,
+            ),
+            actor,
+        )
+    )
+    proposals = PostgresProposalRepository()
+    sources = ProposalSources(
+        session_access, document_access, bundles, RequiredApprovers(sessions), access
+    )
+    application.include_router(
+        build_consensus_router(
+            CreateProposal(
+                proposals,
+                sources,
+                branch_access,
+                VersionGuard(sessions, branch_access),
+                uow_factory,
+                clock,
+            ),
+            ReadProposal(proposals, session_access, access, uow_factory),
+            ReviseProposal(proposals, sources, uow_factory, clock),
+            DecideProposal(proposals, access, uow_factory, clock),
+            MergeProposal(
+                proposals,
+                access,
+                DocumentPublicationAccess(documents, access),
+                PublishDocumentRevision(documents, access, clock),
+                uow_factory,
             ),
             actor,
         )

@@ -8,6 +8,7 @@ from uuid import UUID, uuid4
 from psycopg import AsyncConnection
 
 from sot.bootstrap.database import PostgresTransactionContext
+from sot.identity.contracts import IdentityAttribution, UserNotFound
 from sot.identity.domain import AuthSession, User, VerifiedIdentity
 from sot.shared.ids import UserId
 from sot.shared.unit_of_work import TransactionContext
@@ -20,6 +21,18 @@ def connection(tx: TransactionContext) -> AsyncConnection[Any]:
 
 
 class PostgresIdentityRepository:
+    async def require_attribution(
+        self, tx: TransactionContext, user_id: UserId
+    ) -> IdentityAttribution:
+        row = await (
+            await connection(tx).execute(
+                "SELECT display_name FROM sot.sot_user WHERE id=%s", (user_id,)
+            )
+        ).fetchone()
+        if row is None:
+            raise UserNotFound()
+        return IdentityAttribution(row[0])
+
     async def upsert_identity(
         self, tx: TransactionContext, identity: VerifiedIdentity
     ) -> User:

@@ -10,7 +10,11 @@ from sot.document.contracts import (
     RevisionView,
 )
 from sot.document.domain import Document, DocumentNotFound, Revision
-from sot.document.ports import DocumentQuery, DocumentRepository
+from sot.document.ports import (
+    DocumentPublicationQuery,
+    DocumentQuery,
+    DocumentRepository,
+)
 from sot.identity.contracts import Actor
 from sot.shared.clock import Clock
 from sot.shared.ids import DocumentId, ProposalId, WorkspaceId
@@ -70,6 +74,32 @@ class DocumentAccess(DocumentReader):
             tx, actor, workspace_id, Permission.DOCUMENT_READ
         )
         result = await self._query.get(tx, workspace_id, document_id)
+        if result is None or result.document.workspace_id != workspace_id:
+            raise DocumentNotFound()
+        return result
+
+
+class DocumentPublicationAccess:
+    """DocumentReader for publication; holds current main stable in caller tx."""
+
+    def __init__(
+        self, query: DocumentPublicationQuery, authorizer: WorkspaceAuthorizer
+    ) -> None:
+        self._query = query
+        self._authorizer = authorizer
+
+    async def require_document(
+        self,
+        tx: TransactionContext,
+        *,
+        actor: Actor,
+        workspace_id: WorkspaceId,
+        document_id: DocumentId,
+    ) -> DocumentView:
+        await self._authorizer.require(
+            tx, actor, workspace_id, Permission.DOCUMENT_PUBLISH
+        )
+        result = await self._query.get_for_update(tx, workspace_id, document_id)
         if result is None or result.document.workspace_id != workspace_id:
             raise DocumentNotFound()
         return result
@@ -213,6 +243,7 @@ class PublishDocumentRevision:
 __all__ = [
     "CreateDocument",
     "DocumentAccess",
+    "DocumentPublicationAccess",
     "GetDocument",
     "GetRevision",
     "PublishDocumentRevision",

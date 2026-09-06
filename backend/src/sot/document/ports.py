@@ -54,4 +54,12 @@ class DocumentQuery(Protocol):
     ) -> RevisionView | None: ...
 
 
-__all__ = ["DocumentQuery", "DocumentRepository"]
+class DocumentPublicationQuery(Protocol):
+    async def get_for_update(
+        self, tx: TransactionContext, workspace_id: WorkspaceId, document_id: DocumentId
+    ) -> DocumentView | None:
+        """Lock current main until the caller's transaction ends, then project it."""
+        ...
+
+
+__all__ = ["DocumentPublicationQuery", "DocumentQuery", "DocumentRepository"]

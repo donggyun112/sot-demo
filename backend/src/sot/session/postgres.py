@@ -1,5 +1,5 @@
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from psycopg import AsyncConnection
 
@@ -12,6 +12,7 @@ from sot.session.domain import (
     CurationRecord,
     DropTurn,
     EditTurn,
+    ForkOrigin,
     JoinTurns,
     Session,
     SessionMember,
@@ -44,6 +45,23 @@ def require_scope(expected: WorkspaceId, actual: WorkspaceId) -> None:
 
 
 class PostgresSessionRepository:
+    async def create_origin(
+        self, tx: TransactionContext, workspace_id: WorkspaceId, origin: ForkOrigin
+    ) -> None:
+        require_scope(workspace_id, origin.workspace_id)
+        await connection(tx).execute(
+            "INSERT INTO sot.sot_fork_origin(id,workspace_id,session_id,source_bundle_id,title,author_display_name,published_at) VALUES (%s,%s,%s,%s,%s,%s,%s)",
+            (
+                uuid4(),
+                workspace_id,
+                origin.session_id,
+                origin.source_bundle_id,
+                origin.title,
+                origin.author_display_name,
+                origin.published_at,
+            ),
+        )
+
     async def create_session(
         self, tx: TransactionContext, workspace_id: WorkspaceId, session: Session
     ) -> None:
