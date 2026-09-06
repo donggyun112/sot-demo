@@ -58,6 +58,14 @@ class BundleReader(Protocol):
     ) -> BundleSnapshot: ...
 
 
+@dataclass(frozen=True, slots=True)
+class ShareableBundleSnapshot:
+    """Internal capability result; published_by must never enter public DTOs."""
+
+    snapshot: BundleSnapshot
+    published_by: UserId
+
+
 class ShareableBundleReader(Protocol):
     """Authorize publishing on the bundle's actual owning session, then snapshot."""
 
@@ -68,7 +76,7 @@ class ShareableBundleReader(Protocol):
         actor: Actor,
         workspace_id: WorkspaceId,
         bundle_id: BundleId,
-    ) -> BundleSnapshot: ...
+    ) -> ShareableBundleSnapshot: ...
 
 
 class CiteCreator(Protocol):
@@ -230,5 +238,6 @@ __all__ = [
     "SessionStatus",
     "SessionView",
     "ShareableBundleReader",
+    "ShareableBundleSnapshot",
     "Turn",
 ]

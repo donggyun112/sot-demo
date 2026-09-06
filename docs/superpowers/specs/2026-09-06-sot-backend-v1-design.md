@@ -389,9 +389,15 @@ mutable Session aggregate의 load/save는 session application 내부에서만 �
 
 `ShareableBundleReader.require_shareable_snapshot()`는 actor, workspace ID, Bundle ID를 받아 Bundle의
 실제 소유 Session을 session 모듈 안에서 조회하고 그 Session의 owner 전용 `PUBLISH_BUNDLE` permission을
-검증한다. 별도로 전달받은 Session ID로 권한을 대신 검증하지 않는다. 반환값은 기존 불변 `BundleSnapshot`
-이며 private Session/Workspace 소유 정보는 추가하지 않는다. 일반 `BundleReader`의 읽기 권한은 공유 권한이
-아니다.
+검증한다. 별도로 전달받은 Session ID로 권한을 대신 검증하지 않는다. 반환값은 불변 내부 wrapper
+`ShareableBundleSnapshot(snapshot: BundleSnapshot, published_by: UserId)`다. `published_by`는 실제 Bundle
+게시자이며 공유 링크 생성자를 대신 사용하지 않는다. 기존 `BundleSnapshot`과 모든 공개 응답에는 publisher ID나
+private Session/Workspace 소유 정보를 추가하지 않는다. 일반 `BundleReader`의 읽기 권한은 공유 권한이 아니다.
+
+Sharing은 `IdentityAttributionReader.require_attribution(tx, published_by)`로 표시 이름만 읽는다.
+공개 `author_display_name`은 **실제 Bundle 게시자의 표시 이름**이며 ShareLink 생성 시점에 고정한다.
+이후 프로필 변경은 기존 공개 snapshot과 그 snapshot으로 만든 fork의 attribution을 바꾸지 않는다.
+공개 snapshot은 sharing 소유 상태에 저장하며 익명 읽기는 identity/session 조회나 권한 검사를 수행하지 않는다.
 
 `CompletedTurnsAppender.execute()`는 actor, workspace ID, Branch ID, expected version과 완료된
 user/assistant/tool message tuple을 받아 새 Turn과 증가한 Branch version을 불변 결과로 반환한다.

@@ -12,6 +12,7 @@ from sot.session.contracts import (
     CreatedSessionResult,
     SessionAuthorizer,
     SessionView,
+    ShareableBundleSnapshot,
 )
 from sot.session.domain import (
     Branch,
@@ -590,13 +591,14 @@ class BundleAccess:
         workspace_id: WorkspaceId,
         bundle_id: BundleId,
     ) -> BundleSnapshot:
-        return await self._require_snapshot(
+        shareable = await self._require_snapshot(
             tx,
             actor=actor,
             workspace_id=workspace_id,
             bundle_id=bundle_id,
             permission=SessionPermission.READ,
         )
+        return shareable.snapshot
 
     async def require_shareable_snapshot(
         self,
@@ -605,7 +607,7 @@ class BundleAccess:
         actor: Actor,
         workspace_id: WorkspaceId,
         bundle_id: BundleId,
-    ) -> BundleSnapshot:
+    ) -> ShareableBundleSnapshot:
         return await self._require_snapshot(
             tx,
             actor=actor,
@@ -622,7 +624,7 @@ class BundleAccess:
         workspace_id: WorkspaceId,
         bundle_id: BundleId,
         permission: SessionPermission,
-    ) -> BundleSnapshot:
+    ) -> ShareableBundleSnapshot:
         await self._members.require_member(tx, workspace_id, actor.user_id)
         session_id = await self._repository.session_for_bundle(
             tx, workspace_id, bundle_id
@@ -639,6 +641,7 @@ class BundleAccess:
         bundle = await self._repository.load_bundle(tx, workspace_id, bundle_id)
         if bundle is None or bundle.session_id != session_id:
             raise SessionNotFound()
-        return BundleSnapshot(
-            bundle.id, bundle.title, bundle.items, bundle.published_at
+        return ShareableBundleSnapshot(
+            BundleSnapshot(bundle.id, bundle.title, bundle.items, bundle.published_at),
+            bundle.published_by,
         )

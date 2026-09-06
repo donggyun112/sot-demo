@@ -97,13 +97,15 @@ async def test_shareable_bundle_returns_safe_snapshot_in_caller_transaction() ->
     )
     before = store.transactions
     async with store.transaction() as tx:
-        snapshot = await reader.require_shareable_snapshot(
+        shareable = await reader.require_shareable_snapshot(
             tx,
             actor=owner,
             workspace_id=branch.workspace_id,
             bundle_id=BundleId(result.resource_id),
         )
     assert store.transactions == before + 1
+    assert shareable.published_by == owner.user_id
+    snapshot = shareable.snapshot
     assert [item.content for item in snapshot.items] == ["Q", "private"]
     assert set(asdict(snapshot)) == {"bundle_id", "title", "items", "published_at"}
     with pytest.raises(FrozenInstanceError):

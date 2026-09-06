@@ -22,3 +22,16 @@ class IdentityReader(Protocol):
     """Read a target identity; raise UserNotFound for a nonexistent user."""
 
     async def require_actor(self, tx: TransactionContext, user_id: UserId) -> Actor: ...
+
+
+@dataclass(frozen=True, slots=True)
+class IdentityAttribution:
+    display_name: str
+
+
+class IdentityAttributionReader(Protocol):
+    """Resolve a publisher's display name without exposing their private profile."""
+
+    async def require_attribution(
+        self, tx: TransactionContext, user_id: UserId
+    ) -> IdentityAttribution: ...
