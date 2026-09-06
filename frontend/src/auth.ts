@@ -37,7 +37,11 @@ export class AuthSession {
     const { data } = await this.client.POST("/api/v1/auth/google", {
       body: { credential },
     });
-    if (data && generation === this.#generation) this.accept(data);
+    if (data && generation === this.#generation) {
+      // Requests started while login was pending still used the previous token.
+      ++this.#generation;
+      this.accept(data);
+    }
   }
   refresh = (): Promise<void> => {
     if (!this.#refreshing) {
@@ -58,15 +62,24 @@ export class AuthSession {
     return this.#refreshing;
   };
   async logout() {
-    ++this.#generation;
+    const generation = ++this.#generation;
     try {
       await this.client.POST("/api/v1/auth/logout");
     } finally {
-      this.accept(null);
+      if (generation === this.#generation) {
+        ++this.#generation;
+        this.accept(null);
+      }
     }
   }
   fetch = async (request: Request): Promise<Response> => {
+    const generation = this.#generation;
+    const ensureCurrentSession = () => {
+      if (generation !== this.#generation)
+        throw new DOMException("Authentication session changed", "AbortError");
+    };
     const send = () => {
+      ensureCurrentSession();
       request.signal.throwIfAborted();
       const authorized = new Request(request.clone(), {
         credentials: "include",
@@ -78,6 +91,7 @@ export class AuthSession {
     };
     const response = await send();
     if (response.status !== 401) return response;
+    ensureCurrentSession();
     await this.refresh();
     return send();
   };

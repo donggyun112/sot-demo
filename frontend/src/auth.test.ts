@@ -144,3 +144,85 @@ it("does not replay a request aborted while its cookie refresh is pending", asyn
   await expect(pending).rejects.toMatchObject({ name: "AbortError" });
   expect(requests).toHaveLength(2);
 });
+
+it.each(["response", "refresh"] as const)(
+  "never replays an older mutation after a new Google login while awaiting %s",
+  async (delay) => {
+    const requests: Request[] = [];
+    let release: (response: Response) => void = () => {};
+    let logins = 0;
+    let mutations = 0;
+    const auth = new AuthSession(async (request) => {
+      requests.push(request.clone());
+      if (request.url.endsWith("/google")) {
+        logins++;
+        return Response.json({
+          access_token: `access-${logins}`,
+          token_type: "bearer",
+          user: { ...user, id: `user-${logins}` },
+        });
+      }
+      if (request.url.endsWith("/mutation")) mutations++;
+      if (
+        (delay === "response" &&
+          request.url.endsWith("/mutation") &&
+          mutations === 1) ||
+        (delay === "refresh" && request.url.endsWith("/refresh"))
+      )
+        return new Promise<Response>((resolve) => {
+          release = resolve;
+        });
+      if (request.url.endsWith("/refresh"))
+        return token("incorrect-new-session-refresh");
+      return mutations === 1
+        ? Response.json({}, { status: 401 })
+        : Response.json({ ok: true });
+    });
+    await auth.loginWithGoogle("first-credential");
+    const pending = auth.fetch(
+      new Request("https://sot.test/api/v1/mutation", {
+        method: "POST",
+        body: "first-user-mutation",
+      }),
+    );
+    const rejected = expect(pending).rejects.toMatchObject({
+      name: "AbortError",
+    });
+    await vi.waitFor(() =>
+      expect(requests).toHaveLength(delay === "response" ? 2 : 3),
+    );
+    await auth.loginWithGoogle("second-credential");
+    release(
+      delay === "response"
+        ? Response.json({}, { status: 401 })
+        : token("obsolete-refresh"),
+    );
+    await rejected;
+    expect(
+      requests.filter((request) => request.url.endsWith("/mutation")),
+    ).toHaveLength(1);
+    expect(
+      requests.filter((request) => request.url.endsWith("/refresh")),
+    ).toHaveLength(delay === "response" ? 0 : 1);
+    expect(auth.accessToken).toBe("access-2");
+    expect(auth.user?.id).toBe("user-2");
+  },
+);
+
+it("does not clear a newer Google login when an older logout response arrives", async () => {
+  let finishLogout: (response: Response) => void = () => {};
+  const auth = new AuthSession(async (request) =>
+    request.url.endsWith("/logout")
+      ? new Promise<Response>((resolve) => {
+          finishLogout = resolve;
+        })
+      : token("new-login"),
+  );
+  await auth.loginWithGoogle("first-credential");
+  const logout = auth.logout();
+  await auth.loginWithGoogle("second-credential");
+  finishLogout(new Response(null, { status: 204 }));
+  await logout;
+  expect(auth.accessToken).toBe("new-login");
+  expect(auth.user).toEqual(user);
+});

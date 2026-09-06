@@ -1,8 +1,12 @@
 import { useState } from "react";
 
-import type { DocumentResponse, Session } from "../types";
+import type { API } from "../api";
+import type { CurrentMember, DocumentResponse, Session } from "../types";
+import { DocumentProposals } from "./DocumentProposals";
 
 interface DocumentViewProps {
+  api: API;
+  member?: CurrentMember;
   data: DocumentResponse;
   sessions: Session[];
   canCreate: boolean;
@@ -11,6 +15,8 @@ interface DocumentViewProps {
 }
 
 export function DocumentView({
+  api,
+  member,
   data,
   sessions,
   canCreate,
@@ -84,6 +90,12 @@ export function DocumentView({
           </ul>
         )}
       </section>
+      <DocumentProposals
+        api={api}
+        workspaceId={data.document.workspace_id}
+        documentId={data.document.id}
+        member={member}
+      />
     </main>
   );
 }

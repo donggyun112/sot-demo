@@ -84,6 +84,7 @@ export const publicBundle: Schema["PublicBundleResponse"] = {
 export function createServer() {
   const requests: Request[] = [];
   const state = {
+    user: member,
     permissions: [
       "document.read",
       "document.publish",
@@ -92,6 +93,7 @@ export function createServer() {
       "session.participate",
     ] as Schema["Permission"][],
     sessions: [] as Schema["SessionResponse"][],
+    forks: [] as Schema["SessionResponse"][],
     proposals: [] as Schema["ProposalResponse"][],
     branchVersion: 2,
     turns: [...turns],
@@ -113,13 +115,13 @@ export function createServer() {
       return Response.json({
         access_token: "test-access",
         token_type: "bearer",
-        user: member,
+        user: state.user,
       });
-    if (path === "/api/v1/me") return Response.json(member);
+    if (path === "/api/v1/me") return Response.json(state.user);
     if (path.endsWith("/members/me"))
       return Response.json({
         workspace_id,
-        user_id: member.id,
+        user_id: state.user.id,
         role: "member",
         permissions: state.permissions,
       });
@@ -154,11 +156,25 @@ export function createServer() {
         );
       }
       return Response.json(
-        state.sessions.map((item) => ({ ...item, workspace_id })),
+        state.sessions.filter(
+          (item) =>
+            item.workspace_id === workspace_id &&
+            item.document_id === "doc-1" &&
+            item.created_by === state.user.id,
+        ),
       );
     }
-    if (path.endsWith("/sessions/session-1"))
-      return Response.json({ ...session, workspace_id });
+    if (path.endsWith("/sessions/session-1")) {
+      const found = [...state.forks, ...state.sessions].find(
+        (item) => item.workspace_id === workspace_id && item.id === "session-1",
+      );
+      return found && found.created_by === state.user.id
+        ? Response.json(found)
+        : Response.json(
+            { error: { code: "not_found", message: "Session not found" } },
+            { status: 404 },
+          );
+    }
     if (path.endsWith("/sessions/session-1/branches"))
       return Response.json([
         { ...branch, workspace_id, version: state.branchVersion },
@@ -186,10 +202,28 @@ export function createServer() {
     if (path.endsWith("/bundles/bundle-1/tosses"))
       return Response.json({ id: "toss-1", token: "share-me" });
     if (path === "/api/v1/tosses/share-me") return Response.json(publicBundle);
-    if (path.endsWith("/tosses/share-me/fork"))
+    if (path.endsWith("/tosses/share-me/fork")) {
+      state.forks.push({ ...session, workspace_id, document_id: null });
       return Response.json({ session_id: session.id, branch_id: branch.id });
+    }
     if (path.endsWith("/documents/doc-1/proposals")) {
       if (request.method === "POST") {
+        const body = (await request.json()) as Schema["CreateProposalRequest"];
+        const source = [...state.forks, ...state.sessions].find(
+          (item) =>
+            item.workspace_id === workspace_id &&
+            item.id === body.source_session_id,
+        );
+        if (!source || source.document_id !== "doc-1")
+          return Response.json(
+            {
+              error: {
+                code: "invalid_source_session",
+                message: "Proposal requires a document-linked source session",
+              },
+            },
+            { status: 422 },
+          );
         state.proposals = [{ ...proposal, workspace_id }];
         return Response.json(state.proposals[0], { status: 201 });
       }
@@ -197,15 +231,17 @@ export function createServer() {
     }
     if (path.endsWith("/proposals/proposal-1/decisions")) {
       const body = (await request.json()) as Schema["DecideProposalRequest"];
+      const current = state.proposals[0];
       state.proposals = [
         {
-          ...proposal,
+          ...current,
           status: body.decision === "approve" ? "approved" : "rejected",
           approvals: [
+            ...current.approvals,
             {
               proposal_id: proposal.id,
               version: 1,
-              approver_user_id: member.id,
+              approver_user_id: state.user.id,
               decision: body.decision,
               decided_at: session.created_at,
             },

@@ -91,7 +91,6 @@ function WorkspaceApp({
   const workspaceId = selectedWorkspaceId ?? workspaces.data?.[0]?.id ?? "";
   const [selectedDocumentId, setDocumentId] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [sourceBundleId, setSourceBundleId] = useState<string | null>(null);
   const [tossToken, setTossToken] = useState<string | null>(null);
   const [error, setError] = useState("");
   const documents = api.useQuery(
@@ -130,13 +129,11 @@ function WorkspaceApp({
     setWorkspaceId(id);
     setDocumentId(null);
     setSessionId(null);
-    setSourceBundleId(null);
     setTossToken(null);
     setError("");
   };
   const openSession = (id: string) => {
     setSessionId(id);
-    setSourceBundleId(null);
     setTossToken(null);
   };
   const queryError =
@@ -220,10 +217,9 @@ function WorkspaceApp({
           token={tossToken}
           workspaces={workspaces.data ?? []}
           selectedWorkspaceId={workspaceId}
-          onForked={(destination, id, bundleId) => {
+          onForked={(destination, id) => {
             changeWorkspace(destination);
             openSession(id);
-            setSourceBundleId(bundleId);
           }}
         />
       ) : sessionId ? (
@@ -234,14 +230,14 @@ function WorkspaceApp({
           apiBase={apiBase}
           workspaceId={workspaceId}
           sessionId={sessionId}
-          documentId={documentId}
-          sourceBundleId={sourceBundleId}
           member={member.data}
           onOpenToss={setTossToken}
         />
       ) : (
         document.data && (
           <DocumentView
+            api={api}
+            member={member.data}
             data={document.data}
             sessions={sessions.data ?? []}
             canCreate={

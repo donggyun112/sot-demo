@@ -194,15 +194,85 @@ it("RUN_FINISHED refetches only active branch Turns and branch metadata with the
   expect(screen.queryByText("스트림 답변")).not.toBeInTheDocument();
 });
 
+it("retains the completed native chat and retries resources after a real Branch-list refetch failure", async () => {
+  const server = createServer();
+  server.state.sessions = [session];
+  let failMetadata = false;
+  const auth = new AuthSession(async (request) => {
+    if (request.url.endsWith("/branches") && failMetadata) {
+      server.requests.push(request.clone());
+      return Response.json(
+        {
+          error: {
+            code: "unavailable",
+            message: "Branch metadata unavailable",
+          },
+        },
+        { status: 503 },
+      );
+    }
+    if (!request.url.endsWith("/agent")) return server.network(request);
+    server.requests.push(request.clone());
+    const run = await request.json();
+    failMetadata = true;
+    server.state.branchVersion = 3;
+    return eventStream([
+      { type: "RUN_STARTED", threadId: run.threadId, runId: run.runId },
+      {
+        type: "TEXT_MESSAGE_START",
+        messageId: "complete-answer",
+        role: "assistant",
+      },
+      {
+        type: "TEXT_MESSAGE_CONTENT",
+        messageId: "complete-answer",
+        delta: "완료된 응답을 유지합니다",
+      },
+      { type: "TEXT_MESSAGE_END", messageId: "complete-answer" },
+      { type: "RUN_FINISHED", threadId: run.threadId, runId: run.runId },
+    ]);
+  }, "https://sot.test/api/v1");
+  await auth.loginWithGoogle("credential");
+  render(<App auth={auth} apiBase="https://sot.test/api/v1" />);
+  await userEvent.click(
+    (await screen.findAllByRole("button", { name: /세션 session-/ }))[0],
+  );
+  await userEvent.type(
+    await screen.findByLabelText("Agent message"),
+    "검토해줘",
+  );
+  await userEvent.click(screen.getByRole("button", { name: "보내기" }));
+  expect(await screen.findByText("Branch metadata unavailable")).toBeVisible();
+  expect(screen.getByText("완료된 응답을 유지합니다")).toBeVisible();
+  expect(screen.getByLabelText("Agent message")).toBeDisabled();
+  failMetadata = false;
+  await userEvent.click(screen.getByRole("button", { name: "동기화 재시도" }));
+  await waitFor(() =>
+    expect(screen.getByLabelText("Agent message")).toBeEnabled(),
+  );
+  expect(screen.getByText("SESSION · BRANCH V3")).toBeVisible();
+  expect(
+    screen.queryByText("Branch metadata unavailable"),
+  ).not.toBeInTheDocument();
+  expect(
+    server.requests.filter((request) => request.url.endsWith("/agent")),
+  ).toHaveLength(1);
+  expect(
+    server.requests.filter(
+      (request) =>
+        request.method === "POST" &&
+        !request.url.endsWith("/google") &&
+        !request.url.endsWith("/agent"),
+    ),
+  ).toHaveLength(0);
+});
+
 it("keeps approval separate from merge and requires current-member publish permission", async () => {
   const server = createServer();
   server.state.sessions = [session];
   server.state.proposals = [proposal];
   await server.auth.loginWithGoogle("credential");
   render(<App auth={server.auth} apiBase="https://sot.test/api/v1" />);
-  await userEvent.click(
-    (await screen.findAllByRole("button", { name: /세션 session-/ }))[0],
-  );
   await userEvent.click(await screen.findByRole("button", { name: "승인" }));
   expect(await screen.findByText("APPROVED")).toBeVisible();
   expect(
@@ -228,13 +298,70 @@ it("does not offer Merge to an approved proposal without document.publish", asyn
   server.state.proposals = [{ ...proposal, status: "approved" }];
   await server.auth.loginWithGoogle("credential");
   render(<App auth={server.auth} apiBase="https://sot.test/api/v1" />);
-  await userEvent.click(
-    (await screen.findAllByRole("button", { name: /세션 session-/ }))[0],
-  );
   expect(await screen.findByText("APPROVED")).toBeVisible();
   expect(
     screen.queryByRole("button", { name: "Merge" }),
   ).not.toBeInTheDocument();
+});
+
+it("lets an invited approver discover and decide a document Proposal while the author's private Session is denied", async () => {
+  const server = createServer();
+  const approver = {
+    id: "approver-2",
+    email: "approver@example.com",
+    display_name: "Approver",
+  };
+  server.state.user = approver;
+  server.state.permissions = ["document.read", "session.read"];
+  server.state.sessions = [session];
+  server.state.proposals = [
+    {
+      ...proposal,
+      current_version: {
+        ...proposal.current_version,
+        required_approver_ids: [member.id, approver.id],
+      },
+      approvals: [
+        {
+          proposal_id: proposal.id,
+          version: 1,
+          approver_user_id: member.id,
+          decision: "approve",
+          decided_at: session.created_at,
+        },
+      ],
+    },
+  ];
+  await server.auth.loginWithGoogle("approver-credential");
+  expect(server.auth.user?.id).not.toBe(proposal.created_by);
+  expect(
+    (
+      await server.auth.fetch(
+        new Request("https://sot.test/api/v1/workspaces/w1/sessions/session-1"),
+      )
+    ).status,
+  ).toBe(404);
+  server.requests.length = 0;
+  render(<App auth={server.auth} apiBase="https://sot.test/api/v1" />);
+  expect(await screen.findByText("새 합의")).toBeVisible();
+  expect(screen.queryByLabelText("Agent message")).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "승인" }));
+  expect(await screen.findByText("APPROVED")).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "Merge" }),
+  ).not.toBeInTheDocument();
+  expect(
+    server.state.proposals[0].approvals.some(
+      (approval) =>
+        approval.approver_user_id === approver.id &&
+        approval.decision === "approve",
+    ),
+  ).toBe(true);
+  expect(
+    server.requests.filter((request) =>
+      request.url.includes("/sessions/session-1"),
+    ),
+  ).toHaveLength(0);
 });
 
 it("curates, previews, publishes, shares, then forks into the chosen destination workspace", async () => {
@@ -270,11 +397,11 @@ it("curates, previews, publishes, shares, then forks into the chosen destination
     expect(screen.getByLabelText("Workspace")).toHaveValue("w2"),
   );
   expect(await screen.findByLabelText("Agent message")).toBeVisible();
-  await userEvent.type(screen.getByLabelText("제안 본문"), "새 합의");
-  await userEvent.click(
-    screen.getByRole("button", { name: "Proposal 만들기" }),
-  );
-  expect(await screen.findByText("OPEN")).toBeVisible();
+  expect(screen.queryByLabelText("제안 본문")).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Proposal 만들기" }),
+  ).not.toBeInTheDocument();
+  expect(server.state.forks[0].document_id).toBeNull();
   const writes = server.requests.filter(
     (request) => request.method === "POST" && !request.url.endsWith("/google"),
   );
@@ -283,7 +410,6 @@ it("curates, previews, publishes, shares, then forks into the chosen destination
     "/api/v1/workspaces/w1/branches/branch-1/bundles",
     "/api/v1/workspaces/w1/bundles/bundle-1/tosses",
     "/api/v1/workspaces/w2/tosses/share-me/fork",
-    "/api/v1/workspaces/w2/documents/doc-1/proposals",
   ]);
   expect(await writes[0].json()).toEqual({
     expected_version: 2,
@@ -293,16 +419,50 @@ it("curates, previews, publishes, shares, then forks into the chosen destination
     expected_version: 3,
     title: "B 선택",
   });
-  expect(await writes[4].json()).toEqual({
-    source_session_id: "session-1",
-    content: "새 합의",
-    bundle_ids: ["bundle-1"],
-    citations: [
-      {
-        bundle_id: "bundle-1",
-        bundle_item_position: 0,
-        claim_anchor: "새 합의",
-      },
-    ],
-  });
+});
+
+it("creates a Proposal against the canonical Session document instead of the selected document fallback", async () => {
+  const server = createServer();
+  server.state.sessions = [session];
+  const auth = new AuthSession(async (request) => {
+    if (request.url.endsWith("/sessions/session-1"))
+      return Response.json({ ...session, document_id: "canonical-doc" });
+    if (request.url.endsWith("/documents/canonical-doc/proposals")) {
+      server.requests.push(request.clone());
+      return Response.json(
+        request.method === "POST"
+          ? { ...proposal, document_id: "canonical-doc" }
+          : [],
+      );
+    }
+    return server.network(request);
+  }, "https://sot.test/api/v1");
+  await auth.loginWithGoogle("credential");
+  render(<App auth={auth} apiBase="https://sot.test/api/v1" />);
+  await userEvent.click(
+    (await screen.findAllByRole("button", { name: /세션 session-/ }))[0],
+  );
+  await userEvent.type(
+    await screen.findByLabelText("제안 본문"),
+    "연결된 문서에 제안",
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "Proposal 만들기" }),
+  );
+  await waitFor(() =>
+    expect(
+      server.requests.filter(
+        (request) =>
+          request.method === "POST" &&
+          request.url.endsWith("/documents/canonical-doc/proposals"),
+      ),
+    ).toHaveLength(1),
+  );
+  expect(
+    server.requests.filter(
+      (request) =>
+        request.method === "POST" &&
+        request.url.endsWith("/documents/doc-1/proposals"),
+    ),
+  ).toHaveLength(0);
 });

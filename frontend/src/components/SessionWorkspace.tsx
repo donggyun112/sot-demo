@@ -3,7 +3,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { API } from "../api";
 import type { AuthSession } from "../auth";
 import type { Branch, CurrentMember } from "../types";
-import { ProposalView } from "./ProposalView";
 
 const AgentChat = lazy(() =>
   import("./AgentChat").then((module) => ({ default: module.AgentChat })),
@@ -15,8 +14,6 @@ interface SessionWorkspaceProps {
   apiBase: string;
   workspaceId: string;
   sessionId: string;
-  documentId: string;
-  sourceBundleId?: string | null;
   member?: CurrentMember;
   onOpenToss: (token: string) => void;
 }
@@ -42,7 +39,7 @@ export function SessionWorkspace(props: SessionWorkspaceProps) {
     branches.data?.find((item) => item.created_by === props.member?.user_id) ??
     branches.data?.[0];
   const error = session.error || branches.error;
-  if (error)
+  if (error && (!session.data || !branches.data))
     return (
       <p role="alert">
         {error instanceof Error ? error.message : "세션을 불러오지 못했습니다."}
@@ -56,6 +53,13 @@ export function SessionWorkspace(props: SessionWorkspaceProps) {
     );
   return (
     <main className="workspace" tabIndex={-1}>
+      {error && (
+        <p role="alert">
+          {error instanceof Error
+            ? error.message
+            : "세션을 동기화하지 못했습니다."}
+        </p>
+      )}
       <header className="workspace-header">
         <div>
           <div className="eyebrow">SESSION · BRANCH V{branch.version}</div>
@@ -75,7 +79,12 @@ export function SessionWorkspace(props: SessionWorkspaceProps) {
           </select>
         </label>
       </header>
-      <BranchWorkspace key={branch.id} {...props} branch={branch} />
+      <BranchWorkspace
+        key={branch.id}
+        {...props}
+        branch={branch}
+        documentId={session.data.document_id}
+      />
     </main>
   );
 }
@@ -87,11 +96,10 @@ function BranchWorkspace({
   workspaceId,
   sessionId,
   documentId,
-  sourceBundleId,
   member,
   branch,
   onOpenToss,
-}: SessionWorkspaceProps & { branch: Branch }) {
+}: SessionWorkspaceProps & { branch: Branch; documentId: string | null }) {
   const cache = useQueryClient();
   const params = {
     params: { path: { workspace_id: workspaceId, branch_id: branch.id } },
@@ -100,18 +108,14 @@ function BranchWorkspace({
     params: { path: { workspace_id: workspaceId, session_id: sessionId } },
   };
   const documentParams = {
-    params: { path: { workspace_id: workspaceId, document_id: documentId } },
+    params: {
+      path: { workspace_id: workspaceId, document_id: documentId ?? "" },
+    },
   };
   const turns = api.useQuery(
     "get",
     "/api/v1/workspaces/{workspace_id}/branches/{branch_id}/turns",
     params,
-  );
-  const proposals = api.useQuery(
-    "get",
-    "/api/v1/workspaces/{workspace_id}/documents/{document_id}/proposals",
-    documentParams,
-    { enabled: Boolean(documentId) },
   );
   const preview = api.useQuery(
     "get",
@@ -138,9 +142,7 @@ function BranchWorkspace({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [summary, setSummary] = useState("");
   const [proposalText, setProposalText] = useState("");
-  const [bundleId, setBundleId] = useState<string | null>(
-    sourceBundleId ?? null,
-  );
+  const [bundleId, setBundleId] = useState<string | null>(null);
   const [previewVersion, setPreviewVersion] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
@@ -189,7 +191,7 @@ function BranchWorkspace({
       setBusy(false);
     }
   };
-  const queryError = turns.error || proposals.error;
+  const queryError = turns.error;
   return (
     <>
       {queryError && (
@@ -382,74 +384,67 @@ function BranchWorkspace({
               </button>
             )}
           </section>
-          <section>
-            <h2>Main 변경 제안</h2>
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                void perform(async () => {
-                  await propose.mutateAsync({
-                    ...documentParams,
-                    body: {
-                      source_session_id: sessionId,
-                      content: proposalText.trim(),
-                      bundle_ids: bundleId ? [bundleId] : [],
-                      citations: bundleId
-                        ? [
-                            {
-                              bundle_id: bundleId,
-                              bundle_item_position: 0,
-                              claim_anchor: proposalText.trim(),
-                            },
-                          ]
-                        : [],
-                    },
+          {documentId && (
+            <section>
+              <h2>Main 변경 제안</h2>
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  if (!documentId) return;
+                  void perform(async () => {
+                    await propose.mutateAsync({
+                      ...documentParams,
+                      body: {
+                        source_session_id: sessionId,
+                        content: proposalText.trim(),
+                        bundle_ids: bundleId ? [bundleId] : [],
+                        citations: bundleId
+                          ? [
+                              {
+                                bundle_id: bundleId,
+                                bundle_item_position: 0,
+                                claim_anchor: proposalText.trim(),
+                              },
+                            ]
+                          : [],
+                      },
+                    });
+                    setProposalText("");
+                    await cache.invalidateQueries({
+                      queryKey: api.queryOptions(
+                        "get",
+                        "/api/v1/workspaces/{workspace_id}/documents/{document_id}/proposals",
+                        documentParams,
+                      ).queryKey,
+                      exact: true,
+                    });
+                    setStatus("Main 변경 제안을 만들었습니다.");
                   });
-                  setProposalText("");
-                  await cache.invalidateQueries({
-                    queryKey: api.queryOptions(
-                      "get",
-                      "/api/v1/workspaces/{workspace_id}/documents/{document_id}/proposals",
-                      documentParams,
-                    ).queryKey,
-                    exact: true,
-                  });
-                  setStatus("Main 변경 제안을 만들었습니다.");
-                });
-              }}
-            >
-              <label>
-                제안 본문
-                <textarea
-                  value={proposalText}
-                  onChange={(event) => setProposalText(event.target.value)}
-                  rows={4}
-                />
-              </label>
-              <button
-                className="button secondary"
-                disabled={
-                  busy || !canParticipate || !documentId || !proposalText.trim()
-                }
-                type="submit"
+                }}
               >
-                Proposal 만들기
-              </button>
-            </form>
-            <div className="proposal-list">
-              {proposals.data
-                ?.filter((proposal) => proposal.source_session_id === sessionId)
-                .map((proposal) => (
-                  <ProposalView
-                    key={proposal.id}
-                    api={api}
-                    workspaceId={workspaceId}
-                    proposalId={proposal.id}
-                    member={member}
+                <label>
+                  제안 본문
+                  <textarea
+                    value={proposalText}
+                    onChange={(event) => setProposalText(event.target.value)}
+                    rows={4}
                   />
-                ))}
-            </div>
-          </section>
+                </label>
+                <button
+                  className="button secondary"
+                  disabled={
+                    busy ||
+                    !canParticipate ||
+                    !documentId ||
+                    !proposalText.trim()
+                  }
+                  type="submit"
+                >
+                  Proposal 만들기
+                </button>
+              </form>
+            </section>
+          )}
         </aside>
       </div>
       <p role="status" aria-live="polite" className="status-bar">

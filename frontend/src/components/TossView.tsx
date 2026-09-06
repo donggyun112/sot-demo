@@ -8,7 +8,7 @@ interface TossViewProps {
   token: string;
   workspaces: Workspace[];
   selectedWorkspaceId: string;
-  onForked: (workspaceId: string, sessionId: string, bundleId: string) => void;
+  onForked: (workspaceId: string, sessionId: string) => void;
 }
 
 export function TossView({
@@ -94,7 +94,7 @@ export function TossView({
                 ).queryKey,
                 exact: true,
               });
-              onForked(destination, created.session_id, view.data!.bundle_id);
+              onForked(destination, created.session_id);
             })
             .catch((reason: unknown) =>
               setError(
