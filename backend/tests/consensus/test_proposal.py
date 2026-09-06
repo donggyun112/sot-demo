@@ -1,11 +1,16 @@
-from dataclasses import FrozenInstanceError
+from dataclasses import FrozenInstanceError, replace
 from datetime import UTC, datetime
 from typing import cast
 from uuid import uuid4
 
 import pytest
 
-from sot.consensus.domain import ApprovalDecision, Proposal, ProposalStatus
+from sot.consensus.domain import (
+    ApprovalDecision,
+    Proposal,
+    ProposalCitation,
+    ProposalStatus,
+)
 from sot.shared.errors import Conflict, Forbidden, InvalidInput
 from sot.shared.ids import BundleId, DocumentId, SessionId, UserId, WorkspaceId
 
@@ -26,6 +31,7 @@ def proposal() -> Proposal:
         content="Initial proposal",
         required_approver_ids=frozenset({ALICE, BOB}),
         bundle_ids=(BUNDLE,),
+        citations=(ProposalCitation(BUNDLE, 0, "Initial"),),
         now=NOW,
     )
 
@@ -61,6 +67,7 @@ def test_revision_resets_approval_status_and_preserves_history() -> None:
         content="Revised",
         required_approver_ids=frozenset({ALICE, BOB, CAROL}),
         bundle_ids=(),
+        citations=(),
         now=NOW,
     )
     assert previous.status is ProposalStatus.REJECTED
@@ -109,6 +116,7 @@ def test_duplicate_decision_and_old_version_are_conflicts() -> None:
         content="Revised",
         required_approver_ids=frozenset({ALICE, BOB}),
         bundle_ids=(),
+        citations=(),
         now=NOW,
     )
     with pytest.raises(Conflict, match="changed"):
@@ -123,6 +131,7 @@ def test_duplicate_decision_and_old_version_are_conflicts() -> None:
             content="Old",
             required_approver_ids=frozenset({ALICE, BOB}),
             bundle_ids=(),
+            citations=(),
             now=NOW,
         )
 
@@ -156,6 +165,7 @@ def test_invalid_content_or_omitted_creator_is_rejected(
             content=content,
             required_approver_ids=required,
             bundle_ids=(),
+            citations=(),
             now=NOW,
         )
 
@@ -170,6 +180,7 @@ def test_version_preserves_explicit_approvers_separately_from_mandatory_set() ->
         required_approver_ids=frozenset({ALICE, BOB, CAROL}),
         additional_approver_ids=frozenset({CAROL}),
         bundle_ids=(),
+        citations=(),
         now=NOW,
     )
     assert revised.current_version.additional_approver_ids == frozenset({CAROL})
@@ -183,8 +194,68 @@ def test_version_preserves_explicit_approvers_separately_from_mandatory_set() ->
             required_approver_ids=frozenset({ALICE, BOB}),
             additional_approver_ids=frozenset({CAROL}),
             bundle_ids=(),
+            citations=(),
             now=NOW,
         )
+
+
+@pytest.mark.parametrize("position,anchor", [(-1, "Initial"), (0, ""), (0, "   ")])
+def test_citation_rejects_invalid_position_or_blank_anchor(
+    position: int, anchor: str
+) -> None:
+    with pytest.raises(InvalidInput):
+        ProposalCitation(BUNDLE, position, anchor)
+
+
+@pytest.mark.parametrize("invalid", ["unlisted_bundle", "duplicate", "absent_anchor"])
+def test_version_rejects_unbound_duplicate_or_unmatched_citations(invalid: str) -> None:
+    original = proposal().current_version
+    citations: tuple[ProposalCitation, ...] = (ProposalCitation(BUNDLE, 0, "Initial"),)
+    if invalid == "unlisted_bundle":
+        citations = (ProposalCitation(BundleId(uuid4()), 0, "Initial"),)
+    elif invalid == "duplicate":
+        citations = citations * 2
+    else:
+        citations = (ProposalCitation(BUNDLE, 0, "initial"),)
+    with pytest.raises(InvalidInput):
+        replace(original, citations=citations)
+
+
+def test_citation_order_and_verbatim_anchors_are_frozen_per_version() -> None:
+    first = ProposalCitation(BUNDLE, 1, " proposal")
+    second = ProposalCitation(BUNDLE, 0, "Initial")
+    original = replace(proposal().current_version, citations=(first, second))
+    assert original.citations == (first, second)
+    assert original.citations[0].claim_anchor == " proposal"
+    with pytest.raises(FrozenInstanceError):
+        original.citations[0].claim_anchor = "changed"  # type: ignore[misc]
+
+
+@pytest.mark.parametrize("transition", ["mark_stale", "mark_merged"])
+def test_publication_transitions_require_current_approved_version(
+    transition: str,
+) -> None:
+    original = proposal()
+    with pytest.raises(Conflict) as caught:
+        getattr(original, transition)(expected_version=1)
+    assert caught.value.code == "proposal_not_approved"
+    approved = original.decide(
+        actor_id=ALICE, expected_version=1, decision=ApprovalDecision.APPROVE, now=NOW
+    ).decide(
+        actor_id=BOB, expected_version=1, decision=ApprovalDecision.APPROVE, now=NOW
+    )
+    with pytest.raises(Conflict) as caught:
+        getattr(approved, transition)(expected_version=2)
+    assert caught.value.code == "proposal_version_conflict"
+    result = getattr(approved, transition)(expected_version=1)
+    expected = (
+        ProposalStatus.STALE if transition == "mark_stale" else ProposalStatus.MERGED
+    )
+    assert result.status is expected
+    assert approved.status is ProposalStatus.APPROVED
+    assert result.versions == approved.versions
+    with pytest.raises(Conflict):
+        getattr(result, transition)(expected_version=1)
 
 
 def test_invalid_decision_never_counts_as_approval() -> None:

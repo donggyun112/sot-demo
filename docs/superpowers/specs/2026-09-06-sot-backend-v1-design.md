@@ -155,6 +155,10 @@ slice는 이 설계의 동작을 검증하는 프로토타입이며 최종 모�
     교집합이다. Workspace role은 권한 상한이고 Session role은 해당 Session에 대한 명시적 grant다.
     따라서 Workspace owner도 Session role 없이는 본문에 접근할 수 없고, Workspace viewer는 Session
     editor를 받아도 편집할 수 없다.
+61. Proposal의 citation은 version에 귀속된 불변 목록이다. 생성·수정 actor가 source Session 편집권한과
+    Bundle 읽기권한을 가진 동안 명시적인 Bundle/item/claim anchor 입력을 검증해 저장한다. 승인 후
+    `document.publish` actor는 이 확정된 citation만으로 merge하며 source Session membership이나
+    private Bundle 재조회가 필요하지 않다.
 
 ### 1.2 아직 확정하지 않은 항목
 
@@ -378,7 +382,8 @@ adapter, application handler, `AuthFacade`, Pydantic AI agent와 FastAPI router�
 ### 6.1 모듈 공개 surface
 
 다른 제품 모듈은 상대 모듈의 `contracts.py`에 선언된 capability `Protocol`과 immutable result DTO만
-참조한다. 예를 들어 consensus는 `DocumentPublisher`와 `BundleReader`, sharing은
+참조한다. 예를 들어 consensus의 생성·수정은 `BundleReader`, merge는 `DocumentReader`와
+`DocumentPublisher`를 사용하며, sharing은
 `ShareableBundleReader`, agent는 `BranchContextReader`, `BranchVersionGuard`, `CompletedTurnsAppender`,
 `CiteCreator`, `ProposalCreator`에 의존한다. 내부
 application handler, Domain aggregate, repository port와 PostgreSQL adapter는 외부에 공개하지 않는다.
@@ -500,6 +505,21 @@ handler는 actor 권한을 확인하고 aggregate를 load한 뒤 domain method�
 17. 중복 command가 유효한 새 요청인지 재시도인지 구분해야 하는 use case는 자기 계약에서
     idempotency 정책을 명시한다.
 
+`ProposalCitation(bundle_id, bundle_item_position, claim_anchor)`는 consensus 소유의 frozen value다.
+`ProposalVersion`은 기존 `bundle_ids`와 함께 순서를 보존하는 citation tuple을 저장한다. 각 citation은
+그 version의 Bundle 집합에 속해야 하며 같은 `(claim_anchor, bundle_id, bundle_item_position)`을
+중복 지정할 수 없다. `claim_anchor`는 공백뿐일 수 없고 해당 version의 content 안에 **그대로** 등장해야
+한다. 검증 시 anchor를 trim해 다른 위치를 가리키게 만들지 않는다. Item position은 검증한 immutable
+Bundle snapshot의 0-based item 위치이며 모든 참조가 존재해야 한다.
+
+Create/Revise command의 `citations`는 필수 명시 입력이다. `()`는 citation 없는 새 version을 뜻하고
+이전 version의 citation을 암묵적으로 유지하지 않는다. Revision마다 Bundle 권한과 item 위치를 다시
+검증한다. 현재 content-only Agent command는 `bundle_ids=(), citations=()`를 명시적으로 전달한다.
+Merge는 version에 고정된 citation을 `RevisionCitationInput`으로 변환할 뿐 Session/Bundle을 읽지 않는다.
+응답 `MergeProposalResult`는 proposal ID/version/status와 선택적 publication 결과만 제공하며 private
+source Session ID나 creator/approver 목록을 노출하지 않는다. 같은 version을 다시 merge하면
+`proposal_not_approved` conflict를 반환하고 추가 revision을 만들지 않는다.
+
 `JoinTurns`의 provenance source ID 순서는 명시적인 입력 순서를 보존한다. 결과 item은 선택된 item 중
 기존 projection의 가장 앞 위치에 놓고 그 item의 role을 유지하며, 선택되지 않은 item의 순서는 유지한다.
 이미 join된 item을 다시 join할 때는 그 item의 모든 source ID를 선택해야 한다. 일부만 선택하면 projection과
@@ -533,7 +553,8 @@ PostgreSQL은 다음 제품 데이터만 저장한다.
 - `sot_session`, `sot_session_member`, `sot_branch`, `sot_turn`, `sot_fork_origin`
 - `sot_curation_op`, `sot_bundle`, `sot_bundle_item`
 - `sot_share_link`
-- `sot_proposal`, `sot_proposal_bundle`, `sot_proposal_approver`, `sot_approval`
+- `sot_proposal`, `sot_proposal_version`, `sot_proposal_bundle`, `sot_proposal_citation`,
+  `sot_proposal_approver`, `sot_approval`
 
 다음 데이터는 저장하지 않는다.
 
@@ -554,6 +575,12 @@ PostgreSQL은 다음 제품 데이터만 저장한다.
 - Unit of Work factory가 transaction lifecycle과 opaque `TransactionContext`를 만들고, module
   repository adapter는 이 context를 명시적으로 받는다.
 - 외래 키, unique, check constraint로 표현 가능한 불변 조건은 DB에도 둔다.
+
+Migration 006의 `sot_proposal_citation`은 workspace/proposal/version/position을 키로 삼아 citation
+순서를 보존한다. Proposal version 및 그 version의 Bundle 집합에 composite FK를 두고,
+`(workspace_id, bundle_id, bundle_item_position)`은 session 소유 `sot_bundle_item`의
+`(workspace_id, bundle_id, position)`을 참조한다. 이 참조 무결성은 cross-module SQL 조회를 허용하지
+않는다. Status/approval 변경으로 과거 citation을 덮어쓰지 않는다.
 
 ### 9.3 동시성
 

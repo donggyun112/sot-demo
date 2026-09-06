@@ -42,6 +42,17 @@ class ProposalVersionConflict(Conflict):
 
 
 @dataclass(frozen=True, slots=True)
+class ProposalCitation:
+    bundle_id: BundleId
+    bundle_item_position: int
+    claim_anchor: str
+
+    def __post_init__(self) -> None:
+        if self.bundle_item_position < 0 or not self.claim_anchor.strip():
+            raise InvalidInput("proposal_citation_invalid", "Citation is invalid")
+
+
+@dataclass(frozen=True, slots=True)
 class ProposalVersion:
     proposal_id: ProposalId
     version: int
@@ -51,6 +62,7 @@ class ProposalVersion:
     bundle_ids: tuple[BundleId, ...]
     created_by: UserId
     created_at: datetime
+    citations: tuple[ProposalCitation, ...]
     additional_approver_ids: frozenset[UserId] = frozenset()
 
     def __post_init__(self) -> None:
@@ -64,6 +76,14 @@ class ProposalVersion:
             )
         if len(set(self.bundle_ids)) != len(self.bundle_ids):
             raise InvalidInput("proposal_bundles_invalid", "Duplicate proposal bundles")
+        if len(set(self.citations)) != len(self.citations) or any(
+            citation.bundle_id not in self.bundle_ids
+            or citation.claim_anchor not in self.content
+            for citation in self.citations
+        ):
+            raise InvalidInput(
+                "proposal_citation_invalid", "Citation does not match proposal version"
+            )
         if not self.additional_approver_ids <= self.required_approver_ids:
             raise InvalidInput(
                 "proposal_approvers_invalid", "Additional approvers must be required"
@@ -103,6 +123,7 @@ class Proposal:
         content: str,
         required_approver_ids: frozenset[UserId],
         bundle_ids: tuple[BundleId, ...],
+        citations: tuple[ProposalCitation, ...],
         now: datetime,
         additional_approver_ids: frozenset[UserId] = frozenset(),
     ) -> Proposal:
@@ -117,6 +138,7 @@ class Proposal:
             bundle_ids,
             created_by,
             now,
+            citations,
             additional_approver_ids,
         )
         return cls(
@@ -158,6 +180,7 @@ class Proposal:
         content: str,
         required_approver_ids: frozenset[UserId],
         bundle_ids: tuple[BundleId, ...],
+        citations: tuple[ProposalCitation, ...],
         now: datetime,
         additional_approver_ids: frozenset[UserId] = frozenset(),
     ) -> Proposal:
@@ -174,6 +197,7 @@ class Proposal:
             bundle_ids,
             actor_id,
             now,
+            citations,
             additional_approver_ids,
         )
         return replace(
@@ -210,6 +234,19 @@ class Proposal:
         ):
             status = ProposalStatus.APPROVED
         return replace(self, approvals=(*self.approvals, approval), status=status)
+
+    def require_approved(self, *, expected_version: int) -> None:
+        self.require_version(expected_version)
+        if self.status is not ProposalStatus.APPROVED:
+            raise Conflict("proposal_not_approved", "Proposal version is not approved")
+
+    def mark_stale(self, *, expected_version: int) -> Proposal:
+        self.require_approved(expected_version=expected_version)
+        return replace(self, status=ProposalStatus.STALE)
+
+    def mark_merged(self, *, expected_version: int) -> Proposal:
+        self.require_approved(expected_version=expected_version)
+        return replace(self, status=ProposalStatus.MERGED)
 
     @staticmethod
     def _require_creator(creator: UserId, required: frozenset[UserId]) -> None:

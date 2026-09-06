@@ -29,7 +29,7 @@ class ProposalRepository(Protocol):
         ...
 
     async def add(self, tx: TransactionContext, proposal: Proposal) -> None:
-        """Insert identity, initial immutable version and its approver snapshot."""
+        """Insert identity, immutable version, approver and ordered citation snapshots."""
         ...
 
     async def save(self, tx: TransactionContext, proposal: Proposal) -> None:
@@ -38,5 +38,8 @@ class ProposalRepository(Protocol):
         Preserve source identity and existing version/approval records. Append only
         new versions and decisions; update aggregate current-version/status. The
         unique decision key is (proposal_id, version, approver_user_id).
+        Persist citations by (proposal_id, version, position), preserving supplied
+        order and all claim_anchor/bundle_id/bundle_item_position values. Existing
+        version citations are immutable and never overwritten on status updates.
         """
         ...

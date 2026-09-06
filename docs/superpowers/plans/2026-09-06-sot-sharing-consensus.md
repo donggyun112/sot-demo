@@ -274,6 +274,7 @@ class ProposalVersion:
     content: str
     required_approver_ids: frozenset[UserId]
     bundle_ids: tuple[BundleId, ...]
+    citations: tuple[ProposalCitation, ...]
 ```
 
 Approval identity is `(proposal_id, proposal_version, approver_user_id)`. A reject moves only the current version to `rejected`; revising content or approvers creates the next version and restores `open` with no carried approvals.
@@ -320,15 +321,25 @@ git commit -m "feat: add versioned proposal consensus"
 
 - Modify: `backend/src/sot/consensus/application.py`
 - Modify: `backend/src/sot/consensus/contracts.py`
+- Modify: `backend/src/sot/consensus/domain.py`
+- Modify: `backend/src/sot/consensus/ports.py`
 - Modify: `backend/src/sot/document/contracts.py`
 - Modify: `backend/src/sot/document/application.py`
+- Modify: `backend/tests/consensus/test_proposal.py`
+- Modify: `backend/tests/consensus/test_application.py`
+- Create: `backend/tests/consensus/merge_support.py`
 - Create: `backend/tests/consensus/test_merge.py`
 - Create: `backend/tests/integration/test_concurrent_merge.py`
+- Modify: `docs/superpowers/specs/2026-09-06-sot-backend-v1-design.md`
+- Modify: `docs/superpowers/plans/2026-09-06-sot-sharing-consensus.md`
 
 **Interfaces:**
 
-- Consumes: `WorkspaceAuthorizer`, `DocumentReader`, `DocumentPublisher`, `BundleReader`.
-- Produces: `MergeProposal` and a published revision with citations.
+- Merge consumes: `WorkspaceAuthorizer`, `DocumentReader`, `DocumentPublisher`; it never calls private `BundleReader`.
+- Creation/revision consumes `BundleReader` to validate version-owned citations before approval.
+- Produces: `ProposalCitation`, explicit citation inputs on create/revise, `MergeProposal`, and `MergeProposalResult` with a published revision and citations.
+
+**Approved citation decision:** Add frozen consensus-owned `ProposalCitation(bundle_id, bundle_item_position, claim_anchor)` and an ordered immutable tuple on `ProposalVersion`. Each citation must reference its version's `bundle_ids`, an existing zero-based item in an authorized immutable Bundle snapshot, and a nonblank anchor occurring verbatim in that version's content. Reject duplicate `(claim_anchor, bundle_id, bundle_item_position)` identities. Create/revise require explicit `citations`; empty means none, and a revision never silently carries old citations. The current content-only Agent command explicitly supplies empty bundles/citations. Validate all Bundle inputs during source-session-authorized creation/revision; merge maps the frozen version inputs directly and grants no private read access.
 
 - [ ] **Step 1: Write failing explicit-publication tests**
 
@@ -337,7 +348,7 @@ git commit -m "feat: add versioned proposal consensus"
 async def test_last_approval_does_not_publish_main() -> None:
     await decide(alice, Decision.APPROVE)
     result = await decide(bob, Decision.APPROVE)
-    assert result.proposal.status is ProposalStatus.APPROVED
+    assert result.status is ProposalStatus.APPROVED
     assert await documents.current_revision(document_id) == base_revision
 
 
@@ -347,22 +358,22 @@ async def test_merge_requires_publish_permission_and_current_base() -> None:
         await merge.execute(actor=member, command=merge_command)
     await advance_document_main_elsewhere()
     stale = await merge.execute(actor=owner, command=merge_command)
-    assert stale.proposal.status is ProposalStatus.STALE
+    assert stale.status is ProposalStatus.STALE
 ```
 
 - [ ] **Step 2: Run tests and verify merge is not implemented**
 
 Run: `uv run --project backend pytest backend/tests/consensus/test_merge.py -q`
 
-Expected: FAIL because the current vertical slice auto-publishes on approval and lacks explicit merge.
+Expected: FAIL because the modular consensus application lacks `MergeProposal`.
 
 - [ ] **Step 3: Implement `MergeProposal` as the transaction owner**
 
-Within one UoW transaction: require `document.publish`; lock/load current Proposal version; require status `approved`; load current Document revision through `DocumentReader`; mark stale and return without publishing when the base differs; materialize citations only from the Proposal's immutable bundles; call `DocumentPublisher.publish(tx, ...)`; mark Proposal `merged`; save both modules; commit once.
+Within one UoW transaction: require `document.publish`; lock/load the workspace-scoped Proposal; require expected version and status `approved`; load its Document revision through `DocumentReader`; mark stale and return without publishing when the base differs; map only that version's frozen citations to `RevisionCitationInput`; call `DocumentPublisher.publish(tx, ...)` with the loaded Document version; mark Proposal `merged`; save both modules; commit once. Return `MergeProposalResult(proposal_id, version, status, publication)` without source-session/creator/approver metadata. A workspace publisher without source-session membership must succeed; a non-publisher must be denied before proposal lookup.
 
 - [ ] **Step 4: Test concurrent merge**
 
-Start two `MergeProposal` calls against the same approved version using separate connections and an asyncio barrier. Assert exactly one new revision, one set of citations, one main-pointer advance, and one result that is either the same merged projection or a stable conflict. Do not use a global idempotency table.
+At Task 4, run two calls with controlled transaction adapters and an asyncio barrier. Assert exactly one new revision, one citation set and one main-pointer advance; the second receives stable `proposal_not_approved` conflict. Also cover competing proposals sharing a base and rollback after revision save, proposal save, conditional publication conflict, and commit failure. These tests prove application transaction composition, not PostgreSQL locking. Task 5 must add separate-connection live PostgreSQL concurrency. Do not use a global idempotency table.
 
 - [ ] **Step 5: Run focused and integration tests**
 
@@ -395,6 +406,7 @@ git commit -m "feat: separate consensus from main publication"
 - Create: `backend/tests/sharing/test_api.py`
 - Create: `backend/tests/consensus/test_api.py`
 - Create: `backend/tests/integration/test_sharing_consensus_postgres.py`
+- Modify: `backend/tests/integration/test_concurrent_merge.py`
 
 **Interfaces:**
 
@@ -443,7 +455,9 @@ Expected: FAIL on missing migrations and adapters.
 
 - [ ] **Step 4: Create consensus migration**
 
-`006_consensus.sql` creates `sot.sot_proposal`, `sot.sot_proposal_version`, `sot.sot_proposal_bundle`, `sot.sot_proposal_approver`, and `sot.sot_approval`. Include workspace-scoped composite FKs, proposal version uniqueness, approval primary key `(workspace_id, proposal_id, proposal_version, approver_user_id)`, status checks, and indexes for open proposals by document/session.
+`006_consensus.sql` creates `sot.sot_proposal`, `sot.sot_proposal_version`, `sot.sot_proposal_bundle`, `sot.sot_proposal_citation`, `sot.sot_proposal_approver`, and `sot.sot_approval`. Include workspace-scoped composite FKs, proposal version uniqueness, approval primary key `(workspace_id, proposal_id, proposal_version, approver_user_id)`, status checks, and indexes for open proposals by document/session.
+
+Persist `sot_proposal_citation(workspace_id, proposal_id, proposal_version, position, claim_anchor, bundle_id, bundle_item_position)` with primary key `(workspace_id, proposal_id, proposal_version, position)` and unique citation identity `(workspace_id, proposal_id, proposal_version, claim_anchor, bundle_id, bundle_item_position)`. Add composite FKs to the proposal version, its version-owned `sot_proposal_bundle` membership, and session's existing `sot_bundle_item(workspace_id, bundle_id, position)`. Positions must be nonnegative and anchors nonblank; application/domain validate the exact content substring. Read/write citation order through consensus-owned SQL only, preserve older versions, and never rewrite citations on status/approval changes.
 
 - [ ] **Step 5: Implement adapters and canonical routes**
 
@@ -462,6 +476,8 @@ POST   /api/v1/workspaces/{workspace_id}/proposals/{proposal_id}/merge
 ```
 
 Public GET adds `Cache-Control: private, no-store`. Logging middleware redacts the toss token path. All other routes resolve actor and validate path workspace before invoking handlers.
+
+Proposal create/revise HTTP bodies require a `citations` list of `{bundle_id, bundle_item_position, claim_anchor}`; `[]` deliberately creates a version without citations. Reject missing citation input rather than guessing or carrying prior values. Expose merge's minimal `MergeProposalResult`, not the private `ProposalView`. Add persistence round trips across multiple versions, citation FK/uniqueness tests, a nonmember publisher HTTP test, and live concurrent merges over separate PostgreSQL connections (including rollback with no orphan revision/citations).
 
 - [ ] **Step 6: Run milestone verification**
 

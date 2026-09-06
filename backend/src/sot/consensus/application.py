@@ -3,10 +3,19 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
-from sot.consensus.contracts import ProposalView
-from sot.consensus.domain import ApprovalDecision, Proposal, ProposalNotFound
+from sot.consensus.contracts import MergeProposalResult, ProposalView
+from sot.consensus.domain import (
+    ApprovalDecision,
+    Proposal,
+    ProposalCitation,
+    ProposalNotFound,
+)
 from sot.consensus.ports import ProposalRepository
-from sot.document.contracts import DocumentReader
+from sot.document.contracts import (
+    DocumentPublisher,
+    DocumentReader,
+    RevisionCitationInput,
+)
 from sot.identity.contracts import Actor
 from sot.session.contracts import (
     BranchContextReader,
@@ -30,7 +39,11 @@ from sot.shared.ids import (
     WorkspaceId,
 )
 from sot.shared.unit_of_work import TransactionContext, UnitOfWorkFactory
-from sot.workspace.contracts import WorkspaceMemberReader
+from sot.workspace.contracts import (
+    Permission,
+    WorkspaceAuthorizer,
+    WorkspaceMemberReader,
+)
 
 
 def _view(proposal: Proposal) -> ProposalView:
@@ -67,6 +80,7 @@ class ProposalSources:
         document_id: DocumentId,
         creator_id: UserId,
         bundle_ids: tuple[BundleId, ...],
+        citations: tuple[ProposalCitation, ...],
         additional_approver_ids: frozenset[UserId],
     ) -> tuple[UUID, frozenset[UserId]]:
         """Use the caller's already-authorized immutable source within its tx."""
@@ -95,12 +109,22 @@ class ProposalSources:
         )
         for user_id in sorted(required, key=str):
             await self.members.require_member(tx, workspace_id, user_id)
+        item_counts: dict[BundleId, int] = {}
         for bundle_id in bundle_ids:
-            await self.bundles.require_snapshot(
+            snapshot = await self.bundles.require_snapshot(
                 tx,
                 actor=actor,
                 workspace_id=workspace_id,
                 bundle_id=bundle_id,
+            )
+            item_counts[bundle_id] = len(snapshot.items)
+        if any(
+            citation.bundle_id not in item_counts
+            or citation.bundle_item_position >= item_counts[citation.bundle_id]
+            for citation in citations
+        ):
+            raise InvalidInput(
+                "proposal_citation_invalid", "Citation item does not exist in bundle"
             )
         return document.current_revision.id, frozenset(required)
 
@@ -130,6 +154,7 @@ class CreateProposal:
         *,
         document_id: DocumentId,
         content: str,
+        citations: tuple[ProposalCitation, ...],
         bundle_ids: tuple[BundleId, ...] = (),
         additional_approver_ids: frozenset[UserId] = frozenset(),
     ) -> ProposalView:
@@ -143,6 +168,7 @@ class CreateProposal:
                     document_id=document_id,
                     content=content,
                     bundle_ids=bundle_ids,
+                    citations=citations,
                     additional_approver_ids=additional_approver_ids,
                 )
             )
@@ -157,6 +183,7 @@ class CreateProposal:
         document_id: DocumentId,
         content: str,
         bundle_ids: tuple[BundleId, ...],
+        citations: tuple[ProposalCitation, ...],
         additional_approver_ids: frozenset[UserId],
     ) -> Proposal:
         session = await self._sources.sessions.require(
@@ -174,6 +201,7 @@ class CreateProposal:
             document_id=document_id,
             creator_id=actor.user_id,
             bundle_ids=bundle_ids,
+            citations=citations,
             additional_approver_ids=additional_approver_ids,
         )
         proposal = Proposal.create(
@@ -185,6 +213,7 @@ class CreateProposal:
             content=content,
             required_approver_ids=required,
             bundle_ids=bundle_ids,
+            citations=citations,
             additional_approver_ids=additional_approver_ids,
             now=self._clock.now(),
         )
@@ -227,6 +256,7 @@ class CreateProposal:
                 document_id=context.document_id,
                 content=content,
                 bundle_ids=(),
+                citations=(),
                 additional_approver_ids=frozenset(),
             )
             return BranchMutationResult(proposal.id, branch_version)
@@ -254,6 +284,7 @@ class ReviseProposal:
         expected_version: int,
         content: str,
         bundle_ids: tuple[BundleId, ...],
+        citations: tuple[ProposalCitation, ...],
         additional_approver_ids: frozenset[UserId] | None = None,
     ) -> ProposalView:
         async with self._uow_factory().transaction() as tx:
@@ -293,6 +324,7 @@ class ReviseProposal:
                 document_id=proposal.document_id,
                 creator_id=proposal.created_by,
                 bundle_ids=bundle_ids,
+                citations=citations,
                 additional_approver_ids=extras,
             )
             revised = proposal.revise(
@@ -302,6 +334,7 @@ class ReviseProposal:
                 content=content,
                 required_approver_ids=required,
                 bundle_ids=bundle_ids,
+                citations=citations,
                 additional_approver_ids=extras,
                 now=self._clock.now(),
             )
@@ -346,6 +379,80 @@ class DecideProposal:
             )
             await self._repository.save(tx, decided)
             return _view(decided)
+
+
+class MergeProposal:
+    """Publish approved version evidence within one caller-owned transaction.
+
+    Creation/revision already authorized and validated the immutable citations.
+    A publisher never gains private session access by invoking this command.
+    """
+
+    def __init__(
+        self,
+        repository: ProposalRepository,
+        authorizer: WorkspaceAuthorizer,
+        documents: DocumentReader,
+        publisher: DocumentPublisher,
+        uow_factory: UnitOfWorkFactory,
+    ) -> None:
+        self._repository = repository
+        self._authorizer = authorizer
+        self._documents = documents
+        self._publisher = publisher
+        self._uow_factory = uow_factory
+
+    async def execute(
+        self,
+        actor: Actor,
+        workspace_id: WorkspaceId,
+        proposal_id: ProposalId,
+        *,
+        expected_version: int,
+    ) -> MergeProposalResult:
+        async with self._uow_factory().transaction() as tx:
+            await self._authorizer.require(
+                tx, actor, workspace_id, Permission.DOCUMENT_PUBLISH
+            )
+            proposal = await self._repository.get_for_update(
+                tx, workspace_id, proposal_id
+            )
+            if proposal is None or proposal.workspace_id != workspace_id:
+                raise ProposalNotFound()
+            proposal.require_approved(expected_version=expected_version)
+            document = await self._documents.require_document(
+                tx,
+                actor=actor,
+                workspace_id=workspace_id,
+                document_id=proposal.document_id,
+            )
+            version = proposal.current_version
+            publication = None
+            if version.base_revision_id != document.current_revision.id:
+                updated = proposal.mark_stale(expected_version=expected_version)
+            else:
+                publication = await self._publisher.publish(
+                    tx,
+                    actor=actor,
+                    workspace_id=workspace_id,
+                    document_id=proposal.document_id,
+                    expected_version=document.document.version,
+                    proposal_id=proposal.id,
+                    content=version.content,
+                    citations=tuple(
+                        RevisionCitationInput(
+                            citation.claim_anchor,
+                            citation.bundle_id,
+                            citation.bundle_item_position,
+                        )
+                        for citation in version.citations
+                    ),
+                )
+                updated = proposal.mark_merged(expected_version=expected_version)
+            await self._repository.save(tx, updated)
+            return MergeProposalResult(
+                updated.id, updated.version, updated.status, publication
+            )
 
 
 class ReadProposal:
