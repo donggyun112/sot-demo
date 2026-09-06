@@ -487,6 +487,8 @@ Add explicit selected Workspace state above document/session state. Preserve exi
 
 Construct `PydanticAIAgent` with `/api/v1/workspaces/${workspaceId}/branches/${branchId}/agent` and Bearer headers. On `RUN_FINISHED`, call only the session snapshot refetch. On `RUN_ERROR`/abort, retain the input and partial output already shown; never call `appendTurns`, never treat partial text as canonical, and preserve the existing AbortError handling test.
 
+> **Revised resource-query contract:** after the Task 4 API split, “session snapshot refetch” above means invalidating/refetching only the active Branch Turn query and Branch metadata query. Those resources provide the committed transcript and current version; no transcript append endpoint is called.
+
 - [ ] **Step 7: Run frontend verification**
 
 ```bash
