@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from uuid import UUID, uuid4
 
 from sot.document.contracts import DocumentReader
@@ -10,6 +11,9 @@ from sot.session.contracts import (
     BranchMutationResult,
     BundleSnapshot,
     CreatedSessionResult,
+    ForkAttribution,
+    ForkedSessionResult,
+    ForkSeedItem,
     SessionAuthorizer,
     SessionView,
     ShareableBundleSnapshot,
@@ -22,6 +26,7 @@ from sot.session.domain import (
     CurationOperation,
     CurationProjection,
     CurationRecord,
+    ForkOrigin,
     JoinTurns,
     NewTurn,
     Session,
@@ -33,7 +38,12 @@ from sot.session.domain import (
     VersionConflict,
     is_allowed,
 )
-from sot.session.ports import BundleRepository, CurationRepository, SessionRepository
+from sot.session.ports import (
+    BundleRepository,
+    CurationRepository,
+    ForkOriginRepository,
+    SessionRepository,
+)
 from sot.shared.clock import Clock
 from sot.shared.ids import (
     BranchId,
@@ -176,6 +186,70 @@ class CreateSession:
             )
             await self._repository.create_branch(tx, workspace_id, branch)
             return CreatedSessionResult(session.id, branch.id)
+
+
+class CreateSessionFork:
+    """Join an authorized caller transaction and persist a detached public copy."""
+
+    def __init__(
+        self,
+        repository: SessionRepository,
+        origins: ForkOriginRepository,
+        clock: Clock,
+    ) -> None:
+        self._repository = repository
+        self._origins = origins
+        self._clock = clock
+
+    async def create_from_public_bundle(
+        self,
+        tx: TransactionContext,
+        *,
+        actor: Actor,
+        destination_workspace_id: WorkspaceId,
+        source_bundle_id: BundleId,
+        attribution: ForkAttribution,
+        items: tuple[ForkSeedItem, ...],
+    ) -> ForkedSessionResult:
+        now = self._clock.now()
+        session = Session.create_detached_fork(
+            destination_workspace_id, actor.user_id, now
+        )
+        branch = Branch.create(destination_workspace_id, session.id, actor.user_id, now)
+        if items:
+            branch.append_completed(
+                expected_version=0,
+                messages=tuple(NewTurn(item.role, item.content) for item in items),
+                now=now,
+            )
+        await self._repository.create_session(tx, destination_workspace_id, session)
+        await self._repository.add_member(
+            tx,
+            destination_workspace_id,
+            SessionMember(
+                destination_workspace_id, session.id, actor.user_id, SessionRole.OWNER
+            ),
+        )
+        await self._repository.create_branch(
+            tx, destination_workspace_id, replace(branch, turns=())
+        )
+        if branch.turns:
+            await self._repository.append_turns(
+                tx, destination_workspace_id, branch.id, branch.turns
+            )
+        await self._origins.create_origin(
+            tx,
+            destination_workspace_id,
+            ForkOrigin(
+                destination_workspace_id,
+                session.id,
+                source_bundle_id,
+                attribution.title,
+                attribution.author_display_name,
+                attribution.published_at,
+            ),
+        )
+        return ForkedSessionResult(session.id, branch.id)
 
 
 class GetSession:

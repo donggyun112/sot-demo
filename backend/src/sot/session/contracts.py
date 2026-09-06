@@ -16,6 +16,7 @@ from sot.session.domain import (
     SessionStatus,
     Turn,
 )
+from sot.shared.errors import InvalidInput
 from sot.shared.ids import (
     BranchId,
     BundleId,
@@ -167,6 +168,10 @@ class ForkSeedItem:
     source_ids: tuple[UUID, ...]
     role: Literal["user", "assistant"]
     content: str
+
+    def __post_init__(self) -> None:
+        if self.role not in {"user", "assistant"}:
+            raise InvalidInput("fork_seed_role_invalid", "Fork seed role is invalid")
 
 
 @dataclass(frozen=True, slots=True)

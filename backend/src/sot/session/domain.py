@@ -92,6 +92,18 @@ class SessionMember:
     role: SessionRole
 
 
+@dataclass(frozen=True, slots=True)
+class ForkOrigin:
+    """Copied public attribution; the source bundle ID is opaque, never a FK."""
+
+    workspace_id: WorkspaceId
+    session_id: SessionId
+    source_bundle_id: BundleId
+    title: str
+    author_display_name: str
+    published_at: datetime
+
+
 @dataclass(slots=True)
 class Session:
     id: SessionId
