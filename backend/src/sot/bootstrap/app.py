@@ -9,6 +9,8 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from psycopg_pool import AsyncConnectionPool
 
+from sot.agent.application import AgentRunPreparer, CompletedRunWriter
+from sot.agent.models import build_agent, build_model
 from sot.api import create_app
 from sot.bootstrap.database import PostgresUnitOfWork
 from sot.bootstrap.errors import handle_sot_error, register_error_handlers
@@ -43,9 +45,10 @@ from sot.identity.providers.google import (
     ProductionGoogleTokenVerifier,
 )
 from sot.identity.tokens import SOTAccessTokenCodec
-from sot.legacy_agent import build_agent, build_model
+from sot.legacy_agent import build_agent as build_legacy_agent
 from sot.session.api import build_session_router
 from sot.session.application import (
+    AppendCompletedTurns,
     ApplyCuration,
     BranchAccess,
     BundleAccess,
@@ -144,7 +147,7 @@ def build_app(
     if settings.environment in {"local", "test"} and settings.development_auth:
         application = create_app(
             service=SOTService(PostgresSOTRepository(pool)),
-            agent=build_agent(build_model(settings.models)),
+            agent=build_legacy_agent(build_model(settings.models)),
             cors_origins=settings.cors_origins,
             lifespan=lifespan,
         )
@@ -181,6 +184,7 @@ def build_app(
     sessions = PostgresSessionRepository()
     session_access = SessionAccess(sessions, access)
     branch_access = BranchAccess(sessions, session_access, access)
+    curation = ApplyCuration(sessions, sessions, branch_access, uow_factory, clock)
     application.include_router(
         build_document_router(
             GetDocument(document_access, uow_factory),
@@ -193,7 +197,7 @@ def build_app(
             CreateSession(sessions, access, document_access, uow_factory, clock),
             GetSession(session_access, uow_factory),
             CreateBranch(sessions, session_access, uow_factory, clock),
-            ApplyCuration(sessions, sessions, branch_access, uow_factory, clock),
+            curation,
             PreviewBundle(sessions, branch_access, uow_factory),
             PublishBundle(
                 sessions, sessions, sessions, branch_access, uow_factory, clock
@@ -222,16 +226,24 @@ def build_app(
     sources = ProposalSources(
         session_access, document_access, bundles, RequiredApprovers(sessions), access
     )
+    create_proposal = CreateProposal(
+        proposals,
+        sources,
+        branch_access,
+        VersionGuard(sessions, branch_access),
+        uow_factory,
+        clock,
+    )
+    application.state.canonical_agent = build_agent(build_model(settings.models))
+    application.state.agent_preparer = AgentRunPreparer(
+        access, branch_access, uow_factory, curation, create_proposal
+    )
+    application.state.completed_run_writer = CompletedRunWriter(
+        AppendCompletedTurns(sessions, branch_access, uow_factory, clock)
+    )
     application.include_router(
         build_consensus_router(
-            CreateProposal(
-                proposals,
-                sources,
-                branch_access,
-                VersionGuard(sessions, branch_access),
-                uow_factory,
-                clock,
-            ),
+            create_proposal,
             ReadProposal(proposals, session_access, access, uow_factory),
             ReviseProposal(proposals, sources, uow_factory, clock),
             DecideProposal(proposals, access, uow_factory, clock),

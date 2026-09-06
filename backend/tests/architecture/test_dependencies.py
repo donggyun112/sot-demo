@@ -90,12 +90,11 @@ def test_application_has_no_fastapi_or_psycopg_imports() -> None:
                         "shared"
                     }, (path, name)
                     if parts[1] == owner:
-                        assert parts[2] in {
-                            "application",
-                            "contracts",
-                            "domain",
-                            "ports",
-                        } or (parts[2:4] == ["providers", "base"]), (path, name)
+                        assert (
+                            parts[2] in {"application", "contracts", "domain", "ports"}
+                            or parts[2:4] == ["providers", "base"]
+                            or (owner == "agent" and parts[2] == "deps")
+                        ), (path, name)
 
 
 def test_cross_module_imports_use_contracts_only() -> None:
@@ -209,6 +208,10 @@ def test_domain_checker_covers_nested_files_and_relative_layer_imports(
         ("session/application/create.py", "import fastapi"),
         ("session/application.py", "from .postgres import Repository"),
         ("session/application/__init__.py", "from ..api import Request"),
+        ("agent/application.py", "import pydantic_ai"),
+        ("agent/application.py", "from .messages import turns_to_model_messages"),
+        ("agent/application.py", "from .models import build_agent"),
+        ("session/application.py", "from .deps import Dependencies"),
     ],
 )
 def test_application_checker_covers_nested_files_and_relative_layer_imports(
@@ -231,3 +234,13 @@ def test_architecture_checker_does_not_silently_skip_invalid_python(
     monkeypatch.setattr(__name__ + ".SRC", tmp_path)
     with pytest.raises(SyntaxError):
         test_cross_module_imports_use_contracts_only()
+
+
+def test_agent_application_can_import_request_dependencies(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "agent" / "application.py"
+    target.parent.mkdir()
+    target.write_text("from .deps import AgentDeps", encoding="utf-8")
+    monkeypatch.setattr(__name__ + ".SRC", tmp_path)
+    test_application_has_no_fastapi_or_psycopg_imports()
