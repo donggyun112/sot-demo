@@ -72,6 +72,22 @@ input, select, textarea {
 .workspace-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(300px, .8fr); gap: 1rem; }
 .chat-panel, .curation-panel { min-width: 0; border: 1px solid var(--line); background: var(--surface); }
 .chat-panel { min-height: 650px; }
+.agent-chat { display: grid; grid-template-rows: minmax(480px, 1fr) auto auto; min-height: 648px; }
+.chat-transcript { display: flex; flex-direction: column; gap: .85rem; overflow-y: auto; padding: 1.1rem; }
+.chat-welcome { margin: auto; max-width: 360px; text-align: center; color: var(--muted); }
+.chat-welcome strong { display: block; margin-bottom: .5rem; color: var(--teal); font-family: "Newsreader", serif; font-size: 1.7rem; }
+.chat-message { max-width: 84%; padding: .85rem 1rem; border: 1px solid var(--line); border-radius: .55rem; background: #f3efe5; }
+.chat-message.user { align-self: flex-end; color: white; border-color: var(--teal); background: var(--teal); }
+.chat-message.assistant, .chat-message.tool { align-self: flex-start; }
+.chat-message > strong { display: block; margin-bottom: .3rem; font-size: .75rem; letter-spacing: .04em; }
+.chat-message p { margin: 0; line-height: 1.55; white-space: pre-wrap; }
+.tool-call { margin-top: .6rem; padding-top: .5rem; border-top: 1px solid color-mix(in srgb, currentColor 22%, transparent); font-size: .78rem; }
+.tool-call summary { cursor: pointer; font-weight: 700; }
+.tool-call pre { overflow-x: auto; margin-bottom: 0; white-space: pre-wrap; }
+.chat-composer { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: .65rem; padding: 1rem; border-top: 1px solid var(--line); background: #f4f0e6; }
+.chat-composer textarea { resize: vertical; }
+.save-retry { justify-self: end; margin: .65rem 1rem 0; }
+.agent-chat .sr-status { margin: 0; padding: 0 1rem .7rem; background: #f4f0e6; }
 .curation-panel { padding: 1.1rem; }
 .curation-panel section + section { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--line); }
 .turn-list label { grid-template-columns: auto 1fr; align-items: start; padding: .7rem 0; border-bottom: 1px solid #e8e3d8; color: var(--ink); font-weight: 400; }
@@ -95,6 +111,7 @@ input, select, textarea {
   .side-nav { display: none; position: absolute; z-index: 10; width: min(85vw, 320px); min-height: calc(100vh - 68px); box-shadow: 16px 20px 40px rgba(0,0,0,.2); }
   .side-nav.open { display: block; }
   .workspace-grid { grid-template-columns: 1fr; }
+  .chat-message { max-width: 94%; }
   .workspace-header, .document-header { align-items: flex-start; }
   .document-view, .workspace, .toss-view, .empty-state, .error-panel { padding: 1.25rem; }
 }

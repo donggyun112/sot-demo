@@ -1,74 +1,87 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { QueryClient } from "@tanstack/react-query";
+import { expect, it } from "vitest";
+import { AuthSession } from "./auth";
+import { createAPI } from "./api";
 
-import { ApiError, SOTApi } from "./api";
-
-const ok = (body: unknown = {}) =>
-  Promise.resolve(
-    new Response(JSON.stringify(body), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    }),
-  );
-
-describe("SOTApi", () => {
-  afterEach(() => vi.unstubAllGlobals());
-
-  it("sends the selected actor on every mutation", async () => {
-    const fetchMock = vi.fn<
-      (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
-    >((_input, _init) => ok());
-    vi.stubGlobal("fetch", fetchMock);
-    const api = new SOTApi("/api/v1", "bob");
-
-    await api.createSession("document", "검토");
-    await api.appendTurns("branch", [{ role: "user", content: "질문" }]);
-    await api.createCite("branch", ["turn"], "결정");
-    await api.createToss("cite");
-    await api.forkToss("token");
-    await api.createProposal("branch", "새 합의");
-    await api.approveProposal("proposal");
-
-    expect(fetchMock).toHaveBeenCalledTimes(7);
-    for (const [, init] of fetchMock.mock.calls) {
-      expect(new Headers(init?.headers).get("X-SOT-User")).toBe("bob");
-    }
+it("isolates same-id resources by workspace using generated query keys and real bearer requests", async () => {
+  const requests: Request[] = [];
+  const auth = new AuthSession(async (request) => {
+    requests.push(request.clone());
+    return request.url.endsWith("/google")
+      ? Response.json({
+          access_token: "real-access",
+          token_type: "bearer",
+          user: { id: "u", email: "u@example.com", display_name: "U" },
+        })
+      : Response.json({
+          id: "s",
+          workspace_id: request.url.includes("/w1/") ? "w1" : "w2",
+          document_id: null,
+          created_by: "u",
+          created_at: "2026-09-06T00:00:00Z",
+        status: "open",
+        });
+  }, "https://sot.test/api/v1");
+  await auth.loginWithGoogle("credential");
+  const api = createAPI(auth, "https://sot.test/api/v1");
+  const cache = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
   });
-
-  it("omits identity for public toss reads", async () => {
-    const fetchMock = vi.fn<
-      (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
-    >((_input, _init) => ok());
-    vi.stubGlobal("fetch", fetchMock);
-
-    await new SOTApi("/api/v1", "alice").getToss("public-token");
-
-    const [, init] = fetchMock.mock.calls[0];
-    expect(new Headers(init?.headers).has("X-SOT-User")).toBe(false);
-  });
-
-  it("turns problem responses into typed ApiError values", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(() =>
-        Promise.resolve(
-          new Response(
-            JSON.stringify({
-              error: { code: "branch_forbidden", message: "Not your branch" },
-            }),
-            { status: 403, headers: { "Content-Type": "application/json" } },
-          ),
-        ),
+  for (const workspace_id of ["w1", "w2"]) {
+    const data = await cache.fetchQuery(
+      api.queryOptions(
+        "get",
+        "/api/v1/workspaces/{workspace_id}/sessions/{session_id}",
+        { params: { path: { workspace_id, session_id: "s" } } },
       ),
     );
+    expect(data.workspace_id).toBe(workspace_id);
+  }
+  expect(requests.slice(1).map((request) => request.url)).toEqual([
+    "https://sot.test/api/v1/workspaces/w1/sessions/s",
+    "https://sot.test/api/v1/workspaces/w2/sessions/s",
+  ]);
+  expect(
+    requests
+      .slice(1)
+      .every(
+        (request) =>
+          request.headers.get("Authorization") === "Bearer real-access" &&
+          !request.headers.has("X-SOT-User"),
+      ),
+  ).toBe(true);
+  cache.clear();
+});
 
-    const failure = new SOTApi("/api/v1", "bob").appendTurns("branch", [
-      { role: "user", content: "침범" },
-    ]);
-
-    await expect(failure).rejects.toMatchObject({
-      name: "ApiError",
-      code: "branch_forbidden",
-      status: 403,
-    } satisfies Partial<ApiError>);
-  });
+it("decodes stable error envelopes and falls back safely for malformed upstream errors", async () => {
+  for (const [body, code, message] of [
+    [
+      {
+        error: {
+          code: "version_conflict",
+          message: "Branch changed",
+          details: {},
+        },
+      },
+      "version_conflict",
+      "Branch changed",
+    ],
+    [
+      { error: { code: 1, message: {} } },
+      "request_failed",
+      "Request failed with 409",
+    ],
+  ] as const) {
+    const auth = new AuthSession(async () =>
+      Response.json(body, { status: 409 }),
+    );
+    const api = createAPI(auth);
+    const cache = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    await expect(
+      cache.fetchQuery(api.queryOptions("get", "/api/v1/me")),
+    ).rejects.toMatchObject({ status: 409, code, message });
+    cache.clear();
+  }
 });

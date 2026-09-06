@@ -1,175 +1,270 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-
-import { ApiError, SOTApi } from "./api";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import {
+  QueryClient,
+  QueryClientProvider,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { createAPI, type API } from "./api";
+import { AuthSession } from "./auth";
+import { DEFAULT_API_BASE } from "./transport";
 import { AppShell } from "./components/AppShell";
 import { DocumentView } from "./components/DocumentView";
+import { GoogleLogin } from "./components/GoogleLogin";
 import { SessionWorkspace } from "./components/SessionWorkspace";
 import { TossView } from "./components/TossView";
-import type {
-  ActorId,
-  BootstrapResponse,
-  DocumentResponse,
-  SessionResponse,
-  TossViewResponse,
-} from "./types";
+import type { User } from "./types";
 
-const DEFAULT_API_BASE = import.meta.env.VITE_API_BASE ?? "/api/v1";
+interface AppProps {
+  apiBase?: string;
+  auth?: AuthSession;
+  googleClientId?: string;
+  queryClient?: QueryClient;
+}
 
-export function App({ apiBase = DEFAULT_API_BASE }: { apiBase?: string }) {
-  const [actor, setActor] = useState<ActorId>("alice");
-  const [bootstrap, setBootstrap] = useState<BootstrapResponse | null>(null);
-  const [documentId, setDocumentId] = useState<string | null>(null);
-  const [document, setDocument] = useState<DocumentResponse | null>(null);
-  const [session, setSession] = useState<SessionResponse | null>(null);
-  const [toss, setToss] = useState<TossViewResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+export function App({
+  apiBase = DEFAULT_API_BASE,
+  auth: suppliedAuth,
+  googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? "",
+  queryClient: suppliedQueryClient,
+}: AppProps) {
+  const auth = useMemo(
+    () => suppliedAuth ?? new AuthSession(undefined, apiBase),
+    [suppliedAuth, apiBase],
+  );
+  const api = useMemo(() => createAPI(auth, apiBase), [auth, apiBase]);
+  const [queryClient] = useState(
+    () =>
+      suppliedQueryClient ??
+      new QueryClient({
+        defaultOptions: {
+          queries: {
+            retry: false,
+            staleTime: 30_000,
+            refetchOnWindowFocus: false,
+          },
+          mutations: { retry: false },
+        },
+      }),
+  );
+  const user = useSyncExternalStore(auth.subscribe, () => auth.user);
+  useEffect(() => {
+    if (!auth.user) void auth.refresh().catch(() => {});
+  }, [auth]);
+  useEffect(
+    () => () => {
+      queryClient.clear();
+    },
+    [queryClient, user?.id],
+  );
+  return (
+    <QueryClientProvider client={queryClient}>
+      {user ? (
+        <WorkspaceApp
+          key={user.id}
+          user={user}
+          api={api}
+          auth={auth}
+          apiBase={apiBase}
+        />
+      ) : (
+        <GoogleLogin auth={auth} clientId={googleClientId} />
+      )}
+    </QueryClientProvider>
+  );
+}
+
+function WorkspaceApp({
+  user,
+  api,
+  auth,
+  apiBase,
+}: {
+  user: User;
+  api: API;
+  auth: AuthSession;
+  apiBase: string;
+}) {
+  const cache = useQueryClient();
+  const workspaces = api.useQuery("get", "/api/v1/workspaces");
+  const me = api.useQuery("get", "/api/v1/me");
+  const [selectedWorkspaceId, setWorkspaceId] = useState<string | null>(null);
+  const workspaceId = selectedWorkspaceId ?? workspaces.data?.[0]?.id ?? "";
+  const [selectedDocumentId, setDocumentId] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [sourceBundleId, setSourceBundleId] = useState<string | null>(null);
+  const [tossToken, setTossToken] = useState<string | null>(null);
   const [error, setError] = useState("");
-  const api = useMemo(() => new SOTApi(apiBase, actor), [actor, apiBase]);
-
-  const describeError = (reason: unknown) => {
-    if (reason instanceof ApiError) return `${reason.code}: ${reason.message}`;
-    return reason instanceof Error ? reason.message : "요청을 완료하지 못했습니다.";
+  const documents = api.useQuery(
+    "get",
+    "/api/v1/workspaces/{workspace_id}/documents",
+    { params: { path: { workspace_id: workspaceId } } },
+    { enabled: Boolean(workspaceId) },
+  );
+  const documentId = selectedDocumentId ?? documents.data?.[0]?.id ?? "";
+  const member = api.useQuery(
+    "get",
+    "/api/v1/workspaces/{workspace_id}/members/me",
+    { params: { path: { workspace_id: workspaceId } } },
+    { enabled: Boolean(workspaceId) },
+  );
+  const documentParams = {
+    params: { path: { workspace_id: workspaceId, document_id: documentId } },
   };
-
-  const loadBootstrap = useCallback(async () => {
-    setLoading(true);
+  const document = api.useQuery(
+    "get",
+    "/api/v1/workspaces/{workspace_id}/documents/{document_id}",
+    documentParams,
+    { enabled: Boolean(workspaceId && documentId) },
+  );
+  const sessions = api.useQuery(
+    "get",
+    "/api/v1/workspaces/{workspace_id}/documents/{document_id}/sessions",
+    documentParams,
+    { enabled: Boolean(workspaceId && documentId) },
+  );
+  const createSession = api.useMutation(
+    "post",
+    "/api/v1/workspaces/{workspace_id}/documents/{document_id}/sessions",
+  );
+  const changeWorkspace = (id: string) => {
+    setWorkspaceId(id);
+    setDocumentId(null);
+    setSessionId(null);
+    setSourceBundleId(null);
+    setTossToken(null);
     setError("");
-    try {
-      const data = await api.bootstrap();
-      setBootstrap(data);
-      setDocumentId((current) => current ?? data.documents[0]?.id ?? null);
-    } catch (reason) {
-      setError(describeError(reason));
-    } finally {
-      setLoading(false);
-    }
-  }, [api]);
-
-  const loadDocument = useCallback(
-    async (id: string) => {
-      setLoading(true);
-      setError("");
-      try {
-        setDocument(await api.getDocument(id));
-        setDocumentId(id);
-        setSession(null);
-        setToss(null);
-      } catch (reason) {
-        setError(describeError(reason));
-      } finally {
-        setLoading(false);
-      }
-    },
-    [api],
-  );
-
-  const loadSession = useCallback(
-    async (id: string) => {
-      setLoading(true);
-      setError("");
-      try {
-        setSession(await api.getSession(id));
-        setToss(null);
-      } catch (reason) {
-        setError(describeError(reason));
-      } finally {
-        setLoading(false);
-      }
-    },
-    [api],
-  );
-
-  const openToss = useCallback(
-    async (token: string) => {
-      setLoading(true);
-      setError("");
-      try {
-        setToss(await api.getToss(token));
-      } catch (reason) {
-        setError(describeError(reason));
-      } finally {
-        setLoading(false);
-      }
-    },
-    [api],
-  );
-
-  useEffect(() => {
-    void loadBootstrap();
-  }, [loadBootstrap]);
-
-  useEffect(() => {
-    if (documentId && !session && !toss) void loadDocument(documentId);
-  }, [documentId, loadDocument, session, toss]);
-
-  useEffect(() => {
-    if (session && !toss) void loadSession(session.session.id);
-  }, [actor]); // Re-resolve actor-scoped branch data after switching identity.
-
-  const createSession = async (title: string) => {
-    if (!documentId) return;
-    const created = await api.createSession(documentId, title);
-    setDocument((current) =>
-      current ? { ...current, sessions: [...current.sessions, created.session] } : current,
-    );
-    await loadSession(created.session.id);
   };
-
-  const users = bootstrap?.users ?? (["alice", "bob"] as ActorId[]);
-
+  const openSession = (id: string) => {
+    setSessionId(id);
+    setSourceBundleId(null);
+    setTossToken(null);
+  };
+  const queryError =
+    workspaces.error ||
+    me.error ||
+    documents.error ||
+    member.error ||
+    document.error ||
+    sessions.error;
+  const message =
+    error ||
+    (queryError instanceof Error
+      ? queryError.message
+      : queryError
+        ? "요청을 완료하지 못했습니다."
+        : "");
   return (
     <AppShell
-      actor={actor}
-      users={users}
-      documents={bootstrap?.documents ?? []}
-      sessions={document?.sessions ?? []}
+      user={me.data ?? user}
+      workspaces={workspaces.data ?? []}
+      selectedWorkspaceId={workspaceId}
+      onWorkspaceChange={changeWorkspace}
+      documents={documents.data ?? []}
+      sessions={sessions.data ?? []}
       selectedDocumentId={documentId}
-      onActorChange={setActor}
-      onDocumentSelect={(id) => void loadDocument(id)}
-      onSessionSelect={(id) => void loadSession(id)}
-      onTossOpen={(token) => void openToss(token)}
+      onDocumentSelect={(id) => {
+        setDocumentId(id);
+        setSessionId(null);
+        setTossToken(null);
+      }}
+      onSessionSelect={openSession}
+      onTossOpen={setTossToken}
+      onLogout={() => {
+        void auth
+          .logout()
+          .catch((reason: unknown) =>
+            setError(
+              reason instanceof Error
+                ? reason.message
+                : "로그아웃에 실패했습니다.",
+            ),
+          );
+      }}
     >
-      {loading && <div className="loading" role="status">동기화 중…</div>}
-      {error && (
+      {message && (
         <div className="error-panel" role="alert">
-          <p>{error}</p>
-          <button className="button" type="button" onClick={() => void loadBootstrap()}>
+          <p>{message}</p>
+          <button
+            className="button"
+            onClick={() => {
+              setError("");
+              void cache.refetchQueries({ type: "active", stale: true });
+            }}
+          >
             다시 시도
           </button>
         </div>
       )}
-      {!loading && !error && bootstrap?.documents.length === 0 && (
-        <div className="empty-state">
-          <div className="eyebrow">EMPTY WORKSPACE</div>
-          <h1>아직 공유 문서가 없습니다</h1>
-          <p>백엔드 seed가 생성되면 여기에 main revision이 표시됩니다.</p>
+      {workspaces.isLoading && (
+        <div className="loading" role="status">
+          동기화 중…
         </div>
       )}
-      {!loading && !error && toss && (
-        <TossView
-          actor={actor}
-          api={api}
-          view={toss}
-          onForked={(sessionId) => void loadSession(sessionId)}
-        />
+      {!workspaces.isLoading && !workspaces.data?.length && (
+        <main className="empty-state">
+          <h1>아직 Workspace가 없습니다</h1>
+        </main>
       )}
-      {!loading && !error && !toss && session && (
+      {workspaceId &&
+        !tossToken &&
+        !sessionId &&
+        documents.data?.length === 0 && (
+          <main className="empty-state">
+            <h1>아직 공유 문서가 없습니다</h1>
+          </main>
+        )}
+      {tossToken ? (
+        <TossView
+          key={tossToken}
+          api={api}
+          token={tossToken}
+          workspaces={workspaces.data ?? []}
+          selectedWorkspaceId={workspaceId}
+          onForked={(destination, id, bundleId) => {
+            changeWorkspace(destination);
+            openSession(id);
+            setSourceBundleId(bundleId);
+          }}
+        />
+      ) : sessionId ? (
         <SessionWorkspace
-          actor={actor}
+          key={`${workspaceId}:${sessionId}`}
+          auth={auth}
           api={api}
           apiBase={apiBase}
-          detail={session}
-          onChanged={() => void loadSession(session.session.id)}
-          onOpenToss={(token) => void openToss(token)}
-          onPublished={() => documentId && void api.getDocument(documentId).then(setDocument)}
+          workspaceId={workspaceId}
+          sessionId={sessionId}
+          documentId={documentId}
+          sourceBundleId={sourceBundleId}
+          member={member.data}
+          onOpenToss={setTossToken}
         />
-      )}
-      {!loading && !error && !toss && !session && document && (
-        <DocumentView
-          data={document}
-          onCreateSession={createSession}
-          onOpenSession={(id) => void loadSession(id)}
-        />
+      ) : (
+        document.data && (
+          <DocumentView
+            data={document.data}
+            sessions={sessions.data ?? []}
+            canCreate={
+              member.data?.permissions.includes("session.create") ?? false
+            }
+            onOpenSession={openSession}
+            onCreateSession={async () => {
+              const created = await createSession.mutateAsync({
+                ...documentParams,
+                body: {},
+              });
+              await cache.invalidateQueries({
+                queryKey: api.queryOptions(
+                  "get",
+                  "/api/v1/workspaces/{workspace_id}/documents/{document_id}/sessions",
+                  documentParams,
+                ).queryKey,
+                exact: true,
+              });
+              openSession(created.session_id);
+            }}
+          />
+        )
       )}
     </AppShell>
   );

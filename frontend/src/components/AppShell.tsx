@@ -1,15 +1,17 @@
 import { useState } from "react";
 
-import type { ActorId, DocumentRecord, Session } from "../types";
+import type { DocumentRecord, Session, User, Workspace } from "../types";
 
 interface AppShellProps {
-  actor: ActorId;
-  users: ActorId[];
+  user: User;
+  workspaces: Workspace[];
+  selectedWorkspaceId: string;
+  onWorkspaceChange: (workspaceId: string) => void;
+  onLogout: () => void;
   documents: DocumentRecord[];
   sessions: Session[];
   selectedDocumentId: string | null;
   children: React.ReactNode;
-  onActorChange: (actor: ActorId) => void;
   onDocumentSelect: (documentId: string) => void;
   onSessionSelect: (sessionId: string) => void;
   onTossOpen: (token: string) => void;
@@ -31,27 +33,50 @@ export function AppShell(props: AppShellProps) {
         >
           메뉴
         </button>
-        <button className="brand" type="button" onClick={() => props.selectedDocumentId && props.onDocumentSelect(props.selectedDocumentId)}>
+        <button
+          className="brand"
+          type="button"
+          onClick={() =>
+            props.selectedDocumentId &&
+            props.onDocumentSelect(props.selectedDocumentId)
+          }
+        >
           <span>SOT</span>
           Shared Source of Truth
         </button>
-        <label className="actor-switcher">
-          작업자
-          <select value={props.actor} onChange={(event) => props.onActorChange(event.target.value as ActorId)}>
-            {props.users.map((user) => (
-              <option key={user} value={user}>
-                {user === "alice" ? "Alice" : "Bob"}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="actor-switcher">
+          <span>{props.user.display_name}</span>
+          <button type="button" onClick={props.onLogout}>
+            로그아웃
+          </button>
+        </div>
       </header>
       <div className="shell-body">
-        <nav id="primary-navigation" className={navOpen ? "side-nav open" : "side-nav"}>
+        <nav
+          id="primary-navigation"
+          className={navOpen ? "side-nav open" : "side-nav"}
+        >
+          <label>
+            Workspace
+            <select
+              value={props.selectedWorkspaceId}
+              onChange={(event) => props.onWorkspaceChange(event.target.value)}
+            >
+              {props.workspaces.map((workspace) => (
+                <option key={workspace.id} value={workspace.id}>
+                  {workspace.name}
+                </option>
+              ))}
+            </select>
+          </label>
           <div className="nav-label">DOCUMENTS</div>
           {props.documents.map((document) => (
             <button
-              className={document.id === props.selectedDocumentId ? "nav-item active" : "nav-item"}
+              className={
+                document.id === props.selectedDocumentId
+                  ? "nav-item active"
+                  : "nav-item"
+              }
               key={document.id}
               type="button"
               onClick={() => {
@@ -62,7 +87,9 @@ export function AppShell(props: AppShellProps) {
               {document.title}
             </button>
           ))}
-          {props.sessions.length > 0 && <div className="nav-label">SESSIONS</div>}
+          {props.sessions.length > 0 && (
+            <div className="nav-label">SESSIONS</div>
+          )}
           {props.sessions.map((session) => (
             <button
               className="nav-item session"
@@ -73,7 +100,7 @@ export function AppShell(props: AppShellProps) {
                 setNavOpen(false);
               }}
             >
-              {session.title}
+              세션 {session.id.slice(0, 8)}
             </button>
           ))}
           <form
@@ -85,7 +112,10 @@ export function AppShell(props: AppShellProps) {
           >
             <label>
               Toss token
-              <input value={token} onChange={(event) => setToken(event.target.value)} />
+              <input
+                value={token}
+                onChange={(event) => setToken(event.target.value)}
+              />
             </label>
             <button type="submit">열기</button>
           </form>

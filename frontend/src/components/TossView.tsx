@@ -1,47 +1,111 @@
 import { useState } from "react";
-
-import type { SOTApi } from "../api";
-import type { ActorId, TossViewResponse } from "../types";
+import { useQueryClient } from "@tanstack/react-query";
+import type { API } from "../api";
+import type { Workspace } from "../types";
 
 interface TossViewProps {
-  actor: ActorId;
-  api: SOTApi;
-  view: TossViewResponse;
-  onForked: (sessionId: string) => void;
+  api: API;
+  token: string;
+  workspaces: Workspace[];
+  selectedWorkspaceId: string;
+  onForked: (workspaceId: string, sessionId: string, bundleId: string) => void;
 }
 
-export function TossView({ actor, api, view, onForked }: TossViewProps) {
-  const [busy, setBusy] = useState(false);
+export function TossView({
+  api,
+  token,
+  workspaces,
+  selectedWorkspaceId,
+  onForked,
+}: TossViewProps) {
+  const cache = useQueryClient();
+  const view = api.useQuery("get", "/api/v1/tosses/{token}", {
+    params: { path: { token } },
+  });
+  const fork = api.useMutation(
+    "post",
+    "/api/v1/workspaces/{workspace_id}/tosses/{token}/fork",
+  );
+  const [destination, setDestination] = useState(selectedWorkspaceId);
   const [error, setError] = useState("");
-
-  const fork = async () => {
-    setBusy(true);
-    setError("");
-    try {
-      const { branch } = await api.forkToss(view.toss.token);
-      onForked(branch.session_id);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Fork에 실패했습니다.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
+  if (view.error)
+    return (
+      <p role="alert">
+        {view.error instanceof Error
+          ? view.error.message
+          : "Toss를 불러오지 못했습니다."}
+      </p>
+    );
+  if (!view.data) return <p role="status">Toss 동기화 중…</p>;
   return (
     <main className="toss-view" tabIndex={-1}>
-      <div className="eyebrow">PUBLIC TOSS</div>
-      <h1>{view.cite.summary}</h1>
-      <p className="muted">Alice가 선별한 근거 묶음 · 읽기는 로그인 없이 가능합니다.</p>
+      <div className="eyebrow">TOSS · SHARED EVIDENCE</div>
+      <h1>{view.data.title}</h1>
+      <p className="muted">
+        {view.data.attribution.author_display_name} ·{" "}
+        {view.data.attribution.published_at}
+      </p>
       <ol className="evidence-list">
-        {view.turns.map((turn) => (
-          <li key={turn.id}>
-            <span>{turn.role}</span>
-            <p>{turn.content}</p>
+        {view.data.items.map((item, index) => (
+          <li key={index}>
+            <span>
+              {item.role} · {item.provenance}
+            </span>
+            <p>{item.content}</p>
           </li>
         ))}
       </ol>
-      <button className="button" disabled={busy} type="button" onClick={() => void fork()}>
-        {actor === "bob" ? "Bob으로 fork" : "Alice로 fork"}
+      <label>
+        Destination Workspace
+        <select
+          value={destination}
+          onChange={(event) => setDestination(event.target.value)}
+        >
+          {workspaces.map((workspace) => (
+            <option value={workspace.id} key={workspace.id}>
+              {workspace.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button
+        className="button"
+        disabled={!destination || fork.isPending}
+        type="button"
+        onClick={() => {
+          void fork
+            .mutateAsync({
+              params: { path: { workspace_id: destination, token } },
+              body: {},
+            })
+            .then(async (created) => {
+              await cache.invalidateQueries({
+                queryKey: api.queryOptions(
+                  "get",
+                  "/api/v1/workspaces/{workspace_id}/sessions/{session_id}",
+                  {
+                    params: {
+                      path: {
+                        workspace_id: destination,
+                        session_id: created.session_id,
+                      },
+                    },
+                  },
+                ).queryKey,
+                exact: true,
+              });
+              onForked(destination, created.session_id, view.data!.bundle_id);
+            })
+            .catch((reason: unknown) =>
+              setError(
+                reason instanceof Error
+                  ? reason.message
+                  : "Fork에 실패했습니다.",
+              ),
+            );
+        }}
+      >
+        Fork
       </button>
       {error && <p role="alert">{error}</p>}
     </main>
