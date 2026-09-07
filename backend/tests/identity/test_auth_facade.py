@@ -12,6 +12,7 @@ import pytest
 from sot.identity.application import AuthFacade
 from sot.identity.contracts import Actor
 from sot.identity.domain import AuthSession, AuthTokenInvalid, User, VerifiedIdentity
+from sot.identity.providers.local import LocalSkipAdapter
 from sot.identity.tokens import SOTAccessTokenCodec
 from sot.shared.ids import UserId
 from sot.shared.unit_of_work import TransactionContext
@@ -93,7 +94,12 @@ def make_facade() -> tuple[
     repo, clock = MemoryIdentityRepository(), FakeClock()
     codec = SOTAccessTokenCodec("s" * 32, clock, timedelta(minutes=15))
     facade = AuthFacade(
-        {"google": FakeProvider()}, repo, lambda: repo, codec, clock, timedelta(days=30)
+        {"google": FakeProvider(), "local": LocalSkipAdapter()},
+        repo,
+        lambda: repo,
+        codec,
+        clock,
+        timedelta(days=30),
     )
     return facade, repo, clock, codec
 

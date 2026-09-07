@@ -13,6 +13,18 @@ beforeEach(() => {
   sessionStorage.clear();
 });
 
+it("skips Google and stores the local access token", async () => {
+  const requests: Request[] = [];
+  const auth = new AuthSession(async (request) => {
+    requests.push(request);
+    return token("local-access");
+  }, "https://sot.test/api/v1");
+  await auth.loginWithoutGoogle();
+  expect(requests[0].url).toBe("https://sot.test/api/v1/auth/local");
+  expect(requests[0].method).toBe("POST");
+  expect(auth.accessToken).toBe("local-access");
+});
+
 it("sends only the Google credential and keeps tokens in memory while refreshing by cookie", async () => {
   const requests: Request[] = [];
   const network = vi.fn(async (request: Request) => {

@@ -1,5 +1,10 @@
 import type { components } from "./generated/api";
-import { createTransport, DEFAULT_API_BASE, type Network } from "./transport";
+import {
+  createTransport,
+  DEFAULT_API_BASE,
+  serviceRoot,
+  type Network,
+} from "./transport";
 
 export class AuthSession {
   #accessToken: string | null = null;
@@ -12,7 +17,7 @@ export class AuthSession {
 
   constructor(
     private readonly network: Network = (request) => fetch(request),
-    apiBase = DEFAULT_API_BASE,
+    private readonly apiBase = DEFAULT_API_BASE,
   ) {
     this.client = createTransport(network, apiBase);
   }
@@ -49,6 +54,24 @@ export class AuthSession {
       });
       if (data && generation === this.#generation) {
         // Requests started while login was pending used the previous token.
+        ++this.#generation;
+        this.accept(data);
+      }
+    });
+  }
+  async loginWithoutGoogle() {
+    const generation = ++this.#generation;
+    this.#refreshing = null;
+    await this.changeCookie(async () => {
+      const response = await this.network(
+        new Request(`${serviceRoot(this.apiBase)}/api/v1/auth/local`, {
+          method: "POST",
+          credentials: "include",
+        }),
+      );
+      if (!response.ok) throw new Error("local login failed");
+      const data = (await response.json()) as components["schemas"]["AuthResponse"];
+      if (generation === this.#generation) {
         ++this.#generation;
         this.accept(data);
       }

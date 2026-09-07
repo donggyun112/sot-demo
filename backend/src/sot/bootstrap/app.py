@@ -46,6 +46,7 @@ from sot.identity.application import AuthFacade
 from sot.identity.contracts import Actor
 from sot.identity.postgres import PostgresIdentityRepository
 from sot.identity.providers.base import AuthProvider, GoogleTokenVerifier
+from sot.identity.providers.local import LocalSkipAdapter
 from sot.identity.providers.google import (
     GoogleAuthAdapter,
     ProductionGoogleTokenVerifier,
@@ -127,6 +128,8 @@ def build_app(
             settings.google_client_id,
             google_token_verifier or ProductionGoogleTokenVerifier(),
         )
+    if settings.environment != "production" or not settings.google_client_id:
+        providers["local"] = LocalSkipAdapter()
     facade = AuthFacade(
         providers,
         identity,

@@ -1,17 +1,7 @@
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import {
-  QueryClient,
-  QueryClientProvider,
-  useQueryClient,
-} from "@tanstack/react-query";
-import { createAPI, type API } from "./api";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthSession } from "./auth";
 import { DEFAULT_API_BASE } from "./transport";
-import { AppShell } from "./components/AppShell";
-import { DocumentView } from "./components/DocumentView";
-import { GoogleLogin } from "./components/GoogleLogin";
-import { SessionWorkspace } from "./components/SessionWorkspace";
-import { TossView } from "./components/TossView";
 import type { User } from "./types";
 
 interface AppProps {
@@ -31,7 +21,6 @@ export function App({
     () => suppliedAuth ?? new AuthSession(undefined, apiBase),
     [suppliedAuth, apiBase],
   );
-  const api = useMemo(() => createAPI(auth, apiBase), [auth, apiBase]);
   const [queryClient] = useState(
     () =>
       suppliedQueryClient ??
@@ -59,216 +48,96 @@ export function App({
   return (
     <QueryClientProvider client={queryClient}>
       {user ? (
-        <WorkspaceApp
-          key={user.id}
-          user={user}
-          api={api}
-          auth={auth}
-          apiBase={apiBase}
-        />
+        <SignedIn user={user} onLogout={() => void auth.logout()} />
       ) : (
-        <GoogleLogin auth={auth} clientId={googleClientId} />
+        <Login auth={auth} clientId={googleClientId} />
       )}
     </QueryClientProvider>
   );
 }
 
-function WorkspaceApp({
-  user,
-  api,
+function Login({
   auth,
-  apiBase,
+  clientId,
 }: {
-  user: User;
-  api: API;
   auth: AuthSession;
-  apiBase: string;
+  clientId: string;
 }) {
-  const cache = useQueryClient();
-  const workspaces = api.useQuery("get", "/api/v1/workspaces");
-  const me = api.useQuery("get", "/api/v1/me");
-  const [selectedWorkspaceId, setWorkspaceId] = useState<string | null>(null);
-  const workspaceId = selectedWorkspaceId ?? workspaces.data?.[0]?.id ?? "";
-  const [selectedDocumentId, setDocumentId] = useState<string | null>(null);
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [tossToken, setTossToken] = useState<string | null>(null);
-  const [publishedBundle, setPublishedBundle] = useState<{
-    branchId: string;
-    bundleId: string;
-  } | null>(null);
+  const button = useRef<HTMLDivElement>(null);
   const [error, setError] = useState("");
-  const documents = api.useQuery(
-    "get",
-    "/api/v1/workspaces/{workspace_id}/documents",
-    { params: { path: { workspace_id: workspaceId } } },
-    { enabled: Boolean(workspaceId) },
-  );
-  const documentId = selectedDocumentId ?? documents.data?.[0]?.id ?? "";
-  const member = api.useQuery(
-    "get",
-    "/api/v1/workspaces/{workspace_id}/members/me",
-    { params: { path: { workspace_id: workspaceId } } },
-    { enabled: Boolean(workspaceId) },
-  );
-  const documentParams = {
-    params: { path: { workspace_id: workspaceId, document_id: documentId } },
-  };
-  const document = api.useQuery(
-    "get",
-    "/api/v1/workspaces/{workspace_id}/documents/{document_id}",
-    documentParams,
-    { enabled: Boolean(workspaceId && documentId) },
-  );
-  const sessions = api.useQuery(
-    "get",
-    "/api/v1/workspaces/{workspace_id}/documents/{document_id}/sessions",
-    documentParams,
-    { enabled: Boolean(workspaceId && documentId) },
-  );
-  const createSession = api.useMutation(
-    "post",
-    "/api/v1/workspaces/{workspace_id}/documents/{document_id}/sessions",
-  );
-  const changeWorkspace = (id: string) => {
-    setWorkspaceId(id);
-    setDocumentId(null);
-    setSessionId(null);
-    setTossToken(null);
-    setPublishedBundle(null);
-    setError("");
-  };
-  const openSession = (id: string) => {
-    setSessionId(id);
-    setTossToken(null);
-  };
-  const queryError =
-    workspaces.error ||
-    me.error ||
-    documents.error ||
-    member.error ||
-    document.error ||
-    sessions.error;
-  const message =
-    error ||
-    (queryError instanceof Error
-      ? queryError.message
-      : queryError
-        ? "요청을 완료하지 못했습니다."
-        : "");
+  useEffect(() => {
+    let active = true;
+    const initialize = () => {
+      if (
+        !active ||
+        !clientId ||
+        !button.current ||
+        typeof google === "undefined"
+      )
+        return;
+      google.accounts.id.initialize({
+        client_id: clientId,
+        callback: ({ credential }) => {
+          void auth.loginWithGoogle(credential).catch((reason: unknown) => {
+            if (active)
+              setError(
+                reason instanceof Error ? reason.message : "Sign-in failed.",
+              );
+          });
+        },
+      });
+      google.accounts.id.renderButton(button.current, {
+        type: "standard",
+        theme: "outline",
+        size: "large",
+        text: "signin_with",
+      });
+    };
+    const script = document.getElementById("google-identity");
+    const failed = () => setError("Could not load Google sign-in.");
+    script?.addEventListener("load", initialize);
+    script?.addEventListener("error", failed);
+    initialize();
+    return () => {
+      active = false;
+      script?.removeEventListener("load", initialize);
+      script?.removeEventListener("error", failed);
+    };
+  }, [auth, clientId]);
   return (
-    <AppShell
-      user={me.data ?? user}
-      workspaces={workspaces.data ?? []}
-      selectedWorkspaceId={workspaceId}
-      onWorkspaceChange={changeWorkspace}
-      documents={documents.data ?? []}
-      sessions={sessions.data ?? []}
-      selectedDocumentId={documentId}
-      onDocumentSelect={(id) => {
-        setDocumentId(id);
-        setSessionId(null);
-        setTossToken(null);
-      }}
-      onSessionSelect={openSession}
-      onTossOpen={setTossToken}
-      onLogout={() => {
-        void auth
-          .logout()
-          .catch((reason: unknown) =>
+    <main>
+      <h1>SOT</h1>
+      <div ref={button} />
+      <button
+        type="button"
+        onClick={() => {
+          void auth.loginWithoutGoogle().catch((reason: unknown) =>
             setError(
-              reason instanceof Error
-                ? reason.message
-                : "로그아웃에 실패했습니다.",
+              reason instanceof Error ? reason.message : "Sign-in failed.",
             ),
           );
-      }}
-    >
-      {message && (
-        <div className="error-panel" role="alert">
-          <p>{message}</p>
-          <button
-            className="button"
-            onClick={() => {
-              setError("");
-              void cache.refetchQueries({ type: "active", stale: true });
-            }}
-          >
-            다시 시도
-          </button>
-        </div>
-      )}
-      {workspaces.isLoading && (
-        <div className="loading" role="status">
-          동기화 중…
-        </div>
-      )}
-      {!workspaces.isLoading && !workspaces.data?.length && (
-        <main className="empty-state">
-          <h1>아직 Workspace가 없습니다</h1>
-        </main>
-      )}
-      {workspaceId &&
-        !tossToken &&
-        !sessionId &&
-        documents.data?.length === 0 && (
-          <main className="empty-state">
-            <h1>아직 공유 문서가 없습니다</h1>
-          </main>
-        )}
-      {tossToken ? (
-        <TossView
-          key={tossToken}
-          api={api}
-          token={tossToken}
-          workspaces={workspaces.data ?? []}
-          selectedWorkspaceId={workspaceId}
-          onForked={(destination, id) => {
-            changeWorkspace(destination);
-            openSession(id);
-          }}
-        />
-      ) : sessionId ? (
-        <SessionWorkspace
-          key={`${workspaceId}:${sessionId}`}
-          auth={auth}
-          api={api}
-          apiBase={apiBase}
-          workspaceId={workspaceId}
-          sessionId={sessionId}
-          member={member.data}
-          publishedBundle={publishedBundle}
-          onPublishedBundleChange={setPublishedBundle}
-          onOpenToss={setTossToken}
-        />
-      ) : (
-        document.data && (
-          <DocumentView
-            api={api}
-            member={member.data}
-            data={document.data}
-            sessions={sessions.data ?? []}
-            canCreate={
-              member.data?.permissions.includes("session.create") ?? false
-            }
-            onOpenSession={openSession}
-            onCreateSession={async () => {
-              const created = await createSession.mutateAsync({
-                ...documentParams,
-                body: {},
-              });
-              await cache.invalidateQueries({
-                queryKey: api.queryOptions(
-                  "get",
-                  "/api/v1/workspaces/{workspace_id}/documents/{document_id}/sessions",
-                  documentParams,
-                ).queryKey,
-                exact: true,
-              });
-              openSession(created.session_id);
-            }}
-          />
-        )
-      )}
-    </AppShell>
+        }}
+      >
+        Continue without Google
+      </button>
+      {error && <p role="alert">{error}</p>}
+    </main>
+  );
+}
+
+function SignedIn({
+  user,
+  onLogout,
+}: {
+  user: User;
+  onLogout: () => void;
+}) {
+  return (
+    <main>
+      <p>{user.display_name}</p>
+      <button type="button" onClick={onLogout}>
+        Sign out
+      </button>
+    </main>
   );
 }

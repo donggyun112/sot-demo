@@ -22,6 +22,33 @@ def make_app(settings: Settings | None = None) -> FastAPI:
 
 
 @pytest.mark.asyncio
+async def test_local_skip_issues_cookie_and_me() -> None:
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=make_app()), base_url="https://test"
+    ) as client:
+        login = await client.post("/api/v1/auth/local")
+        assert login.status_code == 200
+        assert login.json()["user"]["email"] == "local@sot.test"
+        access = login.json()["access_token"]
+        me = await client.get(
+            "/api/v1/me", headers={"Authorization": f"Bearer {access}"}
+        )
+        assert me.status_code == 200
+        assert me.json()["display_name"] == "Local"
+
+
+@pytest.mark.asyncio
+async def test_production_with_google_rejects_local_skip() -> None:
+    app = make_app(
+        Settings(environment="production", google_client_id="google-client")
+    )
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="https://test"
+    ) as client:
+        assert (await client.post("/api/v1/auth/local")).status_code == 401
+
+
+@pytest.mark.asyncio
 async def test_login_cookie_me_rotation_and_logout_contract() -> None:
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=make_app()), base_url="https://test"

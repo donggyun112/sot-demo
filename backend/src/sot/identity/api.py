@@ -91,6 +91,13 @@ def build_auth_router(facade: AuthFacade, settings: Settings) -> APIRouter:
         result = await facade.login(provider_name="google", credential=body.credential)
         return result_body(result, response)
 
+    @router.post(AUTH_PATH + "/local")
+    async def local(response: Response) -> AuthResponse:
+        if settings.environment == "production" and settings.google_client_id:
+            raise AuthTokenInvalid()
+        result = await facade.login(provider_name="local", credential="Local")
+        return result_body(result, response)
+
     @router.post(AUTH_PATH + "/refresh")
     async def refresh(request: Request, response: Response) -> AuthResponse:
         result = await facade.refresh(request.cookies.get(COOKIE, ""))
