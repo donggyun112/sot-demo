@@ -189,12 +189,20 @@ Google Identity Services의 ID token을 `POST /api/v1/auth/google`로 보내면 
 메모리에만 보관하며 `Authorization: Bearer`로 전송한다. Refresh Token은 `HttpOnly`, `Secure`,
 `SameSite=Lax` cookie로만 전달하고 `/auth/refresh`에서 rotation한다. Workspace는 token에
 고정하지 않고 `/api/v1/workspaces/{workspace_id}/...` URL로 지정한다.
+Frontend는 Google 로그인·refresh(401 복구 포함)·logout을 호출 순서대로 실행하여 이전 응답의
+cookie header가 새 로그인을 덮어쓰지 않게 한다. 보호된 API 호출 자체는 이 큐 밖에서 실행한다.
 
 Workspace owner도 명시적인 Session membership 없이는 private Turns를 읽을 수 없다.
 인증 없는 예외는 `GET /api/v1/tosses/{token}`의 공개 Bundle snapshot이다. Fork는
 `POST /api/v1/workspaces/{destination_workspace_id}/tosses/{token}/fork`로 요청하며 공개
 BundleItem과 attribution만 복사한다. 생성된 Session은 `document_id=null`이며 원본 권한,
 문서 링크, 이후 변경을 승계하지 않는다. Fork에서 문서 Proposal을 만들 수 없다.
+
+근거 선별의 `선별 적용`은 현재 projection을 읽어 체크하지 않은 항목을 `drop`한 뒤 선택한
+항목을 `join`한다. 작업마다 반환된 branch version을 사용하며 중간 실패 뒤에는 최신 상태에서
+재시도한다. 기존 규칙상 제외된 항목은 해당 Branch의 projection에 복구할 수 없고 이미 join한
+항목은 묶음 단위로 선택한다. 원본 private Turns는 삭제하지 않는다. 체크한 source 집합과
+미리보기가 일치할 때만 Bundle을 발행할 수 있다.
 
 Agent 정의는 application 수명 동안 재사용하고 actor/workspace/branch/history/version은 각
 요청의 deps에 둔다. 모델 호출 동안 DB transaction을 유지하지 않는다. 서버가 권한을 확인하고
@@ -206,6 +214,8 @@ partial output은 저장하지 않으며 별도 worker나 실행 복구 경로�
 서버 도구는 `session_cite`와 `sot_update`다. 각 tool mutation과 Branch version 증가는 같은
 transaction에 참여한다. 같은 Branch에서 경쟁한 run은 첫 충돌에서 `version_conflict`의
 `RUN_ERROR`로 종료하고 실패한 tool의 부작용을 남기지 않는다.
+Pydantic adapter는 권한 확인된 완료 대화의 UUID·역할·순번 표를 모델 지시문에 제공한다.
+원문은 기존 대화 history에만 남고, tool Turn ID나 client가 주장한 ID는 이 표에 포함하지 않는다.
 
 Proposal의 필수 승인자와 Bundle/item/claim citation은 version마다 고정된다. 추가 승인자는
 같은 Workspace 멤버여야 하며 Proposal form의 ID 입력으로 지정해도 Session 접근권한을 얻지

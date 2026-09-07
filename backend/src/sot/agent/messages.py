@@ -28,6 +28,7 @@ from pydantic_ai.messages import (
 )
 from pydantic_core import ErrorDetails
 
+from sot.agent.deps import CompletedTurnReference
 from sot.session.contracts import NewTurn, Turn
 
 
@@ -130,6 +131,21 @@ def encode_tool_retry(
         timestamp=timestamp,
     )
     return NewTurn("tool", envelope.model_dump_json(by_alias=True))
+
+
+def completed_turn_references(
+    turns: tuple[Turn, ...],
+) -> tuple[CompletedTurnReference, ...]:
+    """Map authorized history without promoting any conversation text to instructions."""
+    references: list[CompletedTurnReference] = []
+    for turn in sorted(turns, key=lambda turn: turn.ordinal):
+        if turn.role in {"user", "assistant"}:
+            references.append(
+                CompletedTurnReference(
+                    turn.id, turn.ordinal, len(references) + 1, turn.role
+                )
+            )
+    return tuple(references)
 
 
 def turns_to_model_messages(turns: tuple[Turn, ...]) -> list[ModelMessage]:

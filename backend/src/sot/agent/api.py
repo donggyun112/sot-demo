@@ -1,4 +1,5 @@
 from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
+from dataclasses import replace
 from functools import cached_property
 from typing import Annotated, cast
 from uuid import UUID
@@ -26,6 +27,7 @@ from sot.agent.application import AgentRunPreparer, CompletedRunWriter
 from sot.agent.deps import AgentDeps
 from sot.agent.messages import (
     completed_messages_to_new_turns,
+    completed_turn_references,
     turns_to_model_messages,
 )
 from sot.identity.contracts import Actor
@@ -176,7 +178,10 @@ def build_agent_router(
         )
         stream = adapter.run_server_stream(
             message_history=turns_to_model_messages(prepared.canonical_turns),
-            deps=prepared.deps,
+            deps=replace(
+                prepared.deps,
+                turn_references=completed_turn_references(prepared.canonical_turns),
+            ),
             completed_run_writer=completed_run_writer,
         )
         return adapter.streaming_response(stream)

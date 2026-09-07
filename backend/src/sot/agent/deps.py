@@ -1,4 +1,6 @@
 from dataclasses import dataclass
+from typing import Literal
+from uuid import UUID
 
 from sot.consensus.contracts import ProposalCreator
 from sot.identity.contracts import Actor
@@ -17,6 +19,14 @@ class BranchLineage:
 
 
 @dataclass(frozen=True, slots=True)
+class CompletedTurnReference:
+    turn_id: UUID
+    ordinal: int
+    history_index: int
+    role: Literal["user", "assistant"]
+
+
+@dataclass(frozen=True, slots=True)
 class AgentDeps:
     actor: Actor
     workspace_id: WorkspaceId
@@ -24,3 +34,4 @@ class AgentDeps:
     lineage: BranchLineage
     cite_creator: CiteCreator
     proposal_creator: ProposalCreator
+    turn_references: tuple[CompletedTurnReference, ...] = ()
