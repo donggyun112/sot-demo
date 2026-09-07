@@ -496,6 +496,7 @@ it("retains the published Bundle citation when returning from Toss to the source
   render(<App auth={server.auth} apiBase="https://sot.test/api/v1" />);
   await userEvent.click((await screen.findAllByRole("button", { name: /세션 session-/ }))[0]);
   await userEvent.type(await screen.findByLabelText("인용 요약"), "Evidence");
+  await userEvent.click(screen.getByRole("checkbox", { name: /B로 결정/ }));
   await userEvent.click(screen.getByRole("button", { name: "Bundle 미리보기" }));
   await userEvent.click(await screen.findByRole("button", { name: "Bundle 발행" }));
   await userEvent.click(await screen.findByRole("button", { name: "Toss 만들기" }));

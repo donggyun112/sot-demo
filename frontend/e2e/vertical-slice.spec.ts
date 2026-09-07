@@ -91,7 +91,8 @@ test("private draft, public detached fork and explicit consensus merge", async (
     ]);
     expect(posts.every((url) => !url.endsWith("/turns"))).toBe(true);
     await expect(alice.getByRole("checkbox")).toHaveCount(2);
-    for (const checkbox of await alice.getByRole("checkbox").all()) await checkbox.check();
+    await alice.getByRole("checkbox", { name: "Public reasoning: isolate each user's work. 선택" }).check();
+    await expect(alice.getByRole("checkbox", { name: `${privatePrompt} 선택` })).not.toBeChecked();
     const summary = "Publish only this curated rationale";
     await alice.getByLabel("인용 요약").fill(summary);
     await alice.getByRole("button", { name: "선별 적용" }).click();
@@ -110,8 +111,8 @@ test("private draft, public detached fork and explicit consensus merge", async (
     expect(publicRead.status()).toBe(200);
     expect(publicRead.headers()["cache-control"]).toContain("no-store");
     const shared = await publicRead.json();
-    expect(shared.items).toEqual([{ source_ids: stored.map((turn) => turn.id), role: "user", content: summary, provenance: "edited" }]);
-    for (const hidden of [privatePrompt, created.session_id, aw]) expect(JSON.stringify(shared)).not.toContain(hidden);
+    expect(shared.items).toEqual([{ source_ids: [stored[1].id], role: "assistant", content: summary, provenance: "edited" }]);
+    for (const hidden of [privatePrompt, stored[0].id, created.session_id, aw]) expect(JSON.stringify(shared)).not.toContain(hidden);
     expect((await get(publicContext, `${branchPath}/turns`)).status()).toBe(401);
     expect((await get(bobContext, `${branchPath}/turns`, bobLogin)).status()).toBe(404);
     expect((await get(bobContext, `/workspaces/${bw}/branches/${created.branch_id}/turns`, bobLogin)).status()).toBe(404);
@@ -127,7 +128,7 @@ test("private draft, public detached fork and explicit consensus merge", async (
     const forkSession = await (await get(bobContext, `/workspaces/${bw}/sessions/${fork.session_id}`, bobLogin)).json();
     expect(forkSession.document_id).toBeNull();
     const forkTurns = await (await get(bobContext, `/workspaces/${bw}/branches/${fork.branch_id}/turns`, bobLogin)).json() as Turn[];
-    expect(forkTurns.map((turn) => ({ role: turn.role, content: turn.content }))).toEqual([{ role: "user", content: summary }]);
+    expect(forkTurns.map((turn) => ({ role: turn.role, content: turn.content }))).toEqual([{ role: "assistant", content: summary }]);
     expect((await get(aliceContext, `/workspaces/${bw}/sessions/${fork.session_id}`, aliceLogin)).status()).toBe(403);
     // Return from Toss to the source Session, retaining the immutable Bundle selection.
     await alice.getByRole("button", { name: `세션 ${String(created.session_id).slice(0, 8)}`, exact: true }).click();

@@ -153,10 +153,17 @@ function BranchWorkspace({
   const bundleId =
     publishedBundle?.branchId === branch.id ? publishedBundle.bundleId : null;
   const [previewVersion, setPreviewVersion] = useState<number | null>(null);
+  const [curationVersion, setCurationVersion] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
   const canParticipate =
     member?.permissions.includes("session.participate") ?? false;
+  const currentProjection =
+    curationVersion === branch.version ? preview.data : undefined;
+  const previewSources = preview.data?.flatMap((item) => item.source_ids) ?? [];
+  const previewMatchesSelection =
+    previewSources.length === selected.size &&
+    previewSources.every((id) => selected.has(id));
   const refreshBranch = () =>
     cache.invalidateQueries(
       {
@@ -238,6 +245,10 @@ function BranchWorkspace({
               <h2>근거 선별</h2>
               <span>{selected.size}</span>
             </div>
+            <p className="muted">
+              적용하면 체크하지 않은 항목은 선별 결과에서 제외되며 복구할 수 없습니다.
+              이미 합친 항목은 묶음 전체를 선택합니다. Bundle 미리보기에서 현재 묶음을 확인하세요.
+            </p>
             {!turns.data?.length ? (
               <p className="muted">
                 완료된 대화가 저장되면 근거로 고를 수 있습니다.
@@ -247,28 +258,75 @@ function BranchWorkspace({
                 onSubmit={(event) => {
                   event.preventDefault();
                   void perform(async () => {
-                    await curate.mutateAsync({
-                      ...params,
-                      body: {
-                        expected_version: branch.version,
-                        operation: {
-                          kind: "join",
-                          turn_ids: [...selected],
-                          content: summary.trim(),
-                        },
-                      },
-                    });
                     setPreviewVersion(null);
                     onPublishedBundleChange(null);
-                    await refreshBranch();
-                    await cache.invalidateQueries({
-                      queryKey: api.queryOptions(
+                    const latestBranches = await cache.fetchQuery({
+                      ...api.queryOptions(
                         "get",
-                        "/api/v1/workspaces/{workspace_id}/branches/{branch_id}/bundle-preview",
-                        params,
-                      ).queryKey,
-                      exact: true,
+                        "/api/v1/workspaces/{workspace_id}/sessions/{session_id}/branches",
+                        sessionParams,
+                      ),
+                      staleTime: 0,
                     });
+                    let version = latestBranches.find(
+                      (item) => item.id === branch.id,
+                    )?.version;
+                    if (version === undefined)
+                      throw new Error("Branch를 다시 선택하세요.");
+                    const current = await preview.refetch({ throwOnError: true });
+                    const items = current.data ?? [];
+                    setCurationVersion(version);
+                    const available = new Set(
+                      items.flatMap((item) => item.source_ids),
+                    );
+                    if ([...selected].some((id) => !available.has(id))) {
+                      setSelected(new Set(
+                        [...selected].filter((id) => available.has(id)),
+                      ));
+                      throw new Error("이미 제외된 Turn은 다시 선택할 수 없습니다.");
+                    }
+                    if (items.some((item) =>
+                      item.source_ids.some((id) => selected.has(id)) &&
+                      !item.source_ids.every((id) => selected.has(id)),
+                    ))
+                      throw new Error("이미 합친 Turn은 묶음 전체를 선택하거나 제외하세요.");
+                    try {
+                      // Drop excludes a whole projected item, including every source
+                      // of an existing join. Never repeat old drops on a retry.
+                      for (const item of items) {
+                        if (item.source_ids.some((id) => selected.has(id))) continue;
+                        const result = await curate.mutateAsync({
+                          ...params,
+                          body: {
+                            expected_version: version,
+                            operation: { kind: "drop", turn_id: item.source_ids[0] },
+                          },
+                        });
+                        version = result.branch_version;
+                      }
+                      const joined = await curate.mutateAsync({
+                        ...params,
+                        body: {
+                          expected_version: version,
+                          operation: {
+                            kind: "join",
+                            turn_ids: items
+                              .flatMap((item) => item.source_ids)
+                              .filter((id) => selected.has(id)),
+                            content: summary.trim(),
+                          },
+                        },
+                      });
+                      version = joined.branch_version;
+                    } finally {
+                      // Partial success is canonical too. Keep publication disabled
+                      // and reload state whether a later operation succeeds or fails.
+                      await Promise.all([
+                        refreshBranch(),
+                        preview.refetch({ throwOnError: true }),
+                      ]);
+                      setCurationVersion(version);
+                    }
                     setStatus(
                       "선별을 적용했습니다. Bundle 미리보기를 확인하세요.",
                     );
@@ -276,34 +334,46 @@ function BranchWorkspace({
                 }}
               >
                 <ul className="turn-list">
-                  {turns.data.map((turn) => (
+                  {turns.data.map((turn) => {
+                    const group = currentProjection?.find(
+                      (item) => item.source_ids.includes(turn.id),
+                    )?.source_ids;
+                    const excluded = currentProjection !== undefined && !group;
+                    return (
                     <li key={turn.id}>
                       <label>
                         <input
                           type="checkbox"
                           checked={selected.has(turn.id)}
                           aria-label={`${turn.content} 선택`}
-                          onChange={() =>
+                          disabled={busy || excluded}
+                          onChange={() => {
+                            setPreviewVersion(null);
                             setSelected((current) => {
                               const next = new Set(current);
-                              if (next.has(turn.id)) next.delete(turn.id);
-                              else next.add(turn.id);
+                              const ids = group ?? [turn.id];
+                              if (next.has(turn.id))
+                                ids.forEach((id) => next.delete(id));
+                              else ids.forEach((id) => next.add(id));
                               return next;
-                            })
-                          }
+                            });
+                          }}
                         />
                         <span>
                           <small>{turn.role}</small>
                           {turn.content}
+                          {excluded && <small>선별에서 제외됨</small>}
                         </span>
                       </label>
                     </li>
-                  ))}
+                    );
+                  })}
                 </ul>
                 <label>
                   인용 요약
                   <input
                     value={summary}
+                    disabled={busy}
                     onChange={(event) => setSummary(event.target.value)}
                   />
                 </label>
@@ -325,7 +395,10 @@ function BranchWorkspace({
               onClick={() =>
                 void perform(async () => {
                   const result = await preview.refetch({ throwOnError: true });
-                  if (result.data) setPreviewVersion(branch.version);
+                  if (result.data) {
+                    setPreviewVersion(branch.version);
+                    setCurationVersion(branch.version);
+                  }
                 })
               }
             >
@@ -337,6 +410,11 @@ function BranchWorkspace({
                 {preview.data.map((item, index) => (
                   <p key={index}>{item.content}</p>
                 ))}
+                {!previewMatchesSelection && (
+                  <p className="muted">
+                    체크한 항목과 미리보기가 다릅니다. 선별 적용 후 다시 확인하세요.
+                  </p>
+                )}
                 <label>
                   Bundle 제목
                   <input
@@ -347,7 +425,8 @@ function BranchWorkspace({
                 <button
                   className="button"
                   disabled={
-                    busy || !summary.trim() || preview.data.length === 0
+                    busy || !summary.trim() || preview.data.length === 0 ||
+                    !previewMatchesSelection
                   }
                   type="button"
                   onClick={() =>
