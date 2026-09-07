@@ -9,14 +9,16 @@ from typing import Annotated
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from psycopg import Error as PostgresError
 from psycopg_pool import AsyncConnectionPool
+from starlette.responses import JSONResponse
 
 from sot.agent.api import build_agent_router
 from sot.agent.application import AgentRunPreparer, CompletedRunWriter
 from sot.agent.models import build_agent, build_model
-from sot.api import create_app
 from sot.bootstrap.database import PostgresUnitOfWork
 from sot.bootstrap.errors import handle_sot_error, register_error_handlers
+from sot.bootstrap.migrate import MigrationPlanError, require_current_schema
 from sot.bootstrap.settings import Settings
 from sot.consensus.api import build_consensus_router
 from sot.consensus.application import (
@@ -39,7 +41,6 @@ from sot.document.application import (
     PublishDocumentRevision,
 )
 from sot.document.postgres import PostgresDocumentRepository
-from sot.domain.service import SOTService
 from sot.identity.api import build_auth_router, resolve_actor, resolve_development_actor
 from sot.identity.application import AuthFacade
 from sot.identity.contracts import Actor
@@ -50,7 +51,6 @@ from sot.identity.providers.google import (
     ProductionGoogleTokenVerifier,
 )
 from sot.identity.tokens import SOTAccessTokenCodec
-from sot.legacy_agent import build_agent as build_legacy_agent
 from sot.session.api import build_session_router
 from sot.session.application import (
     AppendCompletedTurns,
@@ -83,7 +83,6 @@ from sot.sharing.application import (
     RevokeShareLink,
 )
 from sot.sharing.postgres import PostgresShareLinkRepository
-from sot.store.postgres import PostgresSOTRepository
 from sot.workspace.api import build_workspace_router
 from sot.workspace.application import (
     AddWorkspaceMember,
@@ -152,33 +151,37 @@ def build_app(
 
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
-        await pool.open()
         try:
-            application.state.pool = pool
+            await pool.open(wait=True)
+            async with pool.connection() as connection:
+                await require_current_schema(connection)
             yield
         finally:
             await pool.close()
 
-    if settings.environment in {"local", "test"} and settings.development_auth:
-        application = create_app(
-            service=SOTService(PostgresSOTRepository(pool)),
-            agent=build_legacy_agent(build_model(settings.models)),
-            cors_origins=settings.cors_origins,
-            lifespan=lifespan,
-        )
-    else:
-        application = FastAPI(title="SOT", lifespan=lifespan)
-        application.add_middleware(
-            CORSMiddleware,
-            allow_origins=list(settings.cors_origins),
-            allow_credentials=True,
-            allow_methods=["*"],
-            allow_headers=["*"],
-        )
+    application = FastAPI(title="SOT", lifespan=lifespan)
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=list(settings.cors_origins),
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
-        @application.get("/healthz")
-        async def health() -> dict[str, str]:
-            return {"service": "sot", "status": "ready"}
+    @application.get("/healthz")
+    async def health() -> dict[str, str]:
+        return {"service": "sot", "status": "alive"}
+
+    @application.get("/readyz", response_model=None)
+    async def ready() -> JSONResponse:
+        try:
+            async with pool.connection(timeout=2) as connection:
+                await require_current_schema(connection)
+        except (PostgresError, MigrationPlanError):
+            return JSONResponse(
+                {"service": "sot", "status": "not_ready"}, status_code=503
+            )
+        return JSONResponse({"service": "sot", "status": "ready"})
 
     register_error_handlers(application)
     install_toss_log_redaction()
@@ -292,6 +295,4 @@ def build_app(
     return application
 
 
-app = build_app(Settings())
-
-__all__ = ["app", "build_app", "handle_sot_error"]
+__all__ = ["build_app", "handle_sot_error"]

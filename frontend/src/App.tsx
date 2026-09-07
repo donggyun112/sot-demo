@@ -92,6 +92,10 @@ function WorkspaceApp({
   const [selectedDocumentId, setDocumentId] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [tossToken, setTossToken] = useState<string | null>(null);
+  const [publishedBundle, setPublishedBundle] = useState<{
+    branchId: string;
+    bundleId: string;
+  } | null>(null);
   const [error, setError] = useState("");
   const documents = api.useQuery(
     "get",
@@ -130,6 +134,7 @@ function WorkspaceApp({
     setDocumentId(null);
     setSessionId(null);
     setTossToken(null);
+    setPublishedBundle(null);
     setError("");
   };
   const openSession = (id: string) => {
@@ -231,6 +236,8 @@ function WorkspaceApp({
           workspaceId={workspaceId}
           sessionId={sessionId}
           member={member.data}
+          publishedBundle={publishedBundle}
+          onPublishedBundleChange={setPublishedBundle}
           onOpenToss={setTossToken}
         />
       ) : (

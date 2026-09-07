@@ -1,5 +1,6 @@
 import { lazy, Suspense, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { z } from "zod";
 import type { API } from "../api";
 import type { AuthSession } from "../auth";
 import type { Branch, CurrentMember } from "../types";
@@ -16,6 +17,10 @@ interface SessionWorkspaceProps {
   sessionId: string;
   member?: CurrentMember;
   onOpenToss: (token: string) => void;
+  publishedBundle: { branchId: string; bundleId: string } | null;
+  onPublishedBundleChange: (
+    value: { branchId: string; bundleId: string } | null,
+  ) => void;
 }
 
 export function SessionWorkspace(props: SessionWorkspaceProps) {
@@ -99,6 +104,8 @@ function BranchWorkspace({
   member,
   branch,
   onOpenToss,
+  publishedBundle,
+  onPublishedBundleChange,
 }: SessionWorkspaceProps & { branch: Branch; documentId: string | null }) {
   const cache = useQueryClient();
   const params = {
@@ -142,7 +149,9 @@ function BranchWorkspace({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [summary, setSummary] = useState("");
   const [proposalText, setProposalText] = useState("");
-  const [bundleId, setBundleId] = useState<string | null>(null);
+  const [additionalApprovers, setAdditionalApprovers] = useState("");
+  const bundleId =
+    publishedBundle?.branchId === branch.id ? publishedBundle.bundleId : null;
   const [previewVersion, setPreviewVersion] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
@@ -250,7 +259,7 @@ function BranchWorkspace({
                       },
                     });
                     setPreviewVersion(null);
-                    setBundleId(null);
+                    onPublishedBundleChange(null);
                     await refreshBranch();
                     await cache.invalidateQueries({
                       queryKey: api.queryOptions(
@@ -350,7 +359,10 @@ function BranchWorkspace({
                           title: summary.trim(),
                         },
                       });
-                      setBundleId(published.resource_id);
+                      onPublishedBundleChange({
+                        branchId: branch.id,
+                        bundleId: published.resource_id,
+                      });
                       await refreshBranch();
                       setStatus("Bundle을 발행했습니다.");
                     })
@@ -391,12 +403,27 @@ function BranchWorkspace({
                 onSubmit={(event) => {
                   event.preventDefault();
                   if (!documentId) return;
+                  const approverIds = [
+                    ...new Set(
+                      additionalApprovers
+                        .split(",")
+                        .map((value) => value.trim().toLowerCase())
+                        .filter(Boolean),
+                    ),
+                  ];
+                  if (
+                    approverIds.some((value) => !z.uuid().safeParse(value).success)
+                  ) {
+                    setStatus("승인자 ID는 UUID 형식이어야 합니다.");
+                    return;
+                  }
                   void perform(async () => {
                     await propose.mutateAsync({
                       ...documentParams,
                       body: {
                         source_session_id: sessionId,
                         content: proposalText.trim(),
+                        additional_approver_ids: approverIds,
                         bundle_ids: bundleId ? [bundleId] : [],
                         citations: bundleId
                           ? [
@@ -410,6 +437,7 @@ function BranchWorkspace({
                       },
                     });
                     setProposalText("");
+                    setAdditionalApprovers("");
                     await cache.invalidateQueries({
                       queryKey: api.queryOptions(
                         "get",
@@ -430,6 +458,17 @@ function BranchWorkspace({
                     rows={4}
                   />
                 </label>
+                <label>
+                  추가 승인자 ID (쉼표로 구분)
+                  <input
+                    value={additionalApprovers}
+                    onChange={(event) => setAdditionalApprovers(event.target.value)}
+                  />
+                </label>
+                <p className="muted">
+                  같은 Workspace의 멤버 ID를 입력하세요. 승인자로 지정해도 비공개
+                  세션 접근 권한은 생기지 않습니다.
+                </p>
                 <button
                   className="button secondary"
                   disabled={

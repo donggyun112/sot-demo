@@ -16,9 +16,12 @@ services:
   backend:
     build: ./backend
     environment:
-      SOT_DATABASE_URL: postgresql://sot:sot@db:5432/sot
+      SOT_ENVIRONMENT: ${SOT_ENVIRONMENT:-production}
+      SOT_DATABASE_URL: ${SOT_DATABASE_URL:-postgresql://sot:sot@db:5432/sot}
       SOT_MODELS: '${SOT_MODELS:-["test"]}'
-      SOT_CORS_ORIGINS: '["http://localhost:3000"]'
+      SOT_CORS_ORIGINS: '${SOT_CORS_ORIGINS:-["http://localhost:3000"]}'
+      SOT_JWT_SECRET: ${SOT_JWT_SECRET:-}
+      SOT_GOOGLE_CLIENT_ID: ${SOT_GOOGLE_CLIENT_ID:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
@@ -27,7 +30,7 @@ services:
       db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/readyz')"]
       interval: 3s
       timeout: 5s
       retries: 20
@@ -35,7 +38,10 @@ services:
       - "8000:8000"
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        VITE_GOOGLE_CLIENT_ID: ${SOT_GOOGLE_CLIENT_ID:-}
     depends_on:
       backend:
         condition: service_healthy

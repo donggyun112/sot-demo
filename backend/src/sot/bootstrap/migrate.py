@@ -120,6 +120,26 @@ async def run_migrations(database_url: str, migrations_path: Path) -> None:
         await connection.close()
 
 
+async def require_current_schema(
+    connection: AsyncConnection[tuple[object, ...]],
+) -> None:
+    """Read-only deployment gate; web replicas never apply migrations."""
+    required = [
+        (item.version, item.filename) for item in _migration_plan(MIGRATIONS_PATH)
+    ]
+    missing = MigrationPlanError(
+        "Database schema is not current; run sot-migrate before starting the backend"
+    )
+    cursor = await connection.execute("SELECT to_regclass('sot.schema_migration')")
+    if await cursor.fetchone() == (None,):
+        raise missing
+    cursor = await connection.execute(
+        "SELECT version, filename FROM sot.schema_migration ORDER BY version"
+    )
+    if await cursor.fetchall() != required:
+        raise missing
+
+
 def main() -> None:
     settings = Settings()
     try:

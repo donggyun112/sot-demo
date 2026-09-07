@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import SecretStr, model_validator
+from pydantic import AliasChoices, Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="SOT_", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_prefix="SOT_", extra="ignore", populate_by_name=True
+    )
 
     database_url: str = "postgresql://sot:sot@localhost:54329/sot"
     models: tuple[str, ...] = ("test",)
@@ -15,7 +17,10 @@ class Settings(BaseSettings):
     environment: Literal["local", "test", "production"] = "local"
     development_auth: bool = False
     google_client_id: str = ""
-    access_token_secret: SecretStr = SecretStr("")
+    access_token_secret: SecretStr = Field(
+        default=SecretStr(""),
+        validation_alias=AliasChoices("SOT_JWT_SECRET", "SOT_ACCESS_TOKEN_SECRET"),
+    )
     access_token_lifetime_seconds: int = 900
     refresh_token_lifetime_seconds: int = 2592000
 

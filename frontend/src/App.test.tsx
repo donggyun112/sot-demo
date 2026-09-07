@@ -466,3 +466,44 @@ it("creates a Proposal against the canonical Session document instead of the sel
     ),
   ).toHaveLength(0);
 });
+
+it("validates and normalizes additional approvers without granting Session access", async () => {
+  const server = createServer();
+  server.state.sessions = [session];
+  await server.auth.loginWithGoogle("credential");
+  render(<App auth={server.auth} apiBase="https://sot.test/api/v1" />);
+  await userEvent.click((await screen.findAllByRole("button", { name: /세션 session-/ }))[0]);
+  await userEvent.type(await screen.findByLabelText("제안 본문"), "review this proposal");
+  const approvers = screen.getByLabelText("추가 승인자 ID (쉼표로 구분)");
+  await userEvent.type(approvers, "invalid-id");
+  await userEvent.click(screen.getByRole("button", { name: "Proposal 만들기" }));
+  expect(screen.getByRole("status")).toHaveTextContent("승인자 ID는 UUID 형식이어야 합니다");
+  expect(server.requests.filter((request) => request.method === "POST" && request.url.endsWith("/proposals"))).toHaveLength(0);
+  await userEvent.clear(approvers);
+  const bob = "a56bf7ae-0bda-4297-a934-9007f7f63521";
+  await userEvent.type(approvers, ` ${bob.toUpperCase()}, ${bob}, `);
+  await userEvent.click(screen.getByRole("button", { name: "Proposal 만들기" }));
+  await waitFor(() => expect(server.state.proposals).toHaveLength(1));
+  const request = server.requests.find((item) => item.method === "POST" && item.url.endsWith("/proposals"));
+  expect(await request?.json()).toMatchObject({ additional_approver_ids: [bob] });
+  expect(server.requests.some((item) => item.method === "POST" && item.url.endsWith("/members"))).toBe(false);
+});
+
+it("retains the published Bundle citation when returning from Toss to the source Session", async () => {
+  const server = createServer();
+  server.state.sessions = [session];
+  await server.auth.loginWithGoogle("credential");
+  render(<App auth={server.auth} apiBase="https://sot.test/api/v1" />);
+  await userEvent.click((await screen.findAllByRole("button", { name: /세션 session-/ }))[0]);
+  await userEvent.type(await screen.findByLabelText("인용 요약"), "Evidence");
+  await userEvent.click(screen.getByRole("button", { name: "Bundle 미리보기" }));
+  await userEvent.click(await screen.findByRole("button", { name: "Bundle 발행" }));
+  await userEvent.click(await screen.findByRole("button", { name: "Toss 만들기" }));
+  expect(await screen.findByRole("heading", { name: "B 선택" })).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: /세션 session-/ }));
+  await userEvent.type(await screen.findByLabelText("제안 본문"), "Cited proposal");
+  await userEvent.click(screen.getByRole("button", { name: "Proposal 만들기" }));
+  await waitFor(() => expect(server.state.proposals).toHaveLength(1));
+  const request = server.requests.find((item) => item.method === "POST" && item.url.endsWith("/proposals"));
+  expect(await request?.json()).toMatchObject({ bundle_ids: ["bundle-1"], citations: [{ bundle_id: "bundle-1", bundle_item_position: 0, claim_anchor: "Cited proposal" }] });
+});

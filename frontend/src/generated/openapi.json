@@ -3189,6 +3189,22 @@
         },
         "summary": "Health"
       }
+    },
+    "/readyz": {
+      "get": {
+        "operationId": "ready_readyz_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Ready"
+      }
     }
   }
 }

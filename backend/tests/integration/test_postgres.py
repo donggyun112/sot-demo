@@ -1,97 +1,95 @@
-from pathlib import Path
+"""Canonical publication/toss data survives a pool and application reconnect."""
 
+import httpx
 import pytest
-from httpx import ASGITransport, AsyncClient
-from psycopg_pool import AsyncConnectionPool
+from pydantic import SecretStr
 
-from sot.domain.models import NewTurn
-from sot.domain.service import SOTService
-from sot.main import build_app
-from sot.settings import Settings
-from sot.store.postgres import PostgresSOTRepository, apply_migrations
-
-MIGRATIONS = Path(__file__).parents[2] / "migrations"
+from sot.bootstrap.app import build_app
+from sot.bootstrap.settings import Settings
+from tests.integration.test_document_session_postgres import (
+    state as state,  # noqa: PLC0414
+)
+from tests.integration.test_sharing_consensus_postgres import (
+    SECRET,
+    SharingConsensus,
+    bearer,
+)
+from tests.integration.test_sharing_consensus_postgres import (
+    consensus as consensus,  # noqa: PLC0414
+)
 
 
 @pytest.mark.asyncio
 @pytest.mark.integration
 async def test_published_revision_survives_repository_reconnect(
+    consensus: SharingConsensus,
     database_url: str,
 ) -> None:
-    first_pool = AsyncConnectionPool(database_url, open=False)
-    await first_pool.open()
-    await apply_migrations(first_pool, MIGRATIONS)
-    service = SOTService(PostgresSOTRepository(first_pool))
-
-    document = await service.create_document(
-        actor_id="alice", title="요청 제한 토큰", content="초기 합의"
+    s = consensus.state
+    proposal_id = await consensus.approved()
+    published = await consensus.merge.execute(
+        s.owner,
+        s.workspace_id,
+        proposal_id,
+        expected_version=1,
     )
-    session = await service.create_session(
-        document_id=document.id, owner_id="alice", title="레이트리밋 검토"
-    )
-    turns = await service.append_turns(
-        branch_id=session.branch.id,
-        actor_id="alice",
-        turns=(
-            NewTurn(role="assistant", content="격리 수준은 A와 B가 있습니다."),
-            NewTurn(role="user", content="B"),
-        ),
-    )
-    cite = await service.create_cite(
-        branch_id=session.branch.id,
-        actor_id="alice",
-        turn_ids=tuple(turn.id for turn in turns),
-        summary="프로세스 격리를 선택함",
-    )
-    toss = await service.create_toss(cite_id=cite.id, actor_id="alice")
-    bob_branch = await service.fork_toss(token=toss.token, actor_id="bob")
-    proposal = await service.create_proposal(
-        branch_id=bob_branch.id,
-        actor_id="bob",
-        content="각 사용자 작업은 별도 프로세스로 격리한다.",
-    )
-    await service.approve_proposal(proposal_id=proposal.id, actor_id="bob")
-    published = await service.approve_proposal(
-        proposal_id=proposal.id, actor_id="alice"
-    )
-    assert published.revision is not None
-    await first_pool.close()
-
-    second_pool = AsyncConnectionPool(database_url, open=False)
-    await second_pool.open()
-    reconnected = SOTService(PostgresSOTRepository(second_pool))
-    revision = await reconnected.current_revision(document.id)
-
-    assert revision.number == 2
-    assert revision.content == "각 사용자 작업은 별도 프로세스로 격리한다."
-    assert (await reconnected.toss_view(token=toss.token)).cite.id == cite.id
-    await second_pool.close()
-
-
-@pytest.mark.asyncio
-@pytest.mark.integration
-async def test_application_lifespan_leaves_explicitly_migrated_database_unseeded_and_closes_pool(
-    database_url: str,
-) -> None:
-    async with AsyncConnectionPool(database_url, open=False) as pool:
-        await apply_migrations(pool, MIGRATIONS)
+    assert published.publication is not None
     app = build_app(
         Settings(
             database_url=database_url,
+            environment="production",
             models=("test",),
-            environment="test",
-            development_auth=True,
+            google_client_id="configured-client",
+            access_token_secret=SecretStr(SECRET),
         )
     )
-
-    async with app.router.lifespan_context(app):
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://sot.test"
-        ) as client:
-            response = await client.get("/api/v1/bootstrap")
-
+    async with app.router.lifespan_context(app), httpx.AsyncClient(
+        transport=httpx.ASGITransport(app), base_url="https://test"
+    ) as client:
+        shared = await client.post(
+            f"/api/v1/workspaces/{s.workspace_id}/bundles/{consensus.bundle.id}/tosses",
+            headers=bearer(s.owner.user_id),
+            json={},
+        )
+        assert shared.status_code == 201
+        token = shared.json()["token"]
+    await s.pool.close()
+    reconnected = build_app(
+        Settings(
+            database_url=database_url,
+            environment="production",
+            models=("test",),
+            google_client_id="configured-client",
+            access_token_secret=SecretStr(SECRET),
+        )
+    )
+    async with reconnected.router.lifespan_context(reconnected), httpx.AsyncClient(
+        transport=httpx.ASGITransport(reconnected), base_url="https://test"
+    ) as client:
+        response = await client.get(
+            f"/api/v1/workspaces/{s.workspace_id}/documents/{s.document_id}",
+            headers=bearer(s.owner.user_id),
+        )
         assert response.status_code == 200
-        assert response.json()["documents"] == []
-        assert not app.state.pool.closed
-
-    assert app.state.pool.closed
+        revision = response.json()["current_revision"]
+        assert revision["number"] == 2
+        assert revision["content"] == "First claim. Second claim."
+        assert revision["proposal_id"] == str(proposal_id)
+        assert revision["citations"] == [
+            {
+                "bundle_id": str(consensus.bundle.id),
+                "bundle_item_position": 1,
+                "claim_anchor": "Second claim",
+            },
+            {
+                "bundle_id": str(consensus.bundle.id),
+                "bundle_item_position": 0,
+                "claim_anchor": "First claim",
+            },
+        ]
+        public = await client.get(f"/api/v1/tosses/{token}")
+        assert public.status_code == 200
+        assert [item["content"] for item in public.json()["items"]] == [
+            "public question",
+            "public answer",
+        ]

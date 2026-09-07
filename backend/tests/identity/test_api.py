@@ -74,6 +74,13 @@ def test_production_rejects_development_auth() -> None:
         Settings(environment="production", development_auth=True)
 
 
+def test_deployment_jwt_secret_setting(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SOT_JWT_SECRET", "deployment-test-value" * 3)
+    assert (
+        Settings().access_token_secret.get_secret_value() == "deployment-test-value" * 3
+    )
+
+
 @pytest.mark.asyncio
 async def test_development_header_requires_explicit_opt_in_and_existing_user() -> None:
     async with httpx.AsyncClient(
