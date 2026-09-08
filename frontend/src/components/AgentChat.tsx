@@ -105,9 +105,15 @@ type Block =
      as an assistant turn made every reply look like two replies. It is never
      stored either, so it exists only while the run is on screen. */
   | { kind: "thinking"; id: string; content: string }
-  /* A file someone brought in. The transcript shows the file, not the
-     hundred lines inside it — those are for the agent to read. */
-  | { kind: "file"; id: string; name: string; lines: number; author?: string }
+  /* Files someone brought in. The transcript shows the files, not the
+     hundred lines inside them — those are for the agent to read. Files
+     picked together were one gesture, so they read as one row. */
+  | {
+      kind: "file";
+      id: string;
+      files: { id: string; name: string; lines: number }[];
+      author?: string;
+    }
   | {
       kind: "tool";
       id: string;
@@ -124,10 +130,23 @@ function fileBlock(turn: Turn): Block {
   return {
     kind: "file",
     id: turn.id,
-    name: file.name,
-    lines: file.lines,
+    files: [{ id: turn.id, name: file.name, lines: file.lines }],
     author: turn.created_by,
   };
+}
+
+/** Files the same person sent together belong in one row. */
+function pushFile(blocks: Block[], block: Block) {
+  const last = blocks.at(-1);
+  if (
+    block.kind === "file" &&
+    last?.kind === "file" &&
+    last.author === block.author
+  ) {
+    last.files = [...last.files, ...block.files];
+    return;
+  }
+  blocks.push(block);
 }
 
 /** A call and its result are one thing that happened, so they read as one. */
@@ -185,7 +204,7 @@ function liveBlocks(
     }
     const file = files.get(message.id);
     if (file) {
-      blocks.push(file);
+      pushFile(blocks, file);
       continue;
     }
     const content = textContent(message);
@@ -224,7 +243,7 @@ function storedBlocks(turns: Turn[]): Block[] {
   const blocks: Block[] = [];
   for (const turn of turns) {
     if (turn.role === "attachment") {
-      blocks.push(fileBlock(turn));
+      pushFile(blocks, fileBlock(turn));
       continue;
     }
     if (turn.role !== "tool") {
@@ -471,7 +490,9 @@ export function AgentChat(props: AgentChatProps) {
                 }
               >
                 <div className={cards.row}>
-                  <FileCard name={block.name} lines={block.lines} />
+                  {block.files.map((file) => (
+                    <FileCard key={file.id} name={file.name} lines={file.lines} />
+                  ))}
                 </div>
               </TurnRow>
             ) : block.kind === "thinking" ? (
