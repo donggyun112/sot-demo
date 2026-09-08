@@ -6,6 +6,8 @@ from uuid import uuid4
 import pytest
 
 from sot.consensus.domain import (
+    DocumentEdit,
+    PROPOSAL_CONTENT_LIMIT,
     ApprovalDecision,
     Proposal,
     ProposalCitation,
@@ -28,7 +30,7 @@ def proposal() -> Proposal:
         source_session_id=SessionId(uuid4()),
         created_by=ALICE,
         base_revision_id=uuid4(),
-        content="Initial proposal",
+        edits=(DocumentEdit("", "Initial proposal"),),
         required_approver_ids=frozenset({ALICE, BOB}),
         bundle_ids=(BUNDLE,),
         citations=(ProposalCitation(BUNDLE, 0, "Initial"),),
@@ -64,7 +66,7 @@ def test_revision_resets_approval_status_and_preserves_history() -> None:
         actor_id=BOB,
         expected_version=1,
         base_revision_id=uuid4(),
-        content="Revised",
+        edits=(DocumentEdit("", "Revised"),),
         required_approver_ids=frozenset({ALICE, BOB, CAROL}),
         bundle_ids=(),
         citations=(),
@@ -85,7 +87,7 @@ def test_approver_and_bundle_snapshots_and_source_binding_are_immutable() -> Non
     with pytest.raises(FrozenInstanceError):
         subject.source_session_id = SessionId(uuid4())  # type: ignore[misc]
     with pytest.raises(FrozenInstanceError):
-        subject.current_version.content = "tamper"  # type: ignore[misc]
+        subject.current_version.edits = ()  # type: ignore[misc]
     assert subject.required_approvers == frozenset({ALICE, BOB})
     assert subject.current_version.bundle_ids == (BUNDLE,)
 
@@ -113,7 +115,7 @@ def test_duplicate_decision_and_old_version_are_conflicts() -> None:
         actor_id=BOB,
         expected_version=1,
         base_revision_id=uuid4(),
-        content="Revised",
+        edits=(DocumentEdit("", "Revised"),),
         required_approver_ids=frozenset({ALICE, BOB}),
         bundle_ids=(),
         citations=(),
@@ -128,7 +130,7 @@ def test_duplicate_decision_and_old_version_are_conflicts() -> None:
             actor_id=BOB,
             expected_version=1,
             base_revision_id=uuid4(),
-            content="Old",
+            edits=(DocumentEdit("", "Old"),),
             required_approver_ids=frozenset({ALICE, BOB}),
             bundle_ids=(),
             citations=(),
@@ -162,12 +164,59 @@ def test_invalid_content_or_omitted_creator_is_rejected(
             actor_id=ALICE,
             expected_version=1,
             base_revision_id=uuid4(),
-            content=content,
+            edits=(DocumentEdit("", content),),
             required_approver_ids=required,
             bundle_ids=(),
             citations=(),
             now=NOW,
         )
+
+
+def test_content_over_the_review_limit_is_rejected_on_every_path() -> None:
+    too_long = "x" * (PROPOSAL_CONTENT_LIMIT + 1)
+    with pytest.raises(InvalidInput) as created:
+        Proposal.create(
+            workspace_id=WorkspaceId(uuid4()),
+            document_id=DocumentId(uuid4()),
+            source_session_id=SessionId(uuid4()),
+            created_by=ALICE,
+            base_revision_id=uuid4(),
+            edits=(DocumentEdit("", too_long),),
+            required_approver_ids=frozenset({ALICE}),
+            bundle_ids=(),
+            citations=(),
+            now=NOW,
+        )
+    assert created.value.code == "proposal_content_too_long"
+    with pytest.raises(InvalidInput) as revised:
+        proposal().revise(
+            actor_id=ALICE,
+            expected_version=1,
+            base_revision_id=uuid4(),
+            edits=(DocumentEdit("", too_long),),
+            required_approver_ids=frozenset({ALICE, BOB}),
+            bundle_ids=(),
+            citations=(),
+            now=NOW,
+        )
+    assert revised.value.code == "proposal_content_too_long"
+
+
+def test_content_at_the_review_limit_is_accepted() -> None:
+    at_limit = "x" * PROPOSAL_CONTENT_LIMIT
+    created = Proposal.create(
+        workspace_id=WorkspaceId(uuid4()),
+        document_id=DocumentId(uuid4()),
+        source_session_id=SessionId(uuid4()),
+        created_by=ALICE,
+        base_revision_id=uuid4(),
+        edits=(DocumentEdit("", at_limit),),
+        required_approver_ids=frozenset({ALICE}),
+        bundle_ids=(),
+        citations=(),
+        now=NOW,
+    )
+    assert created.current_version.edits == (DocumentEdit("", at_limit),)
 
 
 def test_version_preserves_explicit_approvers_separately_from_mandatory_set() -> None:
@@ -176,7 +225,7 @@ def test_version_preserves_explicit_approvers_separately_from_mandatory_set() ->
         actor_id=ALICE,
         expected_version=1,
         base_revision_id=uuid4(),
-        content="Revised",
+        edits=(DocumentEdit("", "Revised"),),
         required_approver_ids=frozenset({ALICE, BOB, CAROL}),
         additional_approver_ids=frozenset({CAROL}),
         bundle_ids=(),
@@ -190,7 +239,7 @@ def test_version_preserves_explicit_approvers_separately_from_mandatory_set() ->
             actor_id=ALICE,
             expected_version=1,
             base_revision_id=uuid4(),
-            content="Invalid",
+            edits=(DocumentEdit("", "Invalid"),),
             required_approver_ids=frozenset({ALICE, BOB}),
             additional_approver_ids=frozenset({CAROL}),
             bundle_ids=(),

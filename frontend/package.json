@@ -15,11 +15,17 @@
     "@ag-ui/client": "0.0.59",
     "@ag-ui/core": "0.0.59",
     "@ag-ui/pydantic-ai": "0.0.3",
+    "@streamdown/cjk": "^1.0.3",
+    "@streamdown/code": "^1.1.1",
     "@tanstack/react-query": "^5.102.8",
+    "i18next": "^26.4.2",
     "openapi-fetch": "^0.17.0",
     "openapi-react-query": "^0.5.4",
     "react": "19.2.0",
     "react-dom": "19.2.0",
+    "react-i18next": "^17.0.13",
+    "react-router": "^8.3.1",
+    "streamdown": "^2.6.0",
     "zod": "^4.1.0"
   },
   "devDependencies": {

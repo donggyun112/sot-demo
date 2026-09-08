@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { PydanticAIAgent } from "@ag-ui/pydantic-ai";
 import type { AuthSession } from "../auth";
 import { serviceRoot } from "../transport";
 import type { Turn } from "../types";
+import { MarkdownBody } from "./MarkdownBody";
+import styles from "./AgentChat.module.css";
 
 interface AgentChatProps {
   auth: AuthSession;
@@ -12,6 +15,8 @@ interface AgentChatProps {
   sessionId: string;
   turns: Turn[];
   onSaved: () => Promise<void>;
+  canSend?: boolean;
+  youLabel: string;
 }
 type AgentMessage = PydanticAIAgent["messages"][number];
 const canonicalMessages = (turns: Turn[]): AgentMessage[] =>
@@ -32,6 +37,7 @@ function textContent(message: AgentMessage): string {
 }
 
 export function AgentChat(props: AgentChatProps) {
+  const { t } = useTranslation();
   const agent = useMemo(
     () =>
       new PydanticAIAgent({
@@ -72,7 +78,7 @@ export function AgentChat(props: AgentChatProps) {
         const detail = event.code
           ? `${event.code}: ${event.message}`
           : event.message;
-        setStatus(`모델 실행에 실패했습니다. (${detail})`);
+        setStatus(t("agent.runFailed", { detail }));
       },
     });
     return () => {
@@ -94,12 +100,10 @@ export function AgentChat(props: AgentChatProps) {
       await latest.current.onSaved();
       preservePartial.current = false;
       setNeedsRefetch(false);
-      setStatus("완료된 대화를 동기화했습니다.");
+      setStatus(t("agent.synced"));
     } catch {
       setNeedsRefetch(true);
-      setStatus(
-        "대화는 완료됐지만 동기화에 실패했습니다. 동기화만 재시도하세요.",
-      );
+      setStatus(t("agent.syncFailed"));
     }
   };
 
@@ -111,7 +115,7 @@ export function AgentChat(props: AgentChatProps) {
     completed.current = false;
     preservePartial.current = true;
     setRunning(true);
-    setStatus("응답 생성 중…");
+    setStatus(t("agent.running"));
     // A failed draft stays visible, but the next run starts from server-owned Turns.
     agent.setMessages(canonicalMessages(latest.current.turns));
     agent.addMessage({ id: crypto.randomUUID(), role: "user", content });
@@ -127,110 +131,153 @@ export function AgentChat(props: AgentChatProps) {
       const detail =
         error instanceof Error
           ? `${error.name}: ${error.message}`
-          : "요청 실패";
-      setStatus(
-        `응답 연결이 끊겼습니다. 입력과 부분 응답은 화면에 남아 있습니다. (${detail})`,
-      );
+          : t("agent.requestFailed");
+      setStatus(t("agent.disconnected", { detail }));
     } finally {
       setRunning(false);
     }
   };
 
+  const sendable = props.canSend !== false;
+  const last = messages[messages.length - 1];
   return (
-    <div className="agent-chat">
-      <div aria-live="polite" className="chat-transcript">
-        {messages.length === 0 && (
-          <div className="chat-welcome">
-            <strong>SOT Agent</strong>
-            <p>SOT의 가정과 대안을 함께 검토합니다.</p>
-          </div>
-        )}
-        {messages.map((message) => {
-          const content = textContent(message);
-          const calls =
-            "toolCalls" in message && Array.isArray(message.toolCalls)
-              ? message.toolCalls
-              : [];
-          if (!content && calls.length === 0) return null;
-          return (
-            <article
-              className={`chat-message ${message.role}`}
-              key={message.id}
-            >
-              <strong>
-                {message.role === "user"
-                  ? "나"
-                  : message.role === "assistant"
-                    ? "SOT Agent"
-                    : message.role === "tool"
-                      ? "도구 결과"
-                      : message.role}
-              </strong>
-              {content && <p>{content}</p>}
-              {calls.map((call) => (
-                <details className="tool-call" key={call.id} open>
-                  <summary>도구 · {call.function.name}</summary>
-                  {call.function.arguments && (
-                    <pre>{call.function.arguments}</pre>
-                  )}
-                </details>
-              ))}
-            </article>
-          );
-        })}
-      </div>
-      <form className="chat-composer" onSubmit={(event) => void submit(event)}>
-        <textarea
-          aria-label="Agent message"
-          disabled={running || needsRefetch}
-          onChange={(event) => setInput(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
-              event.preventDefault();
-              event.currentTarget.form?.requestSubmit();
-            }
-          }}
-          placeholder="주장을 검토하거나 대안을 요청하세요"
-          rows={3}
-          value={input}
-        />
-        {running ? (
-          <button
-            className="button secondary"
-            onClick={() => {
-              stopped.current = true;
-              agent.abortRun();
-              setRunning(false);
-              setStatus(
-                "응답을 중지했습니다. 입력과 부분 응답은 화면에 남아 있습니다.",
+    <div className={styles.chat}>
+      <div aria-live="polite" className={styles.transcript}>
+        {/* One reading column shared by the transcript and the composer, so
+            their left and right edges line up. */}
+        <div className={styles.column}>
+          {messages.map((message) => {
+            const content = textContent(message);
+            const calls =
+              "toolCalls" in message && Array.isArray(message.toolCalls)
+                ? message.toolCalls
+                : [];
+            if (!content && calls.length === 0) return null;
+            if (message.role === "user")
+              return (
+                <article className={styles.turn} data-role="user" key={message.id}>
+                  <Who label={props.youLabel} role="user" />
+                  <div className={styles.userBubble}>
+                    <MarkdownBody compact text={content} />
+                  </div>
+                </article>
               );
-            }}
-            type="button"
-          >
-            중지
-          </button>
-        ) : (
-          <button
-            className="button"
-            disabled={needsRefetch || !input.trim()}
-            type="submit"
-          >
-            보내기
-          </button>
-        )}
-      </form>
-      {needsRefetch && (
-        <button
-          className="button secondary save-retry"
-          type="button"
-          onClick={() => void refetch()}
-        >
-          동기화 재시도
-        </button>
+            // Tool work is process, not answer: it folds away under a step
+            // count and reads at caption size, while the reply itself sits
+            // in the flow with no bubble around it.
+            const steps = message.role === "tool" ? 1 : calls.length;
+            return (
+              <article
+                className={styles.turn}
+                data-role={message.role}
+                key={message.id}
+              >
+                <Who label={t("agent.name")} role={message.role} />
+                {steps > 0 && (
+                  <details
+                    className={styles.fold}
+                    open={running && message === last}
+                  >
+                    <summary>{t("agent.steps", { count: steps })}</summary>
+                    <div className={styles.foldBody}>
+                      {message.role === "tool" ? (
+                        <pre className={styles.toolOut}>{content}</pre>
+                      ) : (
+                        calls.map((call) => (
+                          <details className={styles.step} key={call.id}>
+                            <summary>
+                              <span className={styles.stepName}>
+                                {call.function.name}
+                              </span>
+                            </summary>
+                            {call.function.arguments && (
+                              <pre className={styles.toolOut}>
+                                {call.function.arguments}
+                              </pre>
+                            )}
+                          </details>
+                        ))
+                      )}
+                    </div>
+                  </details>
+                )}
+                {content && message.role !== "tool" && (
+                  <div className={styles.prose}>
+                    <MarkdownBody compact text={content} />
+                  </div>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      </div>
+      {sendable && (
+        <form className={styles.composer} onSubmit={(event) => void submit(event)}>
+          <div className={styles.card}>
+            <label className={styles.field}>
+              <textarea
+                aria-label={t("agent.message")}
+                disabled={running || needsRefetch}
+                onChange={(event) => setInput(event.target.value)}
+                onKeyDown={(event) => {
+                  // Enter sends, Shift+Enter breaks the line.
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    void submit(event);
+                  }
+                }}
+                placeholder={t("agent.placeholder")}
+                rows={1}
+                value={input}
+              />
+            </label>
+            <div className={styles.actions}>
+              {needsRefetch && (
+                <button
+                  className={styles.retry}
+                  type="button"
+                  onClick={() => void refetch()}
+                >
+                  {t("agent.retry")}
+                </button>
+              )}
+              {running ? (
+                <button
+                  data-kind="stop"
+                  onClick={() => {
+                    stopped.current = true;
+                    agent.abortRun();
+                    setRunning(false);
+                    setStatus(t("agent.stopped"));
+                  }}
+                  type="button"
+                >
+                  {t("agent.stop")}
+                </button>
+              ) : (
+                <button disabled={needsRefetch || !input.trim()} type="submit">
+                  {t("agent.send")}
+                </button>
+              )}
+            </div>
+          </div>
+        </form>
       )}
-      <div aria-live="polite" className="sr-status">
+      <div aria-live="polite" className={styles.status}>
         {status}
       </div>
+    </div>
+  );
+}
+
+/** Who spoke: the initial in an avatar plus the name, on that turn's side. */
+function Who({ label, role }: { label: string; role: string }) {
+  return (
+    <div className={styles.who}>
+      <span aria-hidden="true" className={styles.av} data-role={role}>
+        {label.slice(0, 1)}
+      </span>
+      <span className={styles.name}>{label}</span>
     </div>
   );
 }

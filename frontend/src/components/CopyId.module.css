@@ -1,0 +1,28 @@
+.copy {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-height: 30px;
+  padding: 0 var(--space-sm);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.copy:active {
+  transform: scale(0.96);
+}
+
+.copy:hover {
+  border-color: var(--border);
+  color: var(--ink);
+}
+
+.copy[data-done="true"] {
+  color: var(--success);
+  border-color: var(--success);
+}

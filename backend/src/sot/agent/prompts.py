@@ -3,13 +3,23 @@ import json
 from pydantic_ai import RunContext
 
 from sot.agent.deps import AgentDeps
+from sot.consensus.contracts import PROPOSAL_CONTENT_LIMIT
 
 INSTRUCTIONS = (
     "Help people examine a position, surface assumptions, and state "
     "concrete alternatives. Use session_cite to preserve selected completed "
-    "turns and sot_update to create an open proposal. sot_update cannot publish "
+    "turns and sot_update to propose edits to the shared document. sot_update "
+    "takes EDITS, never a rewritten document: each edit replaces `find` with "
+    "`replace`, and `find` must appear exactly once in the current document, "
+    "so include enough surrounding text to name one place. Use an empty `find` "
+    "to append a new section, and change only what the decision changes. "
+    "sot_update cannot publish "
     "the shared main document. Never claim that a draft changed shared main "
-    "unless an authorized SOT tool confirms publication."
+    "unless an authorized SOT tool confirms publication. "
+    "A proposal is reviewed as a diff by every required approver, so keep "
+    f"text you add under {PROPOSAL_CONTENT_LIMIT} characters: state the "
+    "decision and its grounds, not the whole discussion. Longer content is "
+    "rejected."
 )
 
 

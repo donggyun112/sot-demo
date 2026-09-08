@@ -20,6 +20,7 @@ from sot.workspace.application import (
     GetCurrentWorkspaceMember,
     GetWorkspace,
     ListActorWorkspaces,
+    ListWorkspaceMembers,
     WorkspaceAccess,
 )
 from tests.identity.test_auth_facade import make_facade
@@ -45,6 +46,7 @@ async def test_workspace_routes_use_bearer_actor_and_routed_workspace() -> None:
             ListActorWorkspaces(store, lambda: store),
             GetWorkspace(store, access, lambda: store),
             GetCurrentWorkspaceMember(access, lambda: store),
+            ListWorkspaceMembers(store, access, store, lambda: store),
             actor,
         )
     )

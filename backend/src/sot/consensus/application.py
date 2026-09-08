@@ -5,6 +5,7 @@ from uuid import UUID
 
 from sot.consensus.contracts import MergeProposalResult, ProposalReader, ProposalView
 from sot.consensus.domain import (
+    DocumentEdit,
     ApprovalDecision,
     Proposal,
     ProposalCitation,
@@ -82,7 +83,7 @@ class ProposalSources:
         bundle_ids: tuple[BundleId, ...],
         citations: tuple[ProposalCitation, ...],
         additional_approver_ids: frozenset[UserId],
-    ) -> tuple[UUID, frozenset[UserId]]:
+    ) -> tuple[UUID, str, frozenset[UserId]]:
         """Use the caller's already-authorized immutable source within its tx."""
         if session.document_id is None:
             raise InvalidInput(
@@ -126,7 +127,11 @@ class ProposalSources:
             raise InvalidInput(
                 "proposal_citation_invalid", "Citation item does not exist in bundle"
             )
-        return document.current_revision.id, frozenset(required)
+        return (
+            document.current_revision.id,
+            document.current_revision.content,
+            frozenset(required),
+        )
 
 
 class CreateProposal:
@@ -153,7 +158,7 @@ class CreateProposal:
         source_session_id: SessionId,
         *,
         document_id: DocumentId,
-        content: str,
+        edits: tuple[DocumentEdit, ...],
         citations: tuple[ProposalCitation, ...],
         bundle_ids: tuple[BundleId, ...] = (),
         additional_approver_ids: frozenset[UserId] = frozenset(),
@@ -166,7 +171,7 @@ class CreateProposal:
                     workspace_id=workspace_id,
                     source_session_id=source_session_id,
                     document_id=document_id,
-                    content=content,
+                    edits=edits,
                     bundle_ids=bundle_ids,
                     citations=citations,
                     additional_approver_ids=additional_approver_ids,
@@ -181,7 +186,7 @@ class CreateProposal:
         workspace_id: WorkspaceId,
         source_session_id: SessionId,
         document_id: DocumentId,
-        content: str,
+        edits: tuple[DocumentEdit, ...],
         bundle_ids: tuple[BundleId, ...],
         citations: tuple[ProposalCitation, ...],
         additional_approver_ids: frozenset[UserId],
@@ -193,7 +198,7 @@ class CreateProposal:
             session_id=source_session_id,
             permission=SessionPermission.CREATE_PROPOSAL,
         )
-        base_revision, required = await self._sources.prepare(
+        base_revision, base_content, required = await self._sources.prepare(
             tx,
             actor=actor,
             workspace_id=workspace_id,
@@ -210,13 +215,16 @@ class CreateProposal:
             source_session_id=source_session_id,
             created_by=actor.user_id,
             base_revision_id=base_revision,
-            content=content,
+            edits=edits,
             required_approver_ids=required,
             bundle_ids=bundle_ids,
             citations=citations,
             additional_approver_ids=additional_approver_ids,
             now=self._clock.now(),
         )
+        # Reject an anchor that does not name one place in the document now,
+        # rather than at merge when approvers have already reviewed it.
+        proposal.current_version.apply(base_content)
         await self._repository.add(tx, proposal)
         return proposal
 
@@ -227,7 +235,7 @@ class CreateProposal:
         workspace_id: WorkspaceId,
         branch_id: BranchId,
         expected_branch_version: int,
-        content: str,
+        edits: tuple[DocumentEdit, ...],
     ) -> BranchMutationResult:
         async with self._uow_factory().transaction() as tx:
             context = await self._branches.read(
@@ -254,7 +262,7 @@ class CreateProposal:
                 workspace_id=workspace_id,
                 source_session_id=context.session_id,
                 document_id=context.document_id,
-                content=content,
+                edits=edits,
                 bundle_ids=(),
                 citations=(),
                 additional_approver_ids=frozenset(),
@@ -282,7 +290,7 @@ class ReviseProposal:
         proposal_id: ProposalId,
         *,
         expected_version: int,
-        content: str,
+        edits: tuple[DocumentEdit, ...],
         bundle_ids: tuple[BundleId, ...],
         citations: tuple[ProposalCitation, ...],
         additional_approver_ids: frozenset[UserId] | None = None,
@@ -317,7 +325,7 @@ class ReviseProposal:
                         "Only creator can change additional approvers",
                     )
                 extras = additional_approver_ids
-            base_revision, required = await self._sources.prepare(
+            base_revision, base_content, required = await self._sources.prepare(
                 tx,
                 actor=actor,
                 workspace_id=workspace_id,
@@ -332,13 +340,14 @@ class ReviseProposal:
                 actor_id=actor.user_id,
                 expected_version=expected_version,
                 base_revision_id=base_revision,
-                content=content,
+                edits=edits,
                 required_approver_ids=required,
                 bundle_ids=bundle_ids,
                 citations=citations,
                 additional_approver_ids=extras,
                 now=self._clock.now(),
             )
+            revised.current_version.apply(base_content)
             await self._repository.save(tx, revised)
             return _view(revised)
 
@@ -439,7 +448,7 @@ class MergeProposal:
                     document_id=proposal.document_id,
                     expected_version=document.document.version,
                     proposal_id=proposal.id,
-                    content=version.content,
+                    content=version.apply(document.current_revision.content),
                     citations=tuple(
                         RevisionCitationInput(
                             citation.claim_anchor,

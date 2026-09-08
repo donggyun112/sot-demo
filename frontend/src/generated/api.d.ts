@@ -16,6 +16,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/local": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Local */
+        post: operations["local_api_v1_auth_local_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/logout": {
         parameters: {
             query?: never;
@@ -248,7 +265,8 @@ export interface paths {
         /** List For Workspace */
         get: operations["list_workspace_documents"];
         put?: never;
-        post?: never;
+        /** Create */
+        post: operations["create_workspace_document"];
         delete?: never;
         options?: never;
         head?: never;
@@ -332,7 +350,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** Members */
+        get: operations["list_workspace_members"];
         put?: never;
         /** Add */
         post: operations["add_api_v1_workspaces__workspace_id__members_post"];
@@ -658,6 +677,16 @@ export interface components {
             /** Claim Anchor */
             claim_anchor: string;
         };
+        /** CreateDocumentRequest */
+        CreateDocumentRequest: {
+            /**
+             * Content
+             * @default
+             */
+            content: string;
+            /** Title */
+            title: string;
+        };
         /** CreateProposalRequest */
         CreateProposalRequest: {
             /** Additional Approver Ids */
@@ -666,8 +695,8 @@ export interface components {
             bundle_ids?: string[];
             /** Citations */
             citations: components["schemas"]["CitationRequest"][];
-            /** Content */
-            content: string;
+            /** Edits */
+            edits: components["schemas"]["DocumentEditRequest"][];
             /**
              * Source Session Id
              * Format: uuid
@@ -712,7 +741,7 @@ export interface components {
             /** Expected Version */
             expected_version: number;
             /** Operation */
-            operation: components["schemas"]["DropTurnRequest"] | components["schemas"]["EditTurnRequest"] | components["schemas"]["JoinTurnsRequest"];
+            operation: components["schemas"]["DropTurnRequest"] | components["schemas"]["EditTurnRequest"] | components["schemas"]["JoinTurnsRequest"] | components["schemas"]["RestoreTurnRequest"];
         };
         /** CurrentWorkspaceMemberResponse */
         CurrentWorkspaceMemberResponse: {
@@ -739,6 +768,23 @@ export interface components {
             decision: "approve" | "reject";
             /** Expected Version */
             expected_version: number;
+        };
+        /** DocumentEditRequest */
+        DocumentEditRequest: {
+            /**
+             * Find
+             * @default
+             */
+            find: string;
+            /** Replace */
+            replace: string;
+        };
+        /** DocumentEditResponse */
+        DocumentEditResponse: {
+            /** Find */
+            find: string;
+            /** Replace */
+            replace: string;
         };
         /** DocumentResponse */
         DocumentResponse: {
@@ -913,8 +959,6 @@ export interface components {
             bundle_ids: string[];
             /** Citations */
             citations: components["schemas"]["CitationResponse"][];
-            /** Content */
-            content: string;
             /**
              * Created At
              * Format: date-time
@@ -925,6 +969,8 @@ export interface components {
              * Format: uuid
              */
             created_by: string;
+            /** Edits */
+            edits: components["schemas"]["DocumentEditResponse"][];
             /**
              * Proposal Id
              * Format: uuid
@@ -1035,6 +1081,19 @@ export interface components {
              */
             workspace_id: string;
         };
+        /** RestoreTurnRequest */
+        RestoreTurnRequest: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "restore";
+            /**
+             * Turn Id
+             * Format: uuid
+             */
+            turn_id: string;
+        };
         /** ReviseProposalRequest */
         ReviseProposalRequest: {
             /** Additional Approver Ids */
@@ -1043,8 +1102,8 @@ export interface components {
             bundle_ids: string[];
             /** Citations */
             citations: components["schemas"]["CitationRequest"][];
-            /** Content */
-            content: string;
+            /** Edits */
+            edits: components["schemas"]["DocumentEditRequest"][];
             /** Expected Version */
             expected_version: number;
         };
@@ -1184,6 +1243,22 @@ export interface components {
             /** Error Type */
             type: string;
         };
+        /** WorkspaceMemberProfileResponse */
+        WorkspaceMemberProfileResponse: {
+            /** Display Name */
+            display_name: string;
+            role: components["schemas"]["WorkspaceRole"];
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+            /**
+             * Workspace Id
+             * Format: uuid
+             */
+            workspace_id: string;
+        };
         /** WorkspaceMemberResponse */
         WorkspaceMemberResponse: {
             role: components["schemas"]["WorkspaceRole"];
@@ -1251,6 +1326,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    local_api_v1_auth_local_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthResponse"];
                 };
             };
         };
@@ -1681,6 +1776,41 @@ export interface operations {
             };
         };
     };
+    create_workspace_document: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateDocumentRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_api_v1_workspaces__workspace_id__documents__document_id__get: {
         parameters: {
             query?: never;
@@ -1869,6 +1999,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CreatedSessionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_workspace_members: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceMemberProfileResponse"][];
                 };
             };
             /** @description Validation Error */

@@ -1,0 +1,220 @@
+{
+  "brand": {
+    "name": "SOT",
+    "tagline": "Agreements with evidence"
+  },
+  "login": {
+    "edition": "Working edition · 2026",
+    "headline": "Make decisions that can explain themselves.",
+    "deck": "SOT keeps the conversation, evidence, and final record together — so every agreement has a history you can return to.",
+    "index": "Documents / Sessions / Evidence / Decisions",
+    "access": "Workspace access",
+    "title": "Enter the workspace",
+    "hint": "Continue to the shared record. Your work will stay attached to its source.",
+    "or": "or",
+    "footerLeft": "Source of Truth",
+    "footerRight": "Built for accountable work",
+    "continue": "Continue without Google",
+    "failed": "Sign-in failed.",
+    "gis": "Could not load Google sign-in."
+  },
+  "workspace": {
+    "createTitle": "Create a workspace",
+    "createHint": "Documents and sessions live inside a workspace.",
+    "name": "Workspace name",
+    "submit": "Create workspace",
+    "switch": "Workspaces",
+    "current": "Current",
+    "new": "Create workspace"
+  },
+  "header": {
+    "signOut": "Sign out",
+    "sessions": "Sessions",
+    "document": "Document",
+    "members": "Members"
+  },
+  "people": {
+    "you": "You",
+    "someone": "Another member",
+    "unknown": "Unknown"
+  },
+  "profile": {
+    "title": "Profile",
+    "role": "Workspace role",
+    "logoutAll": "Sign out everywhere",
+    "account": "Account",
+    "userId": "Copy user id",
+    "userIdHint": "Send this id to a workspace owner so they can add you."
+  },
+  "members": {
+    "title": "Members",
+    "hint": "Only an owner can add members.",
+    "userId": "User id",
+    "userIdHint": "You need the id they copied from their own profile.",
+    "add": "Add member",
+    "added": "Member added.",
+    "you": "You"
+  },
+  "proposal": {
+    "title": "Proposal",
+    "create": "Create proposal",
+    "createHint": "Ask approvers to merge this into the document.",
+    "approve": "Approve",
+    "reject": "Reject",
+    "merge": "Merge",
+    "approvers": "Required approvers",
+    "content": "Proposal body",
+    "additionalApprovers": "Additional approver ids (comma separated)",
+    "limit": "{{count}} / {{limit}} characters",
+    "tooLong": "Too long to review. State the decision and its grounds, not the whole discussion.",
+    "patch": "Patch",
+    "citations": "Citations",
+    "bundle": "Bundle",
+    "decisions": "Decisions",
+    "noDecisions": "No decisions yet.",
+    "noCitations": "No citations on this version.",
+    "version": "Version",
+    "notFound": "This proposal is gone or you cannot read it."
+  },
+  "docs": {
+    "title": "Documents",
+    "emptyTitle": "No documents",
+    "empty": "No documents yet.",
+    "open": "Open",
+    "create": "New document",
+    "untitled": "Untitled",
+    "revision": "Revision {{number}}"
+  },
+  "document": {
+    "evidence": "Evidence",
+    "naked": "No evidence is linked to this passage.",
+    "startSession": "Start a session",
+    "citation": "{{bundle}} · item {{position}}",
+    "proposals": "Proposals",
+    "notFound": "This document is gone or you cannot read it.",
+    "showEvidence": "Evidence",
+    "hide": "Hide",
+    "canonical": "Canonical",
+    "pending": "Pending changes",
+    "noPending": "No pending changes.",
+    "pendingCount_one": "{{count}} pending",
+    "pendingCount_other": "{{count}} pending",
+    "startSessionHint": "Draft a change with the agent, then propose it."
+  },
+  "sessions": {
+    "title": "Sessions",
+    "empty": "Only evidence you cite reaches the document.",
+    "emptyList": "No sessions on this document yet.",
+    "new": "New session",
+    "original": "Original",
+    "noCite": "Not linked to a document.",
+    "side": "Session",
+    "preview": "Bundle preview",
+    "previewEmpty": "Nothing is curated into the bundle yet.",
+    "publish": "Publish bundle",
+    "bundle": "Shared bundle",
+    "shared": "Shared",
+    "curation": "Curation",
+    "drop": "Drop",
+    "dropped": "Dropped",
+    "edit": "Edit",
+    "join": "Join",
+    "joinSelected": "Join selected turns",
+    "saveEdit": "Save edit",
+    "bannerOriginal": "Only evidence you cite reaches the document.",
+    "bannerShared": "A shared session. Nothing reaches a document until you cite it.",
+    "untitledSession": "Untitled session",
+    "turnCount_one": "{{count}} turn",
+    "turnCount_other": "{{count}} turns",
+    "branch": "Branch",
+    "branchLabel": "Branch {{index}}",
+    "copyId": "Copy session id",
+    "noTurns": "No turns yet. Send a message to start.",
+    "showSide": "Session panel",
+    "notFound": "This session is gone or you cannot read it.",
+    "target": "Changes go to",
+    "path": "Path to the document",
+    "publishHint": "Freeze the curated turns as evidence.",
+    "needParticipate": "You have read-only access to this workspace.",
+    "needCurated": "Curate at least one turn into the bundle first.",
+    "needBundle": "Publish the bundle first.",
+    "needDocument": "This session is not attached to a document.",
+    "alreadyPublished": "Already published.",
+    "restore": "Restore",
+    "agentUpdates": "The agent writes document updates. Ask for one in the session."
+  },
+  "toss": {
+    "title": "Shared evidence",
+    "fork": "Fork into a workspace",
+    "confirm": "Fork",
+    "signIn": "Sign in to fork",
+    "destination": "Destination workspace",
+    "create": "Create toss link",
+    "created": "Toss link ready.",
+    "createHint": "Hand the evidence to a teammate without merging it.",
+    "openLink": "Open toss link",
+    "copyLink": "Copy share link",
+    "revoke": "Revoke link",
+    "public": "Anyone holding this link can read the bundle. Revoke it to cut access.",
+    "empty": "No shared evidence in this link.",
+    "notFound": "This toss link is invalid or expired."
+  },
+  "common": {
+    "loading": "Loading…",
+    "error": "Something failed.",
+    "cancel": "Cancel",
+    "working": "Working…",
+    "copied": "Copied"
+  },
+  "nav": {
+    "sidebar": "Workspace navigation",
+    "inbox": "Inbox",
+    "documents": "Documents",
+    "openApp": "Open SOT",
+    "open": "Menu",
+    "close": "Close menu"
+  },
+  "inbox": {
+    "waiting": "Waiting on you",
+    "mine": "Opened by you",
+    "emptyTitle": "Nothing is waiting",
+    "empty": "Proposals that need your approval land here."
+  },
+  "turnRole": {
+    "user": "You",
+    "assistant": "Assistant"
+  },
+  "proposalStatus": {
+    "open": "In review",
+    "approved": "Approved",
+    "rejected": "Rejected",
+    "stale": "Needs rework",
+    "merged": "Merged"
+  },
+  "sessionStatus": {
+    "open": "Active",
+    "closed": "Closed"
+  },
+  "workspaceRole": {
+    "owner": "Owner",
+    "member": "Member",
+    "viewer": "Viewer"
+  },
+  "agent": {
+    "name": "SOT Agent",
+    "message": "Agent message",
+    "placeholder": "Continue in this session",
+    "send": "Send",
+    "stop": "Stop",
+    "retry": "Retry sync",
+    "steps_one": "{{count}} step",
+    "steps_other": "{{count}} steps",
+    "running": "Generating a reply.",
+    "synced": "Synced the finished exchange.",
+    "syncFailed": "The exchange finished but did not sync. Retry the sync on its own.",
+    "runFailed": "The model run failed. ({{detail}})",
+    "disconnected": "The response stream dropped. Your input and the partial reply are still on screen. ({{detail}})",
+    "stopped": "Stopped. The partial reply is still on screen.",
+    "requestFailed": "Request failed"
+  }
+}

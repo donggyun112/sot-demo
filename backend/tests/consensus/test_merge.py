@@ -3,7 +3,12 @@ from uuid import uuid4
 
 import pytest
 
-from sot.consensus.domain import ApprovalDecision, ProposalNotFound, ProposalStatus
+from sot.consensus.domain import (
+    ApprovalDecision,
+    DocumentEdit,
+    ProposalNotFound,
+    ProposalStatus,
+)
 from sot.document.domain import DocumentNotFound
 from sot.identity.contracts import Actor
 from sot.session.contracts import SessionPermission
@@ -66,7 +71,9 @@ async def test_publisher_without_private_membership_merges_only_approved_evidenc
     assert result.status is ProposalStatus.MERGED
     assert result.publication is not None
     revision = result.publication.revision
-    assert revision.content == "Proposed main"
+    # The proposal APPENDS: merging leaves the document it was written
+    # against in place instead of overwriting it.
+    assert revision.content == "Main\n\nProposed main"
     assert revision.created_by == CAROL
     assert revision.proposal_id == proposal_id
     assert tuple(

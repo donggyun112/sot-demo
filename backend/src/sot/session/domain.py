@@ -233,7 +233,19 @@ class JoinTurns:
     content: str
 
 
-CurationOperation = DropTurn | EditTurn | JoinTurns
+@dataclass(frozen=True, slots=True)
+class RestoreTurn:
+    """Undo a drop.
+
+    The op log is append-only, so a dropped turn cannot come back by removing
+    the drop. This op puts the turn's ORIGINAL content back — never content
+    the caller supplies — at the position it held in the conversation.
+    """
+
+    turn_id: UUID
+
+
+CurationOperation = DropTurn | EditTurn | JoinTurns | RestoreTurn
 
 
 @dataclass(frozen=True, slots=True)
@@ -247,19 +259,52 @@ class BundleItem:
 @dataclass(slots=True)
 class CurationProjection:
     items: tuple[BundleItem, ...]
+    # The untouched conversation, kept so a drop can be undone with the turn's
+    # own content and its own position rather than anything a caller sends.
+    origin: tuple[BundleItem, ...] = ()
 
     @classmethod
     def from_turns(cls, turns: tuple[Turn, ...]) -> CurationProjection:
         # Tool payloads are private execution data, not public conversation items.
-        return cls(
-            tuple(
-                BundleItem((turn.id,), turn.role, turn.content, "copied")
-                for turn in turns
-                if turn.role in {"user", "assistant"}
-            )
+        items = tuple(
+            BundleItem((turn.id,), turn.role, turn.content, "copied")
+            for turn in turns
+            if turn.role in {"user", "assistant"}
         )
+        return cls(items, items)
+
+    def _origin_rank(self, item: BundleItem) -> int:
+        """Where an item belongs in the conversation, by its earliest source."""
+        order = {source: i for i, one in enumerate(self.origin) for source in one.source_ids}
+        return min((order[source] for source in item.source_ids if source in order), default=0)
+
+    def _restore(self, turn_id: UUID) -> None:
+        if any(turn_id in item.source_ids for item in self.items):
+            raise InvalidInput(
+                "curation_turn_present", "This turn is already in the bundle"
+            )
+        original = next(
+            (item for item in self.origin if turn_id in item.source_ids), None
+        )
+        if original is None:
+            raise InvalidInput(
+                "curation_turn_not_found", "Selected turn is not in the projection"
+            )
+        rank = self._origin_rank(original)
+        at = next(
+            (
+                i
+                for i, item in enumerate(self.items)
+                if self._origin_rank(item) > rank
+            ),
+            len(self.items),
+        )
+        self.items = self.items[:at] + (original,) + self.items[at:]
 
     def apply(self, operation: CurationOperation) -> None:
+        if isinstance(operation, RestoreTurn):
+            self._restore(operation.turn_id)
+            return
         ids = (
             operation.turn_ids
             if isinstance(operation, JoinTurns)

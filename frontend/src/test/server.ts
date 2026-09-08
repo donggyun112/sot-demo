@@ -48,7 +48,7 @@ export const proposal: Schema["ProposalResponse"] = {
     proposal_id: "proposal-1",
     version: 1,
     base_revision_id: "rev-1",
-    content: "새 합의",
+    edits: [{ find: "초기 합의", replace: "새 합의" }],
     bundle_ids: ["bundle-1"],
     citations: [
       {
@@ -57,7 +57,7 @@ export const proposal: Schema["ProposalResponse"] = {
         claim_anchor: "새 합의",
       },
     ],
-    required_approver_ids: [member.id],
+    required_approver_ids: [member.id, "user-2"],
     additional_approver_ids: [],
     created_by: member.id,
     created_at: session.created_at,
@@ -95,9 +95,22 @@ export function createServer() {
     sessions: [] as Schema["SessionResponse"][],
     forks: [] as Schema["SessionResponse"][],
     proposals: [] as Schema["ProposalResponse"][],
+    revokedTosses: [] as string[],
+    members: [
+      { user_id: member.id, role: "owner", display_name: member.display_name },
+      { user_id: "user-2", role: "viewer", display_name: "Reviewer" },
+    ] as { user_id: string; role: string; display_name: string }[],
     branchVersion: 2,
     turns: [...turns],
+    /* Curation is append-only: a dropped turn is still recoverable. */
+    dropped: [] as Schema["TurnResponse"][],
+    extraBranches: [] as Schema["BranchResponse"][],
+    createdDocument: null as Schema["DocumentSummaryResponse"] | null,
     emptyDocuments: false,
+    workspaces: [
+      { id: "w1", name: "Source" },
+      { id: "w2", name: "Destination" },
+    ] as Schema["WorkspaceResponse"][],
   };
   const network = async (input: RequestInfo | URL, init?: RequestInit) => {
     const request = input instanceof Request ? input : new Request(input, init);
@@ -118,20 +131,82 @@ export function createServer() {
         user: state.user,
       });
     if (path === "/api/v1/me") return Response.json(state.user);
+    if (path.endsWith("/auth/logout-all") && request.method === "POST")
+      return Response.json({ ok: true });
     if (path.endsWith("/members/me"))
       return Response.json({
         workspace_id,
         user_id: state.user.id,
-        role: "member",
+        role: state.permissions.includes("workspace.manage") ? "owner" : "member",
         permissions: state.permissions,
       });
-    if (path === "/api/v1/workspaces")
-      return Response.json([
-        { id: "w1", name: "Source" },
-        { id: "w2", name: "Destination" },
-      ]);
-    if (path.endsWith("/documents"))
+    if (path.endsWith("/members") && request.method === "GET")
+      return Response.json(
+        state.members.map((item) => ({ workspace_id, ...item })),
+      );
+    if (path.endsWith("/members") && request.method === "POST") {
+      const body = (await request.json()) as Schema["AddWorkspaceMemberRequest"];
+      return Response.json(
+        { workspace_id, user_id: body.user_id, role: body.role },
+        { status: 201 },
+      );
+    }
+    if (path === "/api/v1/workspaces") {
+      if (request.method === "POST") {
+        const body = (await request.json()) as Schema["CreateWorkspaceRequest"];
+        const created = { id: "w-new", name: body.name };
+        state.workspaces = [...state.workspaces, created];
+        return Response.json(created, { status: 201 });
+      }
+      return Response.json(state.workspaces);
+    }
+    if (path.endsWith("/documents")) {
+      if (request.method === "POST") {
+        const body = (await request.json()) as Schema["CreateDocumentRequest"];
+        const created = {
+          id: "doc-new",
+          workspace_id,
+          title: body.title,
+          current_revision_id: "rev-new",
+          version: 1,
+        };
+        state.emptyDocuments = false;
+        state.createdDocument = created;
+        return Response.json(
+          {
+            document: created,
+            current_revision: {
+              id: "rev-new",
+              workspace_id,
+              document_id: created.id,
+              number: 1,
+              content: body.content,
+              proposal_id: null,
+              created_by: member.id,
+              created_at: session.created_at,
+              citations: [],
+            },
+          } satisfies Schema["DocumentResponse"],
+          { status: 201 },
+        );
+      }
       return Response.json(state.emptyDocuments ? [] : [document]);
+    }
+    if (path.endsWith("/documents/doc-new") && state.createdDocument)
+      return Response.json({
+        document: state.createdDocument,
+        current_revision: {
+          id: "rev-new",
+          workspace_id,
+          document_id: "doc-new",
+          number: 1,
+          content: "",
+          proposal_id: null,
+          created_by: member.id,
+          created_at: session.created_at,
+          citations: [],
+        },
+      } satisfies Schema["DocumentResponse"]);
     if (path.endsWith("/documents/doc-1"))
       return Response.json({
         document,
@@ -175,15 +250,68 @@ export function createServer() {
             { status: 404 },
           );
     }
-    if (path.endsWith("/sessions/session-1/branches"))
+    if (path.endsWith("/sessions/session-1/branches")) {
+      if (request.method === "POST") {
+        const created = {
+          ...branch,
+          id: "branch-2",
+          workspace_id,
+          version: 1,
+        };
+        state.extraBranches = [...state.extraBranches, created];
+        return Response.json(created, { status: 201 });
+      }
       return Response.json([
         { ...branch, workspace_id, version: state.branchVersion },
+        ...state.extraBranches,
+      ]);
+    }
+    if (path.endsWith("/branches/branch-2/turns"))
+      return Response.json([
+        {
+          id: "turn-other",
+          workspace_id,
+          branch_id: "branch-2",
+          ordinal: 1,
+          role: "user",
+          content: "다른 전제",
+          created_at: session.created_at,
+        },
       ]);
     if (path.endsWith("/branches/branch-1/turns"))
       return Response.json(
         state.turns.map((turn) => ({ ...turn, workspace_id })),
       );
     if (path.endsWith("/curation-ops")) {
+      const body = (await request.json()) as Schema["CurationRequest"];
+      const op = body.operation;
+      if (op.kind === "drop") {
+        const gone = state.turns.find((turn) => turn.id === op.turn_id);
+        if (gone) state.dropped = [...state.dropped, gone];
+        state.turns = state.turns.filter((turn) => turn.id !== op.turn_id);
+      } else if (op.kind === "edit") {
+        state.turns = state.turns.map((turn) =>
+          turn.id === op.turn_id ? { ...turn, content: op.content } : turn,
+        );
+      } else if (op.kind === "restore") {
+        // The real projection puts the turn back where it was; the fixture
+        // only needs it back in the list for the UI under test.
+        const gone = state.dropped.find((turn) => turn.id === op.turn_id);
+        if (gone) {
+          state.dropped = state.dropped.filter((turn) => turn.id !== op.turn_id);
+          state.turns = [...state.turns, gone].sort(
+            (a, b) => a.ordinal - b.ordinal,
+          );
+        }
+      } else {
+        const keep = op.turn_ids[0];
+        const drop = new Set(op.turn_ids.slice(1));
+        state.turns = state.turns
+          .filter((turn) => !drop.has(turn.id))
+          .map((turn) =>
+            turn.id === keep ? { ...turn, content: op.content } : turn,
+          );
+      }
       state.branchVersion++;
       return Response.json({
         resource_id: "op-1",
@@ -201,6 +329,10 @@ export function createServer() {
     }
     if (path.endsWith("/bundles/bundle-1/tosses"))
       return Response.json({ id: "toss-1", token: "share-me" });
+    if (path.endsWith("/tosses/toss-1") && request.method === "DELETE") {
+      state.revokedTosses.push("toss-1");
+      return new Response(null, { status: 204 });
+    }
     if (path === "/api/v1/tosses/share-me") return Response.json(publicBundle);
     if (path.endsWith("/tosses/share-me/fork")) {
       state.forks.push({ ...session, workspace_id, document_id: null });
@@ -263,7 +395,7 @@ export function createServer() {
             workspace_id,
             document_id: document.id,
             number: 2,
-            content: proposal.current_version.content,
+            content: proposal.current_version.edits[0].replace,
             proposal_id: proposal.id,
             created_by: member.id,
             created_at: session.created_at,

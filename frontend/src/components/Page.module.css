@@ -1,0 +1,229 @@
+/* Page pattern layer — see frontend/docs/product-ui-reference.md. */
+
+.header {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: var(--space-md);
+  margin-bottom: var(--space-lg);
+}
+
+.heading {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+.heading h1 {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.count {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.headerActions {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+}
+
+.description {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 14px;
+}
+
+/* States -------------------------------------------------------------- */
+
+.state {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  text-align: center;
+}
+
+.state[data-tone="danger"] {
+  border-style: solid;
+  border-color: var(--danger);
+  background: var(--danger-tint);
+}
+
+.stateTitle {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.state[data-tone="danger"] .stateTitle {
+  color: var(--danger);
+}
+
+.stateDescription {
+  margin: var(--space-sm) auto 0;
+  max-width: 46ch;
+  color: var(--ink-muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.stateActions {
+  display: flex;
+  gap: var(--space-sm);
+  justify-content: center;
+  margin-top: var(--space-lg);
+}
+
+/* Sections ------------------------------------------------------------ */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.sectionHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.sectionHead h3 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+
+.sectionAside {
+  margin-left: auto;
+  display: flex;
+  gap: var(--space-xs);
+}
+
+/* Actions ------------------------------------------------------------- */
+
+.action {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.actionHint {
+  font-size: 12px;
+  color: var(--ink-dim);
+  line-height: 1.5;
+}
+
+.primary,
+.ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--divider);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.ghost:hover:not(:disabled) {
+  background: var(--surface-raised);
+  border-color: var(--border);
+}
+
+.primary {
+  background: var(--brand);
+  color: var(--on-brand);
+  border-color: var(--brand);
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--brand-hover);
+  border-color: var(--brand-hover);
+}
+
+.primary:disabled,
+.ghost:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Apple DESIGN.md adaptation ------------------------------------------ */
+
+.header {
+  gap: 24px;
+  margin-bottom: 32px;
+}
+
+.heading {
+  font-family: var(--font-display);
+  font-size: clamp(34px, 4vw, 48px);
+  font-weight: 600;
+  line-height: 1.08;
+  letter-spacing: -0.035em;
+}
+
+.description {
+  max-width: 42em;
+  color: var(--ink-muted);
+  font-size: 17px;
+  line-height: 1.47;
+  letter-spacing: -0.022em;
+}
+
+.state {
+  padding: 32px;
+  border-style: solid;
+  border-color: var(--divider);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.stateTitle {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.022em;
+}
+
+.sectionHead h3 {
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.022em;
+  text-transform: none;
+}
+
+.primary,
+.ghost {
+  min-height: 36px;
+  padding: 0 18px;
+  border-radius: var(--radius-pill);
+  font-weight: 400;
+  transition: background 140ms ease, transform 100ms ease;
+}
+
+.ghost {
+  background: var(--surface);
+}
+
+.primary:active:not(:disabled),
+.ghost:active:not(:disabled) {
+  transform: scale(0.96);
+}

@@ -17,6 +17,7 @@ from sot.consensus.application import (
     ReviseProposal,
 )
 from sot.consensus.domain import (
+    DocumentEdit,
     ApprovalDecision,
     Proposal,
     ProposalCitation,
@@ -309,7 +310,7 @@ class Harness:
             WORKSPACE,
             SESSION,
             document_id=DOCUMENT,
-            content="Proposed main",
+            edits=(DocumentEdit("", "Proposed main"),),
             bundle_ids=(BUNDLE,),
             citations=(ProposalCitation(BUNDLE, 0, "main"),),
             additional_approver_ids=extras,
@@ -378,7 +379,7 @@ async def test_create_rejects_uneditable_or_wrong_scope_source(
             workspace,
             session,
             document_id=document,
-            content="Bad",
+            edits=(DocumentEdit("", "Bad"),),
             bundle_ids=(),
             citations=(),
         )
@@ -417,7 +418,7 @@ async def test_revision_resnapshots_mandatory_preserves_explicit_and_resets_appr
         WORKSPACE,
         proposal_id,
         expected_version=1,
-        content="Revised main",
+        edits=(DocumentEdit("", "Revised main"),),
         bundle_ids=(),
         citations=(),
     )
@@ -444,7 +445,7 @@ async def test_only_creator_changes_explicit_extras_and_cannot_remove_mandatory(
             WORKSPACE,
             proposal_id,
             expected_version=1,
-            content="Changed",
+            edits=(DocumentEdit("", "Changed"),),
             bundle_ids=(),
             citations=(),
             additional_approver_ids=frozenset(),
@@ -454,7 +455,7 @@ async def test_only_creator_changes_explicit_extras_and_cannot_remove_mandatory(
         WORKSPACE,
         proposal_id,
         expected_version=1,
-        content="Changed",
+        edits=(DocumentEdit("", "Changed"),),
         bundle_ids=(),
         citations=(),
         additional_approver_ids=frozenset(),
@@ -476,7 +477,7 @@ async def test_additional_approver_reads_current_proposal_and_decides_without_pr
         expected_version=1,
         decision=ApprovalDecision.APPROVE,
     )
-    assert view.current_version.content == "Proposed main"
+    assert view.current_version.edits == (DocumentEdit("", "Proposed main"),)
     assert not hasattr(view, "versions")
     assert result.approvals[0].approver_user_id == CAROL
     assert env.access.session_reads == session_reads
@@ -566,7 +567,7 @@ async def test_concurrent_revisions_only_one_expected_version_wins(
                 WORKSPACE,
                 proposal_id,
                 expected_version=1,
-                content="Revision",
+                edits=(DocumentEdit("", "Revision"),),
                 bundle_ids=(),
                 citations=(),
             )
@@ -587,7 +588,7 @@ async def test_agent_derives_source_and_advances_branch_atomically(
         workspace_id=WORKSPACE,
         branch_id=BRANCH,
         expected_branch_version=0,
-        content="Agent proposal",
+        edits=(DocumentEdit("", "Agent proposal"),),
     )
     saved = env.store.proposals[ProposalId(result.resource_id)]
     assert result.branch_version == env.store.branch_version == 1
@@ -599,7 +600,7 @@ async def test_agent_derives_source_and_advances_branch_atomically(
             workspace_id=WORKSPACE,
             branch_id=BRANCH,
             expected_branch_version=0,
-            content="Stale",
+            edits=(DocumentEdit("", "Stale"),),
         )
     assert len(env.store.proposals) == 1
 
@@ -613,7 +614,7 @@ async def test_agent_storage_failure_rolls_back_branch_advance(env: Harness) -> 
             workspace_id=WORKSPACE,
             branch_id=BRANCH,
             expected_branch_version=0,
-            content="Failed",
+            edits=(DocumentEdit("", "Failed"),),
         )
     assert env.store.branch_version == 0
     assert env.store.proposals == {}
@@ -628,7 +629,7 @@ async def test_detached_agent_branch_cannot_create_proposal(env: Harness) -> Non
             workspace_id=WORKSPACE,
             branch_id=BRANCH,
             expected_branch_version=0,
-            content="Detached",
+            edits=(DocumentEdit("", "Detached"),),
         )
     assert env.store.proposals == {}
     assert env.store.branch_version == 0
@@ -646,7 +647,7 @@ async def test_wrong_workspace_hides_proposal_from_all_commands(env: Harness) ->
             other,
             proposal_id,
             expected_version=1,
-            content="Bad",
+            edits=(DocumentEdit("", "Bad"),),
             bundle_ids=(),
             citations=(),
         )
@@ -671,7 +672,7 @@ async def test_reader_capability_joins_callers_transaction(env: Harness) -> None
             workspace_id=WORKSPACE,
             proposal_id=proposal_id,
         )
-        assert view.current_version.content == "Proposed main"
+        assert view.current_version.edits == (DocumentEdit("", "Proposed main"),)
         assert env.store.transactions == 2
 
 
@@ -684,7 +685,7 @@ async def test_racing_revision_invalidates_old_version_decision(env: Harness) ->
             WORKSPACE,
             proposal_id,
             expected_version=1,
-            content="Next",
+            edits=(DocumentEdit("", "Next"),),
             bundle_ids=(),
             citations=(),
         ),
@@ -744,7 +745,7 @@ async def test_failed_decision_and_revision_leave_saved_version_unchanged(
             WORKSPACE,
             proposal_id,
             expected_version=1,
-            content="Failed",
+            edits=(DocumentEdit("", "Failed"),),
             bundle_ids=(),
             citations=(),
         )
@@ -761,7 +762,7 @@ async def test_prior_explicit_approver_loses_access_after_removal_in_revision(
         WORKSPACE,
         proposal_id,
         expected_version=1,
-        content="Next",
+        edits=(DocumentEdit("", "Next"),),
         bundle_ids=(),
         citations=(),
         additional_approver_ids=frozenset(),
@@ -810,7 +811,7 @@ async def test_hidden_and_absent_proposals_have_identical_safe_errors(
                     WORKSPACE,
                     target,
                     expected_version=999,
-                    content="Must not be saved",
+                    edits=(DocumentEdit("", "Must not be saved"),),
                     bundle_ids=(BUNDLE,),
                     citations=(),
                 )
@@ -845,7 +846,7 @@ async def test_known_source_viewer_permission_error_remains_forbidden(
             WORKSPACE,
             proposal_id,
             expected_version=1,
-            content="Cannot edit",
+            edits=(DocumentEdit("", "Cannot edit"),),
             bundle_ids=(),
             citations=(),
         )
@@ -882,7 +883,7 @@ async def test_workspace_forbidden_is_not_normalized_to_proposal_not_found(
                 WORKSPACE,
                 proposal_id,
                 expected_version=1,
-                content="Denied",
+                edits=(DocumentEdit("", "Denied"),),
                 bundle_ids=(),
                 citations=(),
             )
@@ -945,7 +946,7 @@ async def test_revision_reuses_authorized_source_and_recomputes_approvers(
                 WORKSPACE,
                 proposal_id,
                 expected_version=1,
-                content="Must roll back",
+                edits=(DocumentEdit("", "Must roll back"),),
                 bundle_ids=(),
                 citations=(),
             )
@@ -956,7 +957,7 @@ async def test_revision_reuses_authorized_source_and_recomputes_approvers(
             WORKSPACE,
             proposal_id,
             expected_version=1,
-            content="Authorized revision",
+            edits=(DocumentEdit("", "Authorized revision"),),
             bundle_ids=(),
             citations=(),
         )
@@ -976,7 +977,7 @@ async def test_create_freezes_explicit_citations_in_supplied_order(
         WORKSPACE,
         SESSION,
         document_id=DOCUMENT,
-        content="Proposed main",
+        edits=(DocumentEdit("", "Proposed main"),),
         bundle_ids=(BUNDLE,),
         citations=(
             ProposalCitation(BUNDLE, 1, "main"),
@@ -1013,7 +1014,7 @@ async def test_invalid_citation_leaves_saved_versions_unchanged(
                 WORKSPACE,
                 SESSION,
                 document_id=DOCUMENT,
-                content="Proposed main",
+                edits=(DocumentEdit("", "Proposed main"),),
                 bundle_ids=(BUNDLE,),
                 citations=citations,
             )
@@ -1023,7 +1024,7 @@ async def test_invalid_citation_leaves_saved_versions_unchanged(
                 WORKSPACE,
                 proposal_id,
                 expected_version=1,
-                content="Proposed main",
+                edits=(DocumentEdit("", "Proposed main"),),
                 bundle_ids=(BUNDLE,),
                 citations=citations,
             )
@@ -1042,7 +1043,7 @@ async def test_revision_explicitly_replaces_citations_without_carrying_old_set(
         WORKSPACE,
         proposal_id,
         expected_version=1,
-        content="Another main",
+        edits=(DocumentEdit("", "Another main"),),
         bundle_ids=(BUNDLE,),
         citations=(ProposalCitation(BUNDLE, 1, "Another"),),
     )
@@ -1054,7 +1055,7 @@ async def test_revision_explicitly_replaces_citations_without_carrying_old_set(
         WORKSPACE,
         proposal_id,
         expected_version=2,
-        content="Another main",
+        edits=(DocumentEdit("", "Another main"),),
         bundle_ids=(BUNDLE,),
         citations=(),
     )
@@ -1076,7 +1077,7 @@ async def test_revision_revalidates_access_to_previously_cited_bundle(
             WORKSPACE,
             proposal_id,
             expected_version=1,
-            content="Proposed main",
+            edits=(DocumentEdit("", "Proposed main"),),
             bundle_ids=(BUNDLE,),
             citations=(ProposalCitation(BUNDLE, 0, "main"),),
         )
@@ -1122,7 +1123,7 @@ async def test_revision_normalizes_absent_and_private_proposals_with_real_author
                 WORKSPACE,
                 candidate,
                 expected_version=1,
-                content="private revision",
+                edits=(DocumentEdit("", "private revision"),),
                 bundle_ids=(),
                 citations=(),
             )

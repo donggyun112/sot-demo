@@ -14,6 +14,7 @@ from sot.session.domain import (
     EditTurn,
     ForkOrigin,
     JoinTurns,
+    RestoreTurn,
     Session,
     SessionMember,
     SessionMemberAlreadyExists,
@@ -310,6 +311,8 @@ class PostgresSessionRepository:
             operation: CurationOperation
             if row[3] == "drop":
                 operation = DropTurn(row[4][0])
+            elif row[3] == "restore":
+                operation = RestoreTurn(row[4][0])
             elif row[3] == "edit":
                 operation = EditTurn(row[4][0], row[5])
             else:
@@ -329,6 +332,9 @@ class PostgresSessionRepository:
         content: str | None
         if isinstance(operation, DropTurn):
             kind, ids, content = "drop", (operation.turn_id,), None
+        elif isinstance(operation, RestoreTurn):
+            # No content: a restore reinstates the turn's own wording.
+            kind, ids, content = "restore", (operation.turn_id,), None
         elif isinstance(operation, EditTurn):
             kind, ids, content = "edit", (operation.turn_id,), operation.content
         else:

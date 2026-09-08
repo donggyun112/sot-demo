@@ -22,3 +22,6 @@ class WorkspaceRepository(Protocol):
     async def list_for_user(
         self, tx: TransactionContext, user_id: UserId
     ) -> tuple[Workspace, ...]: ...
+    async def list_members(
+        self, tx: TransactionContext, workspace_id: WorkspaceId
+    ) -> tuple[WorkspaceMembership, ...]: ...

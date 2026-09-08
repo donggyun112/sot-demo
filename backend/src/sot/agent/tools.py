@@ -3,6 +3,7 @@ from typing import Literal, TypedDict
 from pydantic_ai import RunContext
 
 from sot.agent.deps import AgentDeps
+from sot.consensus.contracts import DocumentEdit
 from sot.session.contracts import TurnId
 
 
@@ -34,15 +35,28 @@ async def session_cite(
     return {"citeId": str(result.resource_id), "branchVersion": result.branch_version}
 
 
-async def sot_update(ctx: RunContext[AgentDeps], content: str) -> SOTUpdateResult:
-    """Create an open proposal for shared SOT content without publishing main."""
+class DocumentEditInput(TypedDict):
+    find: str
+    replace: str
+
+
+async def sot_update(
+    ctx: RunContext[AgentDeps], edits: list[DocumentEditInput]
+) -> SOTUpdateResult:
+    """Propose edits to the shared document. Cannot publish main.
+
+    Each edit replaces `find` with `replace`. `find` must appear exactly once
+    in the current document, so include enough surrounding text to name one
+    place; use an empty `find` to append a new section. Change only what the
+    decision changes.
+    """
     deps = ctx.deps
     result = await deps.proposal_creator.create_from_agent(
         actor=deps.actor,
         workspace_id=deps.workspace_id,
         branch_id=deps.branch_id,
         expected_branch_version=deps.lineage.expected_version,
-        content=content,
+        edits=tuple(DocumentEdit(e["find"], e["replace"]) for e in edits),
     )
     deps.lineage.advance_to(result.branch_version)
     return {

@@ -4,9 +4,9 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Path, Request
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, StringConstraints
 
-from sot.document.application import GetDocument, GetRevision, ListDocuments
+from sot.document.application import CreateDocument, GetDocument, GetRevision, ListDocuments
 from sot.document.contracts import DocumentSummary, DocumentView, RevisionView
 from sot.identity.contracts import Actor
 from sot.shared.ids import DocumentId, WorkspaceId
@@ -72,6 +72,14 @@ class RevisionResponse(BaseModel):
         )
 
 
+class CreateDocumentRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    title: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)
+    ]
+    content: str = ""
+
+
 class DocumentResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
     document: DocumentSummaryResponse
@@ -86,12 +94,30 @@ class DocumentResponse(BaseModel):
 
 
 def build_document_router(
+    create_document: CreateDocument,
     get_document: GetDocument,
     get_revision: GetRevision,
     list_documents: ListDocuments,
     actor: Callable[[Request], Awaitable[Actor]],
 ) -> APIRouter:
     router = APIRouter(prefix="/api/v1/workspaces/{workspace_id}/documents")
+
+    @router.post("", status_code=201, operation_id="create_workspace_document")
+    async def create(
+        workspace_id: UUID,
+        body: CreateDocumentRequest,
+        current: Annotated[Actor, Depends(actor)],
+    ) -> DocumentResponse:
+        result = await create_document.execute(
+            current,
+            WorkspaceId(workspace_id),
+            title=body.title,
+            content=body.content,
+        )
+        return DocumentResponse(
+            document=DocumentSummaryResponse.from_summary(result.document),
+            current_revision=RevisionResponse.from_revision(result.revision),
+        )
 
     @router.get("", operation_id="list_workspace_documents")
     async def list_for_workspace(

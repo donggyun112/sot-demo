@@ -14,6 +14,24 @@ type RaceWindow = {
 };
 const api = "http://127.0.0.1:18001/api/v1";
 
+/**
+ * Credentials must never reach web storage. The app is allowed to keep two UI
+ * preferences there (`sot.locale`, `sot.workspace`), so assert on content, not
+ * on the store being empty.
+ */
+export async function webStorage(page: import("@playwright/test").Page) {
+  return page.evaluate(() => {
+    const allowed = ["sot.locale", "sot.workspace"];
+    const entries = Object.entries({ ...localStorage });
+    return {
+      session: Object.keys(sessionStorage),
+      credentials: entries
+        .filter(([key, value]) => !allowed.includes(key) || /token|bearer/i.test(value))
+        .map(([key]) => key),
+    };
+  });
+}
+
 for (const operation of ["refresh", "logout", "recovery"] as const) {
   test(`delayed ${operation} headers cannot replace a newer login cookie after reload`, async ({ page }) => {
     // A narrow real-browser AuthSession regression, not a second product journey.
@@ -81,7 +99,8 @@ for (const operation of ["refresh", "logout", "recovery"] as const) {
     const body = await response.json() as components["schemas"]["AuthResponse"];
     expect(body.user.display_name).toBe("Bob");
     expect(before.filter((path) => path === "google")).toHaveLength(1);
-    await expect(page.getByRole("combobox", { name: "Workspace", exact: true })).toBeVisible();
-    expect(await page.evaluate(() => [localStorage.length, sessionStorage.length])).toEqual([0, 0]);
+    // Signed-in chrome names the user; the workspace switcher is a menu button.
+    await expect(page.getByRole("link", { name: "Bob", exact: true })).toBeVisible();
+    expect(await webStorage(page)).toEqual({ session: [], credentials: [] });
   });
 }

@@ -311,3 +311,40 @@ async def test_curation_enforces_private_editor_permission_before_content(
             )
         assert "curation_content" not in store.reads
         assert "branch_content" not in store.reads
+
+
+def test_restore_puts_a_dropped_turn_back_where_it_was_with_its_own_content() -> None:
+    branch = source_branch()
+    projection = domain.CurationProjection.from_turns(branch.turns)
+    projection.apply(domain.EditTurn(branch.turns[1].id, "public wording"))
+    projection.apply(domain.DropTurn(branch.turns[0].id))
+    assert [i.source_ids for i in projection.items] == [
+        (branch.turns[1].id,),
+        (branch.turns[2].id,),
+    ]
+
+    projection.apply(domain.RestoreTurn(branch.turns[0].id))
+    # Back at its own position, carrying the ORIGINAL wording: a restore never
+    # takes content from the caller, and never disturbs a later edit.
+    assert [(i.source_ids, i.content, i.provenance) for i in projection.items] == [
+        ((branch.turns[0].id,), "question", "copied"),
+        ((branch.turns[1].id,), "public wording", "edited"),
+        ((branch.turns[2].id,), "third", "copied"),
+    ]
+
+
+def test_restore_rejects_a_turn_that_is_already_in_the_bundle() -> None:
+    branch = source_branch()
+    projection = domain.CurationProjection.from_turns(branch.turns)
+    with pytest.raises(InvalidInput) as caught:
+        projection.apply(domain.RestoreTurn(branch.turns[0].id))
+    assert caught.value.code == "curation_turn_present"
+
+
+def test_restore_rejects_a_turn_that_was_never_in_the_conversation() -> None:
+    branch = source_branch()
+    projection = domain.CurationProjection.from_turns(branch.turns)
+    with pytest.raises(InvalidInput) as caught:
+        # A tool turn is never projected, so it cannot be restored into one.
+        projection.apply(domain.RestoreTurn(branch.turns[3].id))
+    assert caught.value.code == "curation_turn_not_found"

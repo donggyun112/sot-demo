@@ -73,7 +73,8 @@ async def test_published_revision_survives_repository_reconnect(
         assert response.status_code == 200
         revision = response.json()["current_revision"]
         assert revision["number"] == 2
-        assert revision["content"] == "First claim. Second claim."
+        # The proposal appended, so the base revision survives the merge.
+        assert revision["content"] == "initial\n\nFirst claim. Second claim."
         assert revision["proposal_id"] == str(proposal_id)
         assert revision["citations"] == [
             {

@@ -21,6 +21,7 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 from sot.agent.deps import AgentDeps, BranchLineage
 from sot.agent.models import build_agent
 from sot.agent.tools import session_cite, sot_update
+from sot.consensus.contracts import DocumentEdit
 from sot.identity.contracts import Actor
 from sot.session.contracts import BranchMutationResult, TurnId
 from sot.session.domain import VersionConflict
@@ -68,7 +69,7 @@ class RecordingProposalCreator:
         workspace_id: WorkspaceId,
         branch_id: BranchId,
         expected_branch_version: int,
-        content: str,
+        edits: tuple[DocumentEdit, ...],
     ) -> BranchMutationResult:
         self.calls.append(
             {
@@ -76,7 +77,7 @@ class RecordingProposalCreator:
                 "workspace_id": workspace_id,
                 "branch_id": branch_id,
                 "expected_branch_version": expected_branch_version,
-                "content": content,
+                "edits": edits,
             }
         )
         if self.failure is not None:
@@ -139,7 +140,7 @@ async def test_sot_update_returns_open_proposal_and_advances_lineage() -> None:
     creator = RecordingProposalCreator(BranchMutationResult(proposal_id, 5))
     deps = agent_deps(proposal_creator=creator)
 
-    result = await sot_update(tool_context(deps), "candidate main")
+    result = await sot_update(tool_context(deps), [{"find": "", "replace": "candidate main"}])
 
     assert result == {
         "proposalId": str(proposal_id),
@@ -153,7 +154,7 @@ async def test_sot_update_returns_open_proposal_and_advances_lineage() -> None:
             "workspace_id": deps.workspace_id,
             "branch_id": deps.branch_id,
             "expected_branch_version": 4,
-            "content": "candidate main",
+            "edits": (DocumentEdit("", "candidate main"),),
         }
     ]
 
@@ -166,7 +167,7 @@ async def test_failed_tool_command_does_not_advance_lineage() -> None:
     deps = agent_deps(proposal_creator=creator)
 
     with pytest.raises(VersionConflict):
-        await sot_update(tool_context(deps), "loser proposal")
+        await sot_update(tool_context(deps), [{"find": "", "replace": "loser proposal"}])
 
     assert deps.lineage.expected_version == 4
 
@@ -186,7 +187,7 @@ async def test_agent_tools_expose_only_product_inputs() -> None:
     }
     assert set(schemas) == {"session_cite", "sot_update"}
     assert set(schemas["session_cite"]["properties"]) == {"turn_ids", "summary"}
-    assert set(schemas["sot_update"]["properties"]) == {"content"}
+    assert set(schemas["sot_update"]["properties"]) == {"edits"}
     assert all(schema["additionalProperties"] is False for schema in schemas.values())
     assert not {
         "actor",

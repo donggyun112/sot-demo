@@ -33,6 +33,7 @@ from sot.consensus.application import (
 from sot.consensus.postgres import PostgresProposalRepository
 from sot.document.api import build_document_router
 from sot.document.application import (
+    CreateDocument,
     DocumentAccess,
     DocumentPublicationAccess,
     GetDocument,
@@ -46,11 +47,11 @@ from sot.identity.application import AuthFacade
 from sot.identity.contracts import Actor
 from sot.identity.postgres import PostgresIdentityRepository
 from sot.identity.providers.base import AuthProvider, GoogleTokenVerifier
-from sot.identity.providers.local import LocalSkipAdapter
 from sot.identity.providers.google import (
     GoogleAuthAdapter,
     ProductionGoogleTokenVerifier,
 )
+from sot.identity.providers.local import LocalSkipAdapter
 from sot.identity.tokens import SOTAccessTokenCodec
 from sot.session.api import build_session_router
 from sot.session.application import (
@@ -91,6 +92,7 @@ from sot.workspace.application import (
     GetCurrentWorkspaceMember,
     GetWorkspace,
     ListActorWorkspaces,
+    ListWorkspaceMembers,
     WorkspaceAccess,
 )
 from sot.workspace.postgres import PostgresWorkspaceRepository
@@ -197,6 +199,7 @@ def build_app(
             ListActorWorkspaces(workspace, uow_factory),
             GetWorkspace(workspace, access, uow_factory),
             GetCurrentWorkspaceMember(access, uow_factory),
+            ListWorkspaceMembers(workspace, access, identity, uow_factory),
             actor,
         )
     )
@@ -209,6 +212,7 @@ def build_app(
     curation = ApplyCuration(sessions, sessions, branch_access, uow_factory, clock)
     application.include_router(
         build_document_router(
+            CreateDocument(documents, access, uow_factory, clock),
             GetDocument(document_access, uow_factory),
             GetRevision(documents, access, uow_factory),
             ListDocuments(documents, access, uow_factory),

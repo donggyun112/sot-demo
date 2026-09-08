@@ -15,7 +15,13 @@ from sot.consensus.application import (
     ReviseProposal,
 )
 from sot.consensus.contracts import MergeProposalResult, ProposalView
-from sot.consensus.domain import ApprovalDecision, ProposalCitation, ProposalStatus
+from sot.consensus.domain import (
+    PROPOSAL_CONTENT_LIMIT,
+    ApprovalDecision,
+    DocumentEdit,
+    ProposalCitation,
+    ProposalStatus,
+)
 from sot.document.contracts import RevisionResult
 from sot.identity.contracts import Actor
 from sot.shared.ids import (
@@ -40,10 +46,21 @@ class CitationRequest(BaseModel):
         )
 
 
+class DocumentEditRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    # An empty `find` appends; anything else must name exactly one place in
+    # the document, which the domain checks against the base revision.
+    find: StrictStr = ""
+    replace: Annotated[StrictStr, Field(max_length=PROPOSAL_CONTENT_LIMIT)]
+
+    def to_edit(self) -> DocumentEdit:
+        return DocumentEdit(self.find, self.replace)
+
+
 class CreateProposalRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     source_session_id: UUID
-    content: Annotated[StrictStr, Field(min_length=1)]
+    edits: Annotated[list[DocumentEditRequest], Field(min_length=1)]
     bundle_ids: list[UUID] = Field(default_factory=list)
     citations: list[CitationRequest]
     additional_approver_ids: list[UUID] = Field(default_factory=list)
@@ -52,7 +69,7 @@ class CreateProposalRequest(BaseModel):
 class ReviseProposalRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     expected_version: Annotated[StrictInt, Field(ge=1)]
-    content: Annotated[StrictStr, Field(min_length=1)]
+    edits: Annotated[list[DocumentEditRequest], Field(min_length=1)]
     bundle_ids: list[UUID]
     citations: list[CitationRequest]
     additional_approver_ids: list[UUID] | None = None
@@ -85,12 +102,18 @@ class ApprovalResponse(BaseModel):
     decided_at: datetime
 
 
+class DocumentEditResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    find: str
+    replace: str
+
+
 class ProposalVersionResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
     proposal_id: UUID
     version: int
     base_revision_id: UUID
-    content: str
+    edits: tuple[DocumentEditResponse, ...]
     required_approver_ids: tuple[UUID, ...]
     bundle_ids: tuple[UUID, ...]
     created_by: UUID
@@ -128,7 +151,10 @@ class ProposalResponse(BaseModel):
                 proposal_id=v.proposal_id,
                 version=v.version,
                 base_revision_id=v.base_revision_id,
-                content=v.content,
+                edits=tuple(
+                    DocumentEditResponse(find=e.find, replace=e.replace)
+                    for e in v.edits
+                ),
                 required_approver_ids=tuple(sorted(v.required_approver_ids, key=str)),
                 bundle_ids=v.bundle_ids,
                 created_by=v.created_by,
@@ -275,7 +301,7 @@ def build_consensus_router(
                 WorkspaceId(workspace_id),
                 SessionId(body.source_session_id),
                 document_id=DocumentId(document_id),
-                content=body.content,
+                edits=tuple(edit.to_edit() for edit in body.edits),
                 bundle_ids=tuple(BundleId(value) for value in body.bundle_ids),
                 citations=tuple(value.to_citation() for value in body.citations),
                 additional_approver_ids=frozenset(
@@ -307,7 +333,7 @@ def build_consensus_router(
                 WorkspaceId(workspace_id),
                 ProposalId(proposal_id),
                 expected_version=body.expected_version,
-                content=body.content,
+                edits=tuple(edit.to_edit() for edit in body.edits),
                 bundle_ids=tuple(BundleId(value) for value in body.bundle_ids),
                 citations=tuple(value.to_citation() for value in body.citations),
                 additional_approver_ids=frozenset(

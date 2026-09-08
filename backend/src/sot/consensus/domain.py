@@ -15,6 +15,12 @@ from sot.shared.ids import (
     WorkspaceId,
 )
 
+# A proposal is read as a diff by every required approver before it can merge.
+# Past a couple of screens that review stops happening, so the agent cannot
+# grow one without bound. Every create/revise path builds a ProposalVersion,
+# so this is the only place the cap has to be enforced.
+PROPOSAL_CONTENT_LIMIT = 4000
+
 
 class ProposalStatus(StrEnum):
     OPEN = "open"
@@ -53,11 +59,31 @@ class ProposalCitation:
 
 
 @dataclass(frozen=True, slots=True)
+class DocumentEdit:
+    """One anchored replacement against the base revision.
+
+    `find` must occur exactly once in the document, so an edit names the place
+    it changes instead of trusting a line number that the next merge moves. An
+    empty `find` appends `replace` at the end, which is how the first section
+    lands in a document that has nothing to anchor to yet.
+    """
+
+    find: str
+    replace: str
+
+    def __post_init__(self) -> None:
+        if self.find == self.replace:
+            raise InvalidInput("proposal_edit_invalid", "Edit changes nothing")
+        if not self.find and not self.replace.strip():
+            raise InvalidInput("proposal_edit_invalid", "Edit adds nothing")
+
+
+@dataclass(frozen=True, slots=True)
 class ProposalVersion:
     proposal_id: ProposalId
     version: int
     base_revision_id: UUID
-    content: str
+    edits: tuple[DocumentEdit, ...]
     required_approver_ids: frozenset[UserId]
     bundle_ids: tuple[BundleId, ...]
     created_by: UserId
@@ -65,20 +91,52 @@ class ProposalVersion:
     citations: tuple[ProposalCitation, ...]
     additional_approver_ids: frozenset[UserId] = frozenset()
 
+    @property
+    def added(self) -> str:
+        """Everything this version puts into the document, for review limits."""
+        return "\n".join(edit.replace for edit in self.edits)
+
+    def apply(self, base: str) -> str:
+        """The document as it would read if this version merged."""
+        text = base
+        for edit in self.edits:
+            if not edit.find:
+                text = f"{text.rstrip()}\n\n{edit.replace}" if text.strip() else edit.replace
+                continue
+            found = text.count(edit.find)
+            if found == 0:
+                raise InvalidInput(
+                    "proposal_edit_not_found",
+                    "The text this edit replaces is not in the document",
+                )
+            if found > 1:
+                raise InvalidInput(
+                    "proposal_edit_ambiguous",
+                    "The text this edit replaces appears more than once; "
+                    "include enough surrounding text to name one place",
+                )
+            text = text.replace(edit.find, edit.replace, 1)
+        return text
+
     def __post_init__(self) -> None:
-        if (
-            self.version < 1
-            or not self.content.strip()
-            or not self.required_approver_ids
-        ):
+        if self.version < 1 or not self.edits or not self.required_approver_ids:
             raise InvalidInput(
                 "proposal_version_invalid", "Proposal version is invalid"
             )
+        if len(self.added) > PROPOSAL_CONTENT_LIMIT:
+            raise InvalidInput(
+                "proposal_content_too_long",
+                f"Proposal content is {len(self.added)} characters; "
+                f"keep it within {PROPOSAL_CONTENT_LIMIT} so approvers can review it",
+            )
         if len(set(self.bundle_ids)) != len(self.bundle_ids):
             raise InvalidInput("proposal_bundles_invalid", "Duplicate proposal bundles")
+        # A citation stands behind text this version ADDS. Anchoring it to
+        # untouched document text would let a proposal claim evidence for
+        # something it never wrote.
         if len(set(self.citations)) != len(self.citations) or any(
             citation.bundle_id not in self.bundle_ids
-            or citation.claim_anchor not in self.content
+            or not any(citation.claim_anchor in edit.replace for edit in self.edits)
             for citation in self.citations
         ):
             raise InvalidInput(
@@ -120,7 +178,7 @@ class Proposal:
         source_session_id: SessionId,
         created_by: UserId,
         base_revision_id: UUID,
-        content: str,
+        edits: tuple[DocumentEdit, ...],
         required_approver_ids: frozenset[UserId],
         bundle_ids: tuple[BundleId, ...],
         citations: tuple[ProposalCitation, ...],
@@ -133,7 +191,7 @@ class Proposal:
             proposal_id,
             1,
             base_revision_id,
-            content,
+            edits,
             required_approver_ids,
             bundle_ids,
             created_by,
@@ -177,7 +235,7 @@ class Proposal:
         actor_id: UserId,
         expected_version: int,
         base_revision_id: UUID,
-        content: str,
+        edits: tuple[DocumentEdit, ...],
         required_approver_ids: frozenset[UserId],
         bundle_ids: tuple[BundleId, ...],
         citations: tuple[ProposalCitation, ...],
@@ -192,7 +250,7 @@ class Proposal:
             self.id,
             self.version + 1,
             base_revision_id,
-            content,
+            edits,
             required_approver_ids,
             bundle_ids,
             actor_id,

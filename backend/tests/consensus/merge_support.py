@@ -13,7 +13,7 @@ from sot.consensus.application import (
     MergeProposal,
     ProposalSources,
 )
-from sot.consensus.domain import ApprovalDecision, ProposalCitation
+from sot.consensus.domain import ApprovalDecision, DocumentEdit, ProposalCitation
 from sot.document.application import DocumentAccess, PublishDocumentRevision
 from sot.document.contracts import DocumentView, RevisionView
 from sot.document.domain import Document, Revision, VersionConflict
@@ -215,7 +215,7 @@ class MergeHarness:
             WORKSPACE,
             SESSION,
             document_id=DOCUMENT,
-            content="Proposed main",
+            edits=(DocumentEdit("", "Proposed main"),),
             bundle_ids=(BUNDLE,),
             citations=(
                 ProposalCitation(BUNDLE, 1, "main"),

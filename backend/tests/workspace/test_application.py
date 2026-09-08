@@ -7,7 +7,7 @@ from uuid import uuid4
 
 import pytest
 
-from sot.identity.contracts import Actor
+from sot.identity.contracts import Actor, IdentityAttribution
 from sot.shared.ids import UserId, WorkspaceId
 from sot.shared.unit_of_work import TransactionContext
 from sot.workspace.application import (
@@ -15,6 +15,7 @@ from sot.workspace.application import (
     CreateWorkspace,
     GetWorkspace,
     ListActorWorkspaces,
+    ListWorkspaceMembers,
     WorkspaceAccess,
 )
 from sot.workspace.domain import (
@@ -36,6 +37,7 @@ class MemoryStore:
     active: object | None = None
     transactions: int = 0
     fail_member: bool = False
+    display_names: dict[UserId, str] = field(default_factory=dict)
 
     def check(self, tx: TransactionContext) -> None:
         assert self.active is tx
@@ -89,9 +91,45 @@ class MemoryStore:
             w for w in self.workspaces.values() if (w.id, user_id) in self.members
         )
 
+    async def list_members(
+        self, tx: TransactionContext, workspace_id: WorkspaceId
+    ) -> tuple[WorkspaceMembership, ...]:
+        self.check(tx)
+        return tuple(
+            member
+            for (member_workspace, _), member in self.members.items()
+            if member_workspace == workspace_id
+        )
+
     async def require_actor(self, tx: TransactionContext, user_id: UserId) -> Actor:
         self.check(tx)
         return Actor(user_id)
+
+    async def require_attribution(
+        self, tx: TransactionContext, user_id: UserId
+    ) -> IdentityAttribution:
+        self.check(tx)
+        return IdentityAttribution(self.display_names.get(user_id, "Unnamed"))
+
+
+@pytest.mark.asyncio
+async def test_members_are_listed_with_names_to_members_only() -> None:
+    store = MemoryStore()
+    owner, viewer, outsider = (Actor(UserId(uuid4())) for _ in range(3))
+    store.display_names = {owner.user_id: "Alice", viewer.user_id: "Bob"}
+    workspace = await CreateWorkspace(store, lambda: store).execute(owner, name="Team")
+    access = WorkspaceAccess(store)
+    await AddWorkspaceMember(store, access, store, lambda: store).execute(
+        owner, workspace.id, user_id=viewer.user_id, role=WorkspaceRole.VIEWER
+    )
+    listing = ListWorkspaceMembers(store, access, store, lambda: store)
+    # A viewer sees the roster too: names are what replace raw ids in the UI.
+    assert {
+        (profile.display_name, profile.membership.role)
+        for profile in await listing.execute(viewer, workspace.id)
+    } == {("Alice", WorkspaceRole.OWNER), ("Bob", WorkspaceRole.VIEWER)}
+    with pytest.raises(WorkspaceForbidden):
+        await listing.execute(outsider, workspace.id)
 
 
 @pytest.mark.asyncio

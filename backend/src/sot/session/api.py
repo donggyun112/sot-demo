@@ -30,6 +30,7 @@ from sot.session.domain import (
     DropTurn,
     EditTurn,
     JoinTurns,
+    RestoreTurn,
     SessionStatus,
 )
 from sot.shared.ids import BranchId, DocumentId, SessionId, WorkspaceId
@@ -68,11 +69,20 @@ class JoinTurnsRequest(BaseModel):
         return JoinTurns(self.turn_ids, self.content)
 
 
+class RestoreTurnRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["restore"]
+    turn_id: UUID
+
+    def to_operation(self) -> RestoreTurn:
+        return RestoreTurn(self.turn_id)
+
+
 class CurationRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     expected_version: Annotated[int, Field(ge=0, strict=True)]
     operation: Annotated[
-        DropTurnRequest | EditTurnRequest | JoinTurnsRequest,
+        DropTurnRequest | EditTurnRequest | JoinTurnsRequest | RestoreTurnRequest,
         Field(discriminator="kind"),
     ]
 

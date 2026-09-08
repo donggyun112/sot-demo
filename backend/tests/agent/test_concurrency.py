@@ -28,6 +28,7 @@ from sot.session.application import (
     VersionGuard,
 )
 from sot.session.contracts import NewTurn
+from sot.consensus.contracts import DocumentEdit
 from sot.session.domain import JoinTurns
 from sot.shared.ids import BranchId, ProposalId, WorkspaceId
 from sot.shared.unit_of_work import TransactionContext
@@ -205,7 +206,7 @@ async def test_tools_advance_one_lineage_before_final_transcript_commit() -> Non
             ),
             1: DeltaToolCall(
                 "sot_update",
-                json.dumps({"content": "winner proposal"}),
+                json.dumps({"edits": [{"find": "", "replace": "winner proposal"}]}),
                 tool_call_id="proposal-1",
             ),
         }
@@ -225,7 +226,7 @@ async def test_tools_advance_one_lineage_before_final_transcript_commit() -> Non
     assert isinstance(operation, JoinTurns)
     assert operation.content == "public rationale"
     proposal = next(iter(harness.store.proposals.values()))
-    assert proposal.current_version.content == "winner proposal"
+    assert proposal.current_version.edits == (DocumentEdit("", "winner proposal"),)
     assert proposal.status is ProposalStatus.OPEN
 
     completed = branch.turns[-6:]
@@ -299,7 +300,7 @@ async def test_competing_run_emits_version_conflict_without_failed_side_effect()
         yield {
             0: DeltaToolCall(
                 "sot_update",
-                json.dumps({"content": "loser proposal"}),
+                json.dumps({"edits": [{"find": "", "replace": "loser proposal"}]}),
                 tool_call_id="loser-proposal",
             )
         }
@@ -321,6 +322,6 @@ async def test_competing_run_emits_version_conflict_without_failed_side_effect()
     assert harness.store.operations == committed_operations
     assert harness.store.proposals == committed_proposals
     assert all(
-        proposal.current_version.content != "loser proposal"
+        proposal.current_version.edits != (DocumentEdit("", "loser proposal"),)
         for proposal in harness.store.proposals.values()
     )

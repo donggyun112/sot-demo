@@ -7,6 +7,7 @@ from sot.consensus.domain import (
     Approval,
     ApprovalDecision,
     Proposal,
+    DocumentEdit,
     ProposalCitation,
     ProposalNotFound,
     ProposalStatus,
@@ -74,7 +75,13 @@ class PostgresProposalRepository:
         scope = (workspace_id, proposal_id, row[6])
         versions = await (
             await conn.execute(
-                "SELECT proposal_version,base_revision_id,content,created_by,created_at FROM sot.sot_proposal_version WHERE workspace_id=%s AND proposal_id=%s AND proposal_version<=%s ORDER BY proposal_version",
+                "SELECT proposal_version,base_revision_id,created_by,created_at FROM sot.sot_proposal_version WHERE workspace_id=%s AND proposal_id=%s AND proposal_version<=%s ORDER BY proposal_version",
+                scope,
+            )
+        ).fetchall()
+        edits = await (
+            await conn.execute(
+                "SELECT proposal_version,find,replace FROM sot.sot_proposal_edit WHERE workspace_id=%s AND proposal_id=%s AND proposal_version<=%s ORDER BY proposal_version,position",
                 scope,
             )
         ).fetchall()
@@ -114,11 +121,11 @@ class PostgresProposalRepository:
                     proposal_id,
                     v[0],
                     v[1],
-                    v[2],
+                    tuple(DocumentEdit(e[1], e[2]) for e in edits if e[0] == v[0]),
                     frozenset(UserId(a[1]) for a in approvers if a[0] == v[0]),
                     tuple(BundleId(b[1]) for b in bundles if b[0] == v[0]),
-                    UserId(v[3]),
-                    v[4],
+                    UserId(v[2]),
+                    v[3],
                     tuple(
                         ProposalCitation(BundleId(c[1]), c[2], c[3])
                         for c in citations
@@ -176,12 +183,11 @@ class PostgresProposalRepository:
             scope = (proposal.workspace_id, proposal.id, version.version)
             inserted = await (
                 await conn.execute(
-                    "INSERT INTO sot.sot_proposal_version(workspace_id,proposal_id,proposal_version,document_id,base_revision_id,content,created_by,created_at) VALUES (%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (workspace_id,proposal_id,proposal_version) DO NOTHING RETURNING proposal_version",
+                    "INSERT INTO sot.sot_proposal_version(workspace_id,proposal_id,proposal_version,document_id,base_revision_id,created_by,created_at) VALUES (%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (workspace_id,proposal_id,proposal_version) DO NOTHING RETURNING proposal_version",
                     (
                         *scope,
                         proposal.document_id,
                         version.base_revision_id,
-                        version.content,
                         version.created_by,
                         version.created_at,
                     ),
@@ -189,6 +195,11 @@ class PostgresProposalRepository:
             ).fetchone()
             if inserted is None:
                 continue
+            for position, edit in enumerate(version.edits):
+                await conn.execute(
+                    "INSERT INTO sot.sot_proposal_edit(workspace_id,proposal_id,proposal_version,position,find,replace) VALUES (%s,%s,%s,%s,%s,%s)",
+                    (*scope, position, edit.find, edit.replace),
+                )
             for position, bundle_id in enumerate(version.bundle_ids):
                 await conn.execute(
                     "INSERT INTO sot.sot_proposal_bundle(workspace_id,proposal_id,proposal_version,position,bundle_id) VALUES (%s,%s,%s,%s,%s)",

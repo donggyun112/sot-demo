@@ -5,8 +5,10 @@ from datetime import datetime
 from typing import Protocol
 
 from sot.consensus.domain import (
+    PROPOSAL_CONTENT_LIMIT,
     Approval,
     ApprovalDecision,
+    DocumentEdit,
     ProposalCitation,
     ProposalStatus,
     ProposalVersion,
@@ -73,13 +75,15 @@ class ProposalCreator(Protocol):
         workspace_id: WorkspaceId,
         branch_id: BranchId,
         expected_branch_version: int,
-        content: str,
+        edits: tuple[DocumentEdit, ...],
     ) -> BranchMutationResult: ...
 
 
 __all__ = [
+    "PROPOSAL_CONTENT_LIMIT",
     "Approval",
     "ApprovalDecision",
+    "DocumentEdit",
     "MergeProposalResult",
     "ProposalCitation",
     "ProposalCreator",

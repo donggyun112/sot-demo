@@ -1,6 +1,7 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
+import "../i18n";
 import { AuthSession } from "../auth";
 import { member } from "../test/server";
 import { AgentChat } from "./AgentChat";
@@ -71,10 +72,11 @@ async function harness(
     sessionId: "session-1",
     turns: [],
     onSaved,
+    youLabel: "You",
   };
   const rendered = render(<AgentChat {...props} />);
   await userEvent.type(screen.getByLabelText("Agent message"), "검토해줘");
-  await userEvent.click(screen.getByRole("button", { name: "보내기" }));
+  await userEvent.click(screen.getByRole("button", { name: "Send" }));
   const emit = async (...events: object[]) =>
     act(async () => {
       for (const event of events)
@@ -210,7 +212,7 @@ it.each([
 it("stopping a stream retains partial text and input without canonical refetch", async () => {
   const h = await harness();
   await h.start();
-  await userEvent.click(screen.getByRole("button", { name: "중지" }));
+  await userEvent.click(screen.getByRole("button", { name: "Stop" }));
   await waitFor(() =>
     expect(screen.getByLabelText("Agent message")).toBeEnabled(),
   );
@@ -242,11 +244,11 @@ it("retries only resource refetch after failure and keeps completed output visib
   await h.start();
   await h.finish();
   expect(
-    await screen.findByRole("button", { name: "동기화 재시도" }),
+    await screen.findByRole("button", { name: "Retry sync" }),
   ).toBeVisible();
   expect(screen.getByText("부분 응답")).toBeVisible();
   expect(screen.getByLabelText("Agent message")).toBeDisabled();
-  await userEvent.click(screen.getByRole("button", { name: "동기화 재시도" }));
+  await userEvent.click(screen.getByRole("button", { name: "Retry sync" }));
   await waitFor(() =>
     expect(screen.getByLabelText("Agent message")).toBeEnabled(),
   );
@@ -255,6 +257,6 @@ it("retries only resource refetch after failure and keeps completed output visib
     h.requests.filter((request) => request.url.endsWith("/agent")),
   ).toHaveLength(1);
   expect(
-    screen.queryByRole("button", { name: "동기화 재시도" }),
+    screen.queryByRole("button", { name: "Retry sync" }),
   ).not.toBeInTheDocument();
 });

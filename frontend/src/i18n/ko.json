@@ -1,0 +1,217 @@
+{
+  "brand": {
+    "name": "SOT",
+    "tagline": "근거가 남는 합의"
+  },
+  "login": {
+    "edition": "작업판 · 2026",
+    "headline": "스스로 설명할 수 있는 결정을 만드세요.",
+    "deck": "SOT는 대화와 근거, 최종 기록을 한곳에 둡니다. 모든 합의가 언제든 돌아볼 수 있는 맥락을 갖게 됩니다.",
+    "index": "문서 / 세션 / 근거 / 결정",
+    "access": "워크스페이스 접속",
+    "title": "워크스페이스 들어가기",
+    "hint": "공유 기록으로 이동합니다. 작업 내용은 출처와 함께 보존됩니다.",
+    "or": "또는",
+    "footerLeft": "Source of Truth",
+    "footerRight": "책임 있는 협업을 위해",
+    "continue": "Google 없이 계속하기",
+    "failed": "로그인하지 못했습니다.",
+    "gis": "Google 로그인을 불러오지 못했습니다."
+  },
+  "workspace": {
+    "createTitle": "워크스페이스 만들기",
+    "createHint": "문서와 세션은 워크스페이스 안에 있습니다.",
+    "name": "워크스페이스 이름",
+    "submit": "만들기",
+    "switch": "워크스페이스",
+    "current": "현재",
+    "new": "워크스페이스 만들기"
+  },
+  "header": {
+    "signOut": "로그아웃",
+    "sessions": "세션",
+    "document": "문서",
+    "members": "멤버"
+  },
+  "people": {
+    "you": "나",
+    "someone": "다른 멤버",
+    "unknown": "알 수 없음"
+  },
+  "profile": {
+    "title": "프로필",
+    "role": "워크스페이스 역할",
+    "logoutAll": "모든 기기에서 로그아웃",
+    "account": "계정",
+    "userId": "사용자 ID 복사",
+    "userIdHint": "워크스페이스에 초대받으려면 이 ID를 소유자에게 전달하세요."
+  },
+  "members": {
+    "title": "멤버",
+    "hint": "소유자만 멤버를 추가할 수 있습니다.",
+    "userId": "사용자 ID",
+    "userIdHint": "상대방의 프로필에서 복사한 사용자 ID가 필요합니다.",
+    "add": "멤버 추가",
+    "added": "추가했습니다.",
+    "you": "나"
+  },
+  "proposal": {
+    "title": "제안",
+    "create": "제안 만들기",
+    "createHint": "승인자에게 문서 반영을 요청합니다.",
+    "approve": "승인",
+    "reject": "반려",
+    "merge": "문서에 반영",
+    "approvers": "필수 승인자",
+    "content": "제안 본문",
+    "additionalApprovers": "추가 승인자 ID (쉼표로 구분)",
+    "limit": "{{count}}자 / {{limit}}자",
+    "tooLong": "검토하기에 너무 깁니다. 전체 논의가 아니라 결정과 근거만 남겨 주세요.",
+    "patch": "변경 내용",
+    "citations": "근거",
+    "bundle": "근거 묶음",
+    "decisions": "결정",
+    "noDecisions": "아직 결정이 없습니다.",
+    "noCitations": "이 버전에는 근거가 없습니다.",
+    "version": "버전",
+    "notFound": "제안을 찾을 수 없거나 볼 권한이 없습니다."
+  },
+  "docs": {
+    "title": "문서",
+    "emptyTitle": "문서 없음",
+    "empty": "아직 문서가 없습니다.",
+    "open": "열기",
+    "create": "새 문서",
+    "untitled": "제목 없음",
+    "revision": "리비전 {{number}}"
+  },
+  "document": {
+    "evidence": "근거",
+    "naked": "이 문단에 연결된 근거가 없습니다.",
+    "startSession": "세션 시작",
+    "citation": "{{bundle}} · {{position}}번째",
+    "proposals": "제안",
+    "notFound": "문서를 찾을 수 없거나 볼 권한이 없습니다.",
+    "showEvidence": "근거",
+    "hide": "닫기",
+    "canonical": "정본",
+    "pending": "대기 중인 변경",
+    "noPending": "대기 중인 변경이 없습니다.",
+    "pendingCount_other": "대기 {{count}}건",
+    "startSessionHint": "AI와 함께 초안을 작성한 뒤 제안으로 올립니다."
+  },
+  "sessions": {
+    "title": "세션",
+    "empty": "인용한 근거만 문서에 반영됩니다.",
+    "emptyList": "이 문서에는 아직 세션이 없습니다.",
+    "new": "새 세션",
+    "original": "원본",
+    "noCite": "연결된 문서가 없습니다.",
+    "side": "세션",
+    "preview": "게시할 근거",
+    "previewEmpty": "아직 선별한 대화가 없습니다.",
+    "publish": "근거 게시",
+    "bundle": "공유 근거",
+    "shared": "공유됨",
+    "curation": "대화 선별",
+    "drop": "제외",
+    "dropped": "제외됨",
+    "edit": "편집",
+    "join": "병합",
+    "joinSelected": "선택한 대화 병합",
+    "saveEdit": "저장",
+    "bannerOriginal": "인용한 근거만 문서에 반영됩니다.",
+    "bannerShared": "공유된 세션입니다. 인용하기 전에는 문서에 반영되지 않습니다.",
+    "untitledSession": "제목 없는 세션",
+    "turnCount_other": "대화 {{count}}개",
+    "branch": "브랜치",
+    "branchLabel": "브랜치 {{index}}",
+    "copyId": "세션 ID 복사",
+    "noTurns": "아직 대화가 없습니다. 메시지를 보내 시작하세요.",
+    "showSide": "세션 패널",
+    "notFound": "세션을 찾을 수 없거나 볼 권한이 없습니다.",
+    "target": "반영 대상 문서",
+    "path": "문서 반영 절차",
+    "publishHint": "선별한 대화를 근거로 확정합니다.",
+    "needParticipate": "이 워크스페이스에서는 읽기만 가능합니다.",
+    "needCurated": "문서에 반영할 대화를 먼저 선별하세요.",
+    "needBundle": "근거를 먼저 게시하세요.",
+    "needDocument": "이 세션은 문서에 연결되어 있지 않습니다.",
+    "alreadyPublished": "이미 게시했습니다.",
+    "restore": "되돌리기",
+    "agentUpdates": "문서 업데이트는 에이전트가 만듭니다. 세션에서 반영을 요청하세요."
+  },
+  "toss": {
+    "title": "공유된 근거",
+    "fork": "내 워크스페이스로 가져오기",
+    "confirm": "가져오기",
+    "signIn": "가져오려면 로그인",
+    "destination": "가져갈 워크스페이스",
+    "create": "공유 링크 만들기",
+    "created": "공유 링크를 만들었습니다.",
+    "createHint": "문서에 반영하지 않고 근거만 전달합니다.",
+    "openLink": "공유 링크 열기",
+    "copyLink": "공유 링크 복사",
+    "revoke": "링크 폐기",
+    "public": "링크를 가진 사람은 누구나 볼 수 있습니다. 접근을 끊으려면 폐기하세요.",
+    "empty": "이 링크에 공유된 근거가 없습니다.",
+    "notFound": "잘못되었거나 만료된 링크입니다."
+  },
+  "common": {
+    "loading": "불러오는 중…",
+    "error": "문제가 발생했습니다.",
+    "cancel": "취소",
+    "working": "처리 중…",
+    "copied": "복사됨"
+  },
+  "nav": {
+    "sidebar": "워크스페이스 내비게이션",
+    "inbox": "받은 항목",
+    "documents": "문서",
+    "openApp": "SOT 열기",
+    "open": "메뉴",
+    "close": "메뉴 닫기"
+  },
+  "inbox": {
+    "waiting": "내 승인 대기",
+    "mine": "내가 만든 제안",
+    "emptyTitle": "대기 중인 항목 없음",
+    "empty": "내 승인이 필요한 제안이 여기에 표시됩니다."
+  },
+  "turnRole": {
+    "user": "나",
+    "assistant": "AI"
+  },
+  "proposalStatus": {
+    "open": "검토 중",
+    "approved": "승인됨",
+    "rejected": "반려됨",
+    "stale": "다시 작성 필요",
+    "merged": "반영됨"
+  },
+  "sessionStatus": {
+    "open": "진행 중",
+    "closed": "종료됨"
+  },
+  "workspaceRole": {
+    "owner": "소유자",
+    "member": "멤버",
+    "viewer": "열람자"
+  },
+  "agent": {
+    "name": "SOT 에이전트",
+    "message": "에이전트에게 보낼 메시지",
+    "placeholder": "이 세션에 이어서 작성",
+    "send": "보내기",
+    "stop": "중지",
+    "retry": "동기화 다시 시도",
+    "steps_other": "{{count}}단계",
+    "running": "응답을 생성하고 있습니다.",
+    "synced": "완료된 대화를 동기화했습니다.",
+    "syncFailed": "대화는 완료됐지만 동기화하지 못했습니다. 동기화만 다시 시도하세요.",
+    "runFailed": "모델 실행에 실패했습니다. ({{detail}})",
+    "disconnected": "응답 연결이 끊겼습니다. 입력과 받는 중이던 응답은 화면에 남아 있습니다. ({{detail}})",
+    "stopped": "중지했습니다. 받는 중이던 응답은 화면에 남아 있습니다.",
+    "requestFailed": "요청 실패"
+  }
+}

@@ -23,11 +23,21 @@ async def test_document_routes_require_bearer_authentication() -> None:
                     "message": "Authentication failed",
                 }
             }
+        created = await client.post(
+            f"/api/v1/workspaces/{uuid4()}/documents",
+            headers={"X-SOT-User": "alice"},
+            json={"title": "Policy", "content": ""},
+        )
+        assert created.status_code == 401
 
 
 def test_document_response_contracts_are_closed_explicit_models() -> None:
     schema = build_app(Settings(environment="test", models=("test",))).openapi()
     prefix = "/api/v1/workspaces/{workspace_id}/documents/{document_id}"
+    post = schema["paths"]["/api/v1/workspaces/{workspace_id}/documents"]["post"]
+    assert post["responses"]["201"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/DocumentResponse"
+    }
     for path, model in (
         (prefix, "DocumentResponse"),
         (prefix + "/revisions/{number}", "RevisionResponse"),

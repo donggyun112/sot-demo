@@ -303,7 +303,7 @@ async def test_additional_approver_sees_proposal_but_no_private_session_resource
     )
     body = {
         "source_session_id": str(s.session.id),
-        "content": "reviewable proposal",
+        "edits": [{"find": "", "replace": "reviewable proposal"}],
         "citations": [],
         "additional_approver_ids": [str(s.other.user_id)],
     }
@@ -311,7 +311,11 @@ async def test_additional_approver_sees_proposal_but_no_private_session_resource
     hidden = await api.post(
         paths(s)[5],
         headers=bearer(s.owner.user_id),
-        json={**body, "content": "hidden proposal", "additional_approver_ids": []},
+        json={
+            **body,
+            "edits": [{"find": "", "replace": "hidden proposal"}],
+            "additional_approver_ids": [],
+        },
     )
     assert visible.status_code == hidden.status_code == 201
     listed = await api.get(paths(s)[5], headers=bearer(s.other.user_id))

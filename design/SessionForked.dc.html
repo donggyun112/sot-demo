@@ -1,0 +1,176 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: oklch(0.65 0.16 255); text-decoration: none; }
+    a:hover { color: oklch(0.985 0 0); }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; background: oklch(0.18 0.005 285.823); color: oklch(0.985 0 0); font-family: Inter, 'Pretendard Variable', 'Noto Sans KR', system-ui, sans-serif; font-size: 16px; line-height: 1.5; letter-spacing: -0.05px; display: grid; grid-template-columns: 220px minmax(0, 1fr) 300px; overflow: hidden;">
+
+  <div style="background: oklch(0.21 0.006 285.885); border-right: 1px solid oklch(1 0 0 / 8%); display: flex; flex-direction: column; padding: 12px; gap: 16px; overflow: hidden;">
+    <div style="display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px; border-radius: 8px; background: oklch(0.235 0.007 285.885);">
+      <div style="width: 20px; height: 20px; border-radius: 6px; background: oklch(1 0 0 / 14%); color: oklch(0.985 0 0); font-size: 12px; font-weight: 500; display: grid; place-items: center;">D</div>
+      <span style="font-size: 14px; font-weight: 500; flex: 1;">내 워크스페이스</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 8px; border-radius: 6px; color: oklch(0.705 0.015 286.067); font-size: 14px;">
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5h12v7H6l-3 2.5v-2.5H2z"/></svg>
+      <span>Inbox</span>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 4px;">
+      <span style="font-size: 12px; font-weight: 500; letter-spacing: 0.4px; text-transform: uppercase; color: oklch(0.552 0.016 285.938); padding: 0 8px; margin-bottom: 4px;">문서</span>
+      <div style="display: flex; align-items: center; height: 28px; padding: 0 8px; border-radius: 6px; color: oklch(0.985 0 0); font-size: 14px;">우리 API 규약</div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 4px;">
+      <span style="font-size: 12px; font-weight: 500; letter-spacing: 0.4px; text-transform: uppercase; color: oklch(0.552 0.016 285.938); padding: 0 8px; margin-bottom: 4px;">세션</span>
+      <div style="display: flex; align-items: center; gap: 8px; padding: 8px 8px; border-radius: 6px; background: oklch(0.3 0.006 286.033);">
+        <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="oklch(0.65 0.16 255)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M4.5 3.5v4a2.5 2.5 0 002.5 2.5h3M10 3.5v3"/></svg>
+        <span style="font-size: 14px; color: oklch(0.985 0 0); line-height: 1.4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">레이트 리밋 (포크)</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; min-width: 0; overflow: hidden;">
+
+    <div style="height: 56px; flex-shrink: 0; border-bottom: 1px solid oklch(1 0 0 / 8%); display: flex; align-items: center; gap: 12px; padding: 0 28px;">
+      <span style="display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 8px; border-radius: 9999px; background: oklch(0.235 0.007 285.885); border: 1px solid oklch(1 0 0 / 14%); color: oklch(0.985 0 0); font-size: 12px;">
+        <svg width="10" height="10" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 3.5v4a2.5 2.5 0 002.5 2.5h3M10 3.5v3"/></svg>
+        포크한 세션
+      </span>
+      <span style="font-size: 16px; font-weight: 500; letter-spacing: -0.2px;">레이트 리밋: 슬라이딩 윈도우를 고른 이유</span>
+      <span style="display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 9999px; background: oklch(0.3 0.006 286.033); border: 1px solid oklch(1 0 0 / 8%); color: oklch(0.705 0.015 286.067); font-size: 12px;">나만 봄</span>
+    </div>
+
+    <div style="flex: 1; overflow: hidden; padding: 20px 28px 8px;">
+      <div style="max-width: 720px; display: flex; flex-direction: column; gap: 20px;">
+
+        <div style="background: oklch(0.21 0.006 285.885); border: 1px solid oklch(1 0 0 / 8%); border-radius: 10px; overflow: hidden;">
+          <div style="display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid oklch(1 0 0 / 8%);">
+            <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="oklch(0.552 0.016 285.938)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 3.5v4a2.5 2.5 0 002.5 2.5h3M10 3.5v3"/></svg>
+            <span style="font-size: 14px; color: oklch(0.705 0.015 286.067);">박준호 &middot; Platform Team 에서 받아온 대화</span>
+            <span style="font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px; color: oklch(0.552 0.016 285.938);">6턴</span>
+            <a href="#" style="margin-left: auto; font-size: 12px;">원본 보기</a>
+          </div>
+
+          <div style="padding: 16px; display: flex; flex-direction: column; gap: 12px; background: oklch(0.18 0.005 285.823);">
+            <div style="border-left: 2px solid oklch(1 0 0 / 14%); padding-left: 12px;">
+              <div style="font-size: 12px; color: oklch(0.552 0.016 285.938); margin-bottom: 4px;">박준호 &middot; 턴 1</div>
+              <div style="color: oklch(0.985 0 0); line-height: 1.7; font-size: 14px;">토큰 버킷이랑 슬라이딩 윈도우 중에 뭘 쓸지 정해야 해요.</div>
+            </div>
+            <div style="border-left: 2px solid oklch(1 0 0 / 14%); padding-left: 12px;">
+              <div style="font-size: 12px; color: oklch(0.552 0.016 285.938); margin-bottom: 4px;">SOT Agent &middot; 턴 2</div>
+              <div style="color: oklch(0.985 0 0); line-height: 1.7; font-size: 14px;">토큰 버킷은 쌓인 토큰만큼 순간 폭주를 허용하고, 슬라이딩 윈도우는 어떤 구간을 잘라도 상한을 지킵니다.</div>
+            </div>
+            <div style="text-align: center; font-size: 12px; color: oklch(0.552 0.016 285.938);">…4턴 더</div>
+          </div>
+
+          <div style="padding: 8px 16px; background: oklch(0.21 0.006 285.885); border-top: 1px solid oklch(1 0 0 / 8%); font-size: 12px; color: oklch(0.552 0.016 285.938);">받아온 부분은 바뀌지 않는다. 원본 세션도 내 대화를 보지 못한다.</div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="height: 1px; flex: 1; background: oklch(1 0 0 / 8%);"></div>
+          <span style="font-size: 12px; color: oklch(0.552 0.016 285.938);">여기서부터 내 대화</span>
+          <div style="height: 1px; flex: 1; background: oklch(1 0 0 / 8%);"></div>
+        </div>
+
+        <div style="display: flex; gap: 12px;">
+          <div style="width: 26px; height: 26px; flex-shrink: 0; border-radius: 9999px; background: oklch(1 0 0 / 14%); color: oklch(0.985 0 0); font-size: 12px; font-weight: 500; display: grid; place-items: center;">서</div>
+          <div style="min-width: 0; flex: 1;">
+            <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px;">
+              <span style="font-size: 14px; font-weight: 500; color: oklch(0.985 0 0);">나</span>
+              <span style="font-size: 12px; color: oklch(0.552 0.016 285.938);">오후 4:10</span>
+            </div>
+            <div style="color: oklch(0.985 0 0); line-height: 1.75;">우리는 결제가 없고 웹훅 수신이 제일 몰려. 이 논거가 웹훅에도 그대로 적용돼?</div>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 12px;">
+          <div style="width: 26px; height: 26px; flex-shrink: 0; border-radius: 6px; background: oklch(0.65 0.16 255); color: oklch(0.985 0 0); font-size: 12px; font-weight: 500; display: grid; place-items: center;">S</div>
+          <div style="min-width: 0; flex: 1;">
+            <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px;">
+              <span style="font-size: 14px; font-weight: 500; color: oklch(0.985 0 0);">SOT Agent</span>
+              <span style="font-size: 12px; color: oklch(0.552 0.016 285.938);">오후 4:10</span>
+            </div>
+            <div style="background: oklch(0.21 0.006 285.885); border: 1px solid oklch(0.65 0.15 145); border-radius: 10px; padding: 16px 16px;">
+              <div style="color: oklch(0.985 0 0); line-height: 1.75; margin-bottom: 12px;">받아온 대화의 전제는 &ldquo;하위 시스템이 폭주에 약하다&rdquo;입니다. 웹훅 수신은 반대입니다 &mdash; 보내는 쪽이 재시도하므로 순간 거절이 유실이 아니라 지연입니다.</div>
+              <div style="color: oklch(0.985 0 0); line-height: 1.75;">그래서 웹훅은 버스트를 <strong style="font-weight: 500;">허용</strong>하는 편이 낫습니다. 원본 결론을 그대로 가져오면 처리량을 깎게 됩니다.</div>
+              <div style="display: flex; align-items: center; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid oklch(1 0 0 / 8%);">
+                <div style="width: 16px; height: 16px; border-radius: 6px; background: oklch(0.65 0.15 145); display: grid; place-items: center;">
+                  <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="oklch(0.985 0 0)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.5l2.5 2.5 4.5-5"/></svg>
+                </div>
+                <span style="font-size: 12px; color: oklch(0.65 0.15 145);">골라둠</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="flex-shrink: 0; padding: 12px 28px 20px;">
+      <div style="max-width: 720px; border: 1px solid oklch(1 0 0 / 14%); border-radius: 10px; background: oklch(0.21 0.006 285.885); padding: 12px 16px;">
+        <div style="color: oklch(0.552 0.016 285.938); line-height: 1.6; min-height: 40px;">에이전트에게 묻는다</div>
+        <div style="display: flex; margin-top: 8px;">
+          <div style="margin-left: auto; display: flex; align-items: center; justify-content: center; height: 30px; padding: 0 16px; border-radius: 8px; background: oklch(0.65 0.16 255); color: oklch(0.985 0 0); font-size: 14px; font-weight: 500;">보내기</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="background: oklch(0.21 0.006 285.885); border-left: 1px solid oklch(1 0 0 / 8%); display: flex; flex-direction: column; overflow: hidden;">
+    <div style="height: 56px; flex-shrink: 0; border-bottom: 1px solid oklch(1 0 0 / 8%); display: flex; align-items: center; padding: 0 16px;">
+      <span style="font-size: 14px; font-weight: 500;">이 세션</span>
+    </div>
+
+    <div style="padding: 16px; display: flex; flex-direction: column; gap: 20px; overflow: hidden;">
+
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <h3 style="margin: 0; font-size: 12px; font-weight: 500; letter-spacing: 0.4px; text-transform: uppercase; color: oklch(0.552 0.016 285.938);">출처</h3>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 8px; border-radius: 9999px; background: oklch(0.235 0.007 285.885); border: 1px solid oklch(1 0 0 / 14%); font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px; color: oklch(0.985 0 0);">
+            <svg width="10" height="10" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 3.5v4a2.5 2.5 0 002.5 2.5h3M10 3.5v3"/></svg>
+            포크
+          </span>
+          <span style="font-size: 14px; color: oklch(0.705 0.015 286.067);">박준호의 공유 링크</span>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <h3 style="margin: 0; font-size: 12px; font-weight: 500; letter-spacing: 0.4px; text-transform: uppercase; color: oklch(0.552 0.016 285.938);">골라둔 턴</h3>
+          <span style="font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px; color: oklch(0.985 0 0);">2</span>
+        </div>
+        <div style="background: oklch(0.235 0.007 285.885); border: 1px solid oklch(1 0 0 / 8%); border-radius: 10px; padding: 12px 12px;">
+          <div style="font-size: 14px; color: oklch(0.985 0 0); line-height: 1.6;">웹훅은 보내는 쪽이 재시도하므로 버스트를 허용해도 유실이 아니라 지연이다.</div>
+          <div style="font-size: 12px; color: oklch(0.552 0.016 285.938); margin-top: 8px;">내 대화 &middot; 턴 8</div>
+        </div>
+        <div style="background: oklch(0.235 0.007 285.885); border: 1px solid oklch(1 0 0 / 8%); border-radius: 10px; padding: 12px 12px; opacity: 0.7;">
+          <div style="font-size: 14px; color: oklch(0.985 0 0); line-height: 1.6;">슬라이딩 윈도우는 어떤 구간을 잘라도 상한을 지킨다.</div>
+          <div style="display: flex; align-items: center; gap: 4px; margin-top: 8px;">
+            <svg width="10" height="10" viewBox="0 0 14 14" fill="none" stroke="oklch(0.552 0.016 285.938)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 3.5v4a2.5 2.5 0 002.5 2.5h3M10 3.5v3"/></svg>
+            <span style="font-size: 12px; color: oklch(0.552 0.016 285.938);">받아온 턴 2</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 8px; padding-top: 4px; border-top: 1px solid oklch(1 0 0 / 8%);">
+        <h3 style="margin: 0; font-size: 12px; font-weight: 500; letter-spacing: 0.4px; text-transform: uppercase; color: oklch(0.552 0.016 285.938);">이 재료로</h3>
+        <div style="display: flex; align-items: center; justify-content: center; gap: 8px; height: 32px; border-radius: 8px; background: oklch(0.65 0.16 255); color: oklch(0.985 0 0); font-size: 14px; font-weight: 500;">
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 2.5v9M2.5 7h9"/></svg>
+          내 문서에 쟁점 만들기
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

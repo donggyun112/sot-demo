@@ -270,6 +270,27 @@
         "title": "CitationResponse",
         "type": "object"
       },
+      "CreateDocumentRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "default": "",
+            "title": "Content",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "title": "CreateDocumentRequest",
+        "type": "object"
+      },
       "CreateProposalRequest": {
         "additionalProperties": false,
         "properties": {
@@ -296,10 +317,13 @@
             "title": "Citations",
             "type": "array"
           },
-          "content": {
-            "minLength": 1,
-            "title": "Content",
-            "type": "string"
+          "edits": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentEditRequest"
+            },
+            "minItems": 1,
+            "title": "Edits",
+            "type": "array"
           },
           "source_session_id": {
             "format": "uuid",
@@ -309,7 +333,7 @@
         },
         "required": [
           "source_session_id",
-          "content",
+          "edits",
           "citations"
         ],
         "title": "CreateProposalRequest",
@@ -404,7 +428,8 @@
               "mapping": {
                 "drop": "#/components/schemas/DropTurnRequest",
                 "edit": "#/components/schemas/EditTurnRequest",
-                "join": "#/components/schemas/JoinTurnsRequest"
+                "join": "#/components/schemas/JoinTurnsRequest",
+                "restore": "#/components/schemas/RestoreTurnRequest"
               },
               "propertyName": "kind"
             },
@@ -417,6 +442,9 @@
               },
               {
                 "$ref": "#/components/schemas/JoinTurnsRequest"
+              },
+              {
+                "$ref": "#/components/schemas/RestoreTurnRequest"
               }
             ],
             "title": "Operation"
@@ -484,6 +512,45 @@
           "decision"
         ],
         "title": "DecideProposalRequest",
+        "type": "object"
+      },
+      "DocumentEditRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "find": {
+            "default": "",
+            "title": "Find",
+            "type": "string"
+          },
+          "replace": {
+            "maxLength": 4000,
+            "title": "Replace",
+            "type": "string"
+          }
+        },
+        "required": [
+          "replace"
+        ],
+        "title": "DocumentEditRequest",
+        "type": "object"
+      },
+      "DocumentEditResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "find": {
+            "title": "Find",
+            "type": "string"
+          },
+          "replace": {
+            "title": "Replace",
+            "type": "string"
+          }
+        },
+        "required": [
+          "find",
+          "replace"
+        ],
+        "title": "DocumentEditResponse",
         "type": "object"
       },
       "DocumentResponse": {
@@ -849,10 +916,6 @@
             "title": "Citations",
             "type": "array"
           },
-          "content": {
-            "title": "Content",
-            "type": "string"
-          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -862,6 +925,13 @@
             "format": "uuid",
             "title": "Created By",
             "type": "string"
+          },
+          "edits": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentEditResponse"
+            },
+            "title": "Edits",
+            "type": "array"
           },
           "proposal_id": {
             "format": "uuid",
@@ -885,7 +955,7 @@
           "proposal_id",
           "version",
           "base_revision_id",
-          "content",
+          "edits",
           "required_approver_ids",
           "bundle_ids",
           "created_by",
@@ -1113,6 +1183,27 @@
         "title": "PublishedRevisionResponse",
         "type": "object"
       },
+      "RestoreTurnRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "const": "restore",
+            "title": "Kind",
+            "type": "string"
+          },
+          "turn_id": {
+            "format": "uuid",
+            "title": "Turn Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "turn_id"
+        ],
+        "title": "RestoreTurnRequest",
+        "type": "object"
+      },
       "ReviseProposalRequest": {
         "additionalProperties": false,
         "properties": {
@@ -1146,10 +1237,13 @@
             "title": "Citations",
             "type": "array"
           },
-          "content": {
-            "minLength": 1,
-            "title": "Content",
-            "type": "string"
+          "edits": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentEditRequest"
+            },
+            "minItems": 1,
+            "title": "Edits",
+            "type": "array"
           },
           "expected_version": {
             "minimum": 1,
@@ -1159,7 +1253,7 @@
         },
         "required": [
           "expected_version",
-          "content",
+          "edits",
           "bundle_ids",
           "citations"
         ],
@@ -1436,6 +1530,36 @@
         "title": "ValidationError",
         "type": "object"
       },
+      "WorkspaceMemberProfileResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/WorkspaceRole"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          },
+          "workspace_id": {
+            "format": "uuid",
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "user_id",
+          "role",
+          "display_name"
+        ],
+        "title": "WorkspaceMemberProfileResponse",
+        "type": "object"
+      },
       "WorkspaceMemberResponse": {
         "additionalProperties": false,
         "properties": {
@@ -1540,6 +1664,24 @@
           }
         },
         "summary": "Google"
+      }
+    },
+    "/api/v1/auth/local": {
+      "post": {
+        "operationId": "local_api_v1_auth_local_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Local"
       }
     },
     "/api/v1/auth/logout": {
@@ -2165,6 +2307,59 @@
           }
         ],
         "summary": "List For Workspace"
+      },
+      "post": {
+        "operationId": "create_workspace_document",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDocumentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create"
       }
     },
     "/api/v1/workspaces/{workspace_id}/documents/{document_id}": {
@@ -2532,6 +2727,53 @@
       }
     },
     "/api/v1/workspaces/{workspace_id}/members": {
+      "get": {
+        "operationId": "list_workspace_members",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WorkspaceMemberProfileResponse"
+                  },
+                  "title": "Response List Workspace Members",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Members"
+      },
       "post": {
         "operationId": "add_api_v1_workspaces__workspace_id__members_post",
         "parameters": [

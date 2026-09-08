@@ -1,0 +1,186 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: oklch(0.65 0.16 255); text-decoration: none; }
+    a:hover { color: oklch(0.985 0 0); }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; background: oklch(0.18 0.005 285.823); color: oklch(0.985 0 0); font-family: Inter, 'Pretendard Variable', 'Noto Sans KR', system-ui, sans-serif; font-size: 16px; line-height: 1.5; letter-spacing: -0.05px; display: grid; grid-template-columns: 240px minmax(0, 1fr) 340px; overflow: hidden;">
+
+  <!-- Sidebar: the whole product in one column -->
+  <div style="background: oklch(0.21 0.006 285.885); border-right: 1px solid oklch(1 0 0 / 8%); display: flex; flex-direction: column; padding: 12px; gap: 20px; overflow: hidden;">
+    <div style="display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px; border-radius: 8px; background: oklch(0.235 0.007 285.885);">
+      <div style="width: 20px; height: 20px; border-radius: 6px; background: oklch(0.65 0.16 255); color: oklch(0.985 0 0); font-size: 12px; font-weight: 500; display: grid; place-items: center;">P</div>
+      <span style="font-size: 14px; font-weight: 500; flex: 1;">Platform Team</span>
+      <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="oklch(0.705 0.015 286.067)" stroke-width="1.4"><path d="M2 4l3 3 3-3"/></svg>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 4px;">
+      <div style="display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 8px; border-radius: 6px; color: oklch(0.985 0 0); font-size: 14px;">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5h12v7H6l-3 2.5v-2.5H2z"/></svg>
+        <span style="flex: 1;">Inbox</span>
+        <span style="min-width: 20px; height: 20px; padding: 0 8px; border-radius: 9999px; background: oklch(0.35 0.006 286.033); color: oklch(0.985 0 0); font-size: 12px; font-weight: 500; display: grid; place-items: center;">2</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 8px; border-radius: 6px; color: oklch(0.705 0.015 286.067); font-size: 14px;">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3.5a4.5 4.5 0 100 9 4.5 4.5 0 000-9zM13 13l-1.6-1.6"/></svg>
+        <span style="flex: 1;">Search</span>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 4px;">
+      <div style="display: flex; align-items: center; gap: 8px; padding: 0 8px; margin-bottom: 4px;">
+        <span style="font-size: 12px; font-weight: 500; letter-spacing: 0.4px; text-transform: uppercase; color: oklch(0.552 0.016 285.938); flex: 1;">문서</span>
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="oklch(0.552 0.016 285.938)" stroke-width="1.5" stroke-linecap="round"><path d="M7 3v8M3 7h8"/></svg>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px; border-radius: 6px; background: oklch(0.3 0.006 286.033); color: oklch(0.985 0 0); font-size: 14px; font-weight: 500;">
+        <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">인증 토큰 정책</span>
+        <span style="font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px;">2</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px; padding: 4px 8px 4px 20px;">
+        <span style="width: 5px; height: 5px; border-radius: 9999px; background: oklch(0.985 0 0); flex-shrink: 0;"></span>
+        <span style="font-size: 12px; color: oklch(0.705 0.015 286.067); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">액세스 토큰 15분으로</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px; padding: 4px 8px 4px 20px;">
+        <span style="width: 5px; height: 5px; border-radius: 9999px; background: oklch(1 0 0 / 14%); flex-shrink: 0;"></span>
+        <span style="font-size: 12px; color: oklch(0.705 0.015 286.067); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">모바일 리프레시 예외</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px; border-radius: 6px; color: oklch(0.985 0 0); font-size: 14px;">
+        <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">API 게이트웨이 설계</span>
+        <span style="font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px; color: oklch(0.552 0.016 285.938);">1</span>
+      </div>
+      <div style="display: flex; align-items: center; height: 28px; padding: 0 8px; border-radius: 6px; color: oklch(0.985 0 0); font-size: 14px;">이벤트 스키마 규약</div>
+    </div>
+
+    <!-- Sessions sit beside documents, not under them: one session can feed
+         issues on several documents. -->
+    <div style="display: flex; flex-direction: column; gap: 4px;">
+      <div style="display: flex; align-items: center; gap: 8px; padding: 0 8px; margin-bottom: 4px;">
+        <span style="font-size: 12px; font-weight: 500; letter-spacing: 0.4px; text-transform: uppercase; color: oklch(0.552 0.016 285.938); flex: 1;">세션</span>
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="oklch(0.552 0.016 285.938)" stroke-width="1.5" stroke-linecap="round"><path d="M7 3v8M3 7h8"/></svg>
+      </div>
+      <div style="display: flex; align-items: center; height: 28px; padding: 0 8px; border-radius: 6px; color: oklch(0.985 0 0); font-size: 14px;">모바일 리프레시 검토</div>
+      <div style="display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px; border-radius: 6px; color: oklch(0.985 0 0); font-size: 14px;">
+        <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Codex — 감사 요건</span>
+        <span style="font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px; color: oklch(0.552 0.016 285.938);">가져옴</span>
+      </div>
+    </div>
+
+    <div style="margin-top: auto; display: flex; flex-direction: column; gap: 4px;">
+      <div style="display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 8px; border-radius: 6px; color: oklch(0.705 0.015 286.067); font-size: 14px;">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 10.5V2.5m0 0L5.5 5M8 2.5L10.5 5M2.5 11v2.5h11V11"/></svg>
+        <span>세션 가져오기</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 8px; border-radius: 6px; font-size: 14px;">
+        <div style="width: 22px; height: 22px; border-radius: 9999px; background: oklch(1 0 0 / 14%); color: oklch(0.985 0 0); font-size: 12px; font-weight: 500; display: grid; place-items: center;">서</div>
+        <span style="color: oklch(0.985 0 0);">서동균</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Document: the home surface -->
+  <div style="display: flex; flex-direction: column; min-width: 0; overflow: hidden;">
+    <div style="height: 52px; flex-shrink: 0; border-bottom: 1px solid oklch(1 0 0 / 8%); display: flex; align-items: center; gap: 12px; padding: 0 24px;">
+      <span style="font-size: 16px; font-weight: 500; letter-spacing: -0.2px;">인증 토큰 정책</span>
+      <span style="display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 9999px; background: oklch(0.65 0.15 145 / 14%); border: 1px solid oklch(0.65 0.15 145); color: oklch(0.65 0.15 145); font-size: 12px;">Canonical &middot; r7</span>
+      <div style="display: flex; margin-left: auto;">
+        <div style="width: 24px; height: 24px; border-radius: 9999px; background: oklch(1 0 0 / 14%); color: oklch(0.985 0 0); font-size: 12px; font-weight: 500; display: grid; place-items: center; border: 2px solid oklch(0.18 0.005 285.823);">서</div>
+        <div style="width: 24px; height: 24px; border-radius: 9999px; background: oklch(0.35 0.006 286.033); color: oklch(0.985 0 0); font-size: 12px; font-weight: 500; display: grid; place-items: center; border: 2px solid oklch(0.18 0.005 285.823); margin-left: -8px;">박</div>
+      </div>
+      <div style="display: flex; align-items: center; height: 28px; padding: 0 12px; border-radius: 6px; border: 1px solid oklch(1 0 0 / 8%); font-size: 14px; color: oklch(0.985 0 0);">History</div>
+    </div>
+
+    <div style="flex: 1; overflow: hidden; padding: 40px 24px;">
+      <div style="max-width: 680px; margin: 0 auto;">
+        <h1 style="margin: 0 0 32px; font-size: 28px; font-weight: 500; line-height: 1.15; letter-spacing: -1px;">인증 토큰 정책</h1>
+
+        <h2 style="margin: 0 0 12px; font-size: 22px; font-weight: 500; line-height: 1.25; letter-spacing: -0.4px;">토큰 수명</h2>
+
+        <!-- A paragraph carrying an open thread -->
+        <div style="position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 28px; gap: 8px; align-items: start; background: oklch(0.21 0.006 285.885); border-radius: 8px; margin: 0 -12px 4px; padding: 8px 12px;">
+          <p style="margin: 0; color: oklch(0.985 0 0); line-height: 1.75;">액세스 토큰은 <span style="border-bottom: 2px solid oklch(0.65 0.16 255); padding-bottom: 1px;">30분</span>, 리프레시 토큰은 14일을 기본값으로 한다. 모바일 클라이언트는 백그라운드 갱신이 불안정하므로 리프레시 수명을 별도로 조정하지 않는다.</p>
+          <div style="display: flex; align-items: center; justify-content: center; gap: 4px; height: 22px; border-radius: 9999px; background: oklch(0.3 0.006 286.033); border: 1px solid oklch(1 0 0 / 14%); color: oklch(0.985 0 0); font-size: 12px; margin-top: 4px;">
+            <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5h12v7H6l-3 2.5v-2.5H2z"/></svg>
+            2
+          </div>
+        </div>
+
+        <p style="margin: 0 0 24px; color: oklch(0.985 0 0); line-height: 1.75;">토큰은 <span style="font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px; background: oklch(0.3 0.006 286.033); border-radius: 6px; padding: 1px 4px; color: oklch(0.985 0 0);">sot_refresh</span> 쿠키로만 오간다. 웹 스토리지에는 어떤 자격증명도 두지 않는다.</p>
+
+        <h2 style="margin: 0 0 12px; font-size: 22px; font-weight: 500; line-height: 1.25; letter-spacing: -0.4px;">회전 정책</h2>
+        <div style="display: grid; grid-template-columns: minmax(0, 1fr) 28px; gap: 8px; align-items: start; margin: 0 -12px; padding: 8px 12px;">
+          <p style="margin: 0; color: oklch(0.985 0 0); line-height: 1.75;">리프레시 요청마다 새 토큰을 발급하고 이전 토큰을 폐기한다. 지연 도착한 응답이 최신 로그인 쿠키를 덮어쓰지 못하게 요청을 직렬화한다.</p>
+          <div style="display: flex; align-items: center; justify-content: center; gap: 4px; height: 22px; border-radius: 9999px; background: oklch(0.235 0.007 285.885); border: 1px solid oklch(1 0 0 / 8%); color: oklch(0.552 0.016 285.938); font-size: 12px; margin-top: 4px;">
+            <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3 3 7-7"/></svg>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Threads on this document -->
+  <div style="background: oklch(0.21 0.006 285.885); border-left: 1px solid oklch(1 0 0 / 8%); display: flex; flex-direction: column; overflow: hidden;">
+    <div style="height: 52px; flex-shrink: 0; border-bottom: 1px solid oklch(1 0 0 / 8%); display: flex; align-items: center; gap: 8px; padding: 0 16px;">
+      <span style="font-size: 14px; font-weight: 500;">이 문서의 쟁점</span>
+      <span style="font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px; color: oklch(0.552 0.016 285.938);">3</span>
+      <div style="margin-left: auto; display: flex; align-items: center; gap: 4px; height: 26px; padding: 0 12px; border-radius: 6px; background: oklch(0.65 0.16 255); color: oklch(0.985 0 0); font-size: 14px; font-weight: 500;">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M6 2.5v7M2.5 6h7"/></svg>
+        새 쟁점
+      </div>
+    </div>
+
+    <div style="flex: 1; padding: 12px; display: flex; flex-direction: column; gap: 8px; overflow: hidden;">
+
+      <div style="background: oklch(0.235 0.007 285.885); border: 1px solid oklch(1 0 0 / 14%); border-radius: 10px; padding: 12px;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+          <span style="display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 9999px; background: oklch(0.3 0.006 286.033); border: 1px solid oklch(1 0 0 / 14%); color: oklch(0.985 0 0); font-size: 12px;">제안됨</span>
+          <span style="font-size: 12px; color: oklch(0.552 0.016 285.938);">나를 기다림</span>
+        </div>
+        <div style="font-size: 14px; font-weight: 500; letter-spacing: -0.2px; line-height: 1.45;">30분이 결제 API에 너무 긴가?</div>
+        <div style="font-size: 12px; color: oklch(0.552 0.016 285.938); margin-top: 4px; padding-left: 8px; border-left: 2px solid oklch(1 0 0 / 8%);">액세스 토큰은 30분…</div>
+        <div style="display: flex; align-items: center; gap: 8px; margin-top: 12px;">
+          <div style="display: flex;">
+            <div style="width: 22px; height: 22px; border-radius: 9999px; background: oklch(1 0 0 / 8%); color: oklch(0.705 0.015 286.067); font-size: 12px; font-weight: 500; display: grid; place-items: center; border: 1.5px solid oklch(0.235 0.007 285.885);">김</div>
+            <div style="width: 22px; height: 22px; border-radius: 9999px; background: oklch(0.35 0.006 286.033); color: oklch(0.985 0 0); font-size: 12px; font-weight: 500; display: grid; place-items: center; border: 1.5px solid oklch(0.235 0.007 285.885); margin-left: -4px;">박</div>
+          </div>
+          <span style="font-size: 12px; color: oklch(0.552 0.016 285.938);">8턴 &middot; 1/3 승인</span>
+        </div>
+      </div>
+
+      <div style="background: oklch(0.235 0.007 285.885); border: 1px solid oklch(1 0 0 / 8%); border-radius: 10px; padding: 12px;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+          <span style="display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 9999px; background: oklch(0.3 0.006 286.033); border: 1px solid oklch(1 0 0 / 8%); color: oklch(0.705 0.015 286.067); font-size: 12px;">논의 중</span>
+        </div>
+        <div style="font-size: 14px; font-weight: 500; letter-spacing: -0.2px; line-height: 1.45;">모바일만 리프레시를 길게 가져갈 수 있나</div>
+        <div style="font-size: 12px; color: oklch(0.552 0.016 285.938); margin-top: 4px; padding-left: 8px; border-left: 2px solid oklch(1 0 0 / 8%);">모바일 클라이언트는…</div>
+        <div style="display: flex; align-items: center; gap: 8px; margin-top: 12px;">
+          <div style="width: 22px; height: 22px; border-radius: 9999px; background: oklch(1 0 0 / 14%); color: oklch(0.985 0 0); font-size: 12px; font-weight: 500; display: grid; place-items: center;">서</div>
+          <span style="font-size: 12px; color: oklch(0.552 0.016 285.938);">3턴 &middot; 어제</span>
+        </div>
+      </div>
+
+      <div style="background: oklch(0.235 0.007 285.885); border: 1px solid oklch(1 0 0 / 8%); border-radius: 10px; padding: 12px; opacity: 0.55;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+          <span style="display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 8px; border-radius: 9999px; background: oklch(0.65 0.15 145 / 14%); border: 1px solid oklch(0.65 0.15 145); color: oklch(0.65 0.15 145); font-size: 12px;">
+            <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.5l2.5 2.5 4.5-5"/></svg>
+            반영됨 r7
+          </span>
+        </div>
+        <div style="font-size: 14px; font-weight: 500; letter-spacing: -0.2px; line-height: 1.45;">쿠키 경로를 /api/v1/auth로 좁힌다</div>
+        <div style="font-size: 12px; color: oklch(0.552 0.016 285.938); margin-top: 8px;">서동균 &middot; 3일 전</div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

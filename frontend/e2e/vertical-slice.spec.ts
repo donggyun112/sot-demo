@@ -6,6 +6,19 @@ type Login = components["schemas"]["AuthResponse"];
 type Turn = components["schemas"]["TurnResponse"];
 type Proposal = components["schemas"]["ProposalResponse"];
 
+/** Credentials never reach web storage; two UI preferences are allowed there. */
+async function credentialsInStorage(page: Page) {
+  return page.evaluate(() => {
+    const allowed = ["sot.locale", "sot.workspace"];
+    return {
+      session: Object.keys(sessionStorage),
+      leaked: Object.entries({ ...localStorage })
+        .filter(([key, value]) => !allowed.includes(key) || /token|bearer/i.test(value))
+        .map(([key]) => key),
+    };
+  });
+}
+
 async function login(page: Page, actor: "alice" | "bob"): Promise<Login> {
   // Substitute only Google's external UI/credential boundary. SOT auth is real.
   await page.route("https://accounts.google.com/gsi/client", (route) => route.fulfill({
@@ -30,20 +43,28 @@ async function login(page: Page, actor: "alice" | "bob"): Promise<Login> {
   expect(result.request().postDataJSON()).toEqual({ credential: `google-test-${actor}` });
   const body = await result.json() as Login;
   expect(body.access_token).not.toBe(`google-test-${actor}`);
-  await expect(page.getByRole("combobox", { name: "Workspace", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: body.user.display_name, exact: true })).toBeVisible();
   const cookie = (await page.context().cookies()).find((item) => item.name === "sot_refresh");
   expect(cookie).toMatchObject({ httpOnly: true, secure: true, sameSite: "Lax", path: "/api/v1/auth" });
-  expect(await page.evaluate(() => [localStorage.length, sessionStorage.length])).toEqual([0, 0]);
+  expect(await credentialsInStorage(page)).toEqual({ session: [], leaked: [] });
   const refreshed = page.waitForResponse((item) => item.url().endsWith("/auth/refresh"));
   await page.reload();
   const refreshedResponse = await refreshed;
   expect(refreshedResponse.status()).toBe(200);
   const rotated = await refreshedResponse.json() as Login;
   expect(rotated.user).toEqual(body.user);
-  await expect(page.getByRole("combobox", { name: "Workspace", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: body.user.display_name, exact: true })).toBeVisible();
   const rotatedCookie = (await page.context().cookies()).find((item) => item.name === "sot_refresh");
   expect(rotatedCookie?.value).not.toBe(cookie?.value);
   return rotated;
+}
+
+/** Open a workspace through the header menu and return the id the URL settles on. */
+async function openWorkspace(page: Page, name: string) {
+  await page.getByRole("button", { name: "Workspaces" }).click();
+  await page.getByRole("menuitem", { name, exact: true }).click();
+  await page.waitForURL(/\/w\/[^/]+$/);
+  return new URL(page.url()).pathname.split("/")[2];
 }
 
 async function get(context: BrowserContext, path: string, auth?: Login) {
@@ -60,20 +81,37 @@ test("private draft, public detached fork and explicit consensus merge", async (
     const alice = await aliceContext.newPage(), bob = await bobContext.newPage();
     const aliceLogin = await test.step("Alice Google login", () => login(alice, "alice"));
     const bobLogin = await test.step("Bob Google login", () => login(bob, "bob"));
-    const aliceWorkspace = alice.getByRole("combobox", { name: "Workspace", exact: true });
-    const bobWorkspace = bob.getByRole("combobox", { name: "Workspace", exact: true });
-    await aliceWorkspace.selectOption({ label: "Alice Workspace" });
-    await bobWorkspace.selectOption({ label: "Bob Workspace" });
-    const aw = await aliceWorkspace.inputValue(), bw = await bobWorkspace.inputValue();
+    const aw = await openWorkspace(alice, "Alice Workspace");
+    const bw = await openWorkspace(bob, "Bob Workspace");
     expect(aw).not.toBe(bw);
     expect((await get(aliceContext, `/workspaces/${bw}/documents`, aliceLogin)).status()).toBe(403);
+    // The roster is what lets the UI show names instead of raw user ids.
+    await alice.getByRole("link", { name: "Members" }).click();
+    await expect(alice.getByRole("heading", { name: "Members" })).toBeVisible();
+    await expect(alice.getByText("Owner", { exact: true })).toBeVisible();
+    const roster = await (await get(aliceContext, `/workspaces/${aw}/members`, aliceLogin)).json();
+    // Every member sees the roster; nobody outside the workspace does.
+    expect(
+      roster.map((item: { display_name: string }) => item.display_name).sort(),
+    ).toEqual(["Alice", "Bob"]);
+    expect((await get(bobContext, `/workspaces/${aw}/members`, bobLogin)).status()).toBe(200);
+    expect((await get(publicContext, `/workspaces/${aw}/members`)).status()).toBe(401);
+    // Return in-app: a reload would rotate the refresh cookie and invalidate
+    // the access token this test still asserts on.
+    await alice.getByRole("link", { name: "SOT", exact: true }).click();
+    await expect(alice).toHaveURL(new RegExp(`/w/${aw}$`));
+
     const documents = await (await get(aliceContext, `/workspaces/${aw}/documents`, aliceLogin)).json();
     const documentPath = `/workspaces/${aw}/documents/${documents[0].id}`;
     const original = await (await get(aliceContext, documentPath, aliceLogin)).json();
+
+    await alice.getByRole("link", { name: documents[0].title }).click();
+    await alice.getByRole("link", { name: "Sessions", exact: true }).click();
     const createdResponse = alice.waitForResponse((res) => res.request().method() === "POST" && res.url().endsWith("/sessions"));
-    await alice.getByRole("button", { name: "새 세션" }).click();
+    await alice.getByRole("button", { name: "New session" }).click();
     const created = await (await createdResponse).json();
     const branchPath = `/workspaces/${aw}/branches/${created.branch_id}`;
+
     const privatePrompt = "Private draft: account detail must never appear in the public bundle";
     const posts: string[] = [];
     alice.on("request", (request) => { if (request.method() === "POST") posts.push(request.url()); });
@@ -90,23 +128,35 @@ test("private draft, public detached fork and explicit consensus merge", async (
       ["user", privatePrompt], ["assistant", "Public reasoning: isolate each user's work."],
     ]);
     expect(posts.every((url) => !url.endsWith("/turns"))).toBe(true);
-    await expect(alice.getByRole("checkbox")).toHaveCount(2);
-    await alice.getByRole("checkbox", { name: "Public reasoning: isolate each user's work. 선택" }).check();
-    await expect(alice.getByRole("checkbox", { name: `${privatePrompt} 선택` })).not.toBeChecked();
+
+    // Curate in the side panel: rewrite the assistant turn to the shareable
+    // summary, then drop the private one. The chat transcript is not the bundle.
     const summary = "Publish only this curated rationale";
-    await alice.getByLabel("인용 요약").fill(summary);
-    await alice.getByRole("button", { name: "선별 적용" }).click();
-    await expect(alice.getByRole("status")).toContainText("선별을 적용했습니다");
-    await alice.getByRole("button", { name: "Bundle 미리보기" }).click();
-    await expect(alice.getByLabel("Bundle preview")).toContainText(summary);
-    await expect(alice.getByLabel("Bundle preview")).not.toContainText(privatePrompt);
+    const curation = alice.getByRole("complementary");
+    await curation.getByRole("article").filter({ hasText: "Public reasoning" })
+      .getByRole("button", { name: "Edit" }).click();
+    await alice.getByLabel("Edit").fill(summary);
+    await alice.getByRole("button", { name: "Save edit" }).click();
+    const privateTurn = curation.getByRole("article").filter({ hasText: privatePrompt });
+    await privateTurn.getByRole("button", { name: "Drop" }).click();
+    // Curation ops are an append-only log, so the turn stays and is marked.
+    await expect(privateTurn.getByText("Dropped")).toBeVisible();
+
+    const preview = alice.getByRole("region", { name: "Bundle preview" });
+    await expect(preview).toContainText(summary);
+    await expect(preview).not.toContainText(privatePrompt);
     const publishedResponse = alice.waitForResponse((res) => res.request().method() === "POST" && res.url().endsWith("/bundles"));
-    await alice.getByRole("button", { name: "Bundle 발행" }).click();
+    await alice.getByRole("button", { name: "Publish bundle" }).click();
     const bundle = await (await publishedResponse).json();
+    // The published bundle lives in the URL, so a reload can still toss it.
+    await expect(alice).toHaveURL(new RegExp(`bundle=${bundle.resource_id}`));
     const tossResponse = alice.waitForResponse((res) => res.request().method() === "POST" && res.url().endsWith("/tosses"));
-    await alice.getByRole("button", { name: "Toss 만들기" }).click();
+    await alice.getByRole("button", { name: "Create toss link" }).click();
     const toss = await (await tossResponse).json();
-    await expect(alice.getByRole("heading", { name: summary })).toBeVisible();
+    await alice.getByRole("link", { name: "Open toss link" }).click();
+    await expect(alice.getByRole("heading", { name: "Shared evidence" })).toBeVisible();
+    await expect(alice.getByText(summary)).toBeVisible();
+
     const publicRead = await get(publicContext, `/tosses/${toss.token}`);
     expect(publicRead.status()).toBe(200);
     expect(publicRead.headers()["cache-control"]).toContain("no-store");
@@ -117,46 +167,74 @@ test("private draft, public detached fork and explicit consensus merge", async (
     expect((await get(bobContext, `${branchPath}/turns`, bobLogin)).status()).toBe(404);
     expect((await get(bobContext, `/workspaces/${bw}/branches/${created.branch_id}/turns`, bobLogin)).status()).toBe(404);
     expect(await (await get(bobContext, `${documentPath}/sessions`, bobLogin)).json()).toEqual([]);
-    await bob.getByLabel("Toss token").fill(toss.token);
-    await bob.getByRole("button", { name: "열기", exact: true }).click();
-    await bob.getByLabel("Destination Workspace").selectOption({ label: "Bob Workspace" });
+
+    await bob.goto(`/s/${toss.token}`);
+    await expect(bob.getByText(summary)).toBeVisible();
+    await bob.getByRole("button", { name: "Fork into a workspace" }).click();
+    await bob.getByLabel("Destination workspace").selectOption({ label: "Bob Workspace" });
     const forkResponse = bob.waitForResponse((res) => res.request().method() === "POST" && res.url().endsWith("/fork"));
     await bob.getByRole("button", { name: "Fork", exact: true }).click();
     const fork = await (await forkResponse).json();
     await expect(bob.getByLabel("Agent message")).toBeVisible();
-    await expect(bob.getByRole("button", { name: "Proposal 만들기" })).toHaveCount(0);
+    // A detached fork has no document, so nothing can be proposed from it.
+    // The path stays on screen and says why rather than disappearing.
+    await expect(
+      bob.getByText("This session is not attached to a document."),
+    ).toBeVisible();
     const forkSession = await (await get(bobContext, `/workspaces/${bw}/sessions/${fork.session_id}`, bobLogin)).json();
     expect(forkSession.document_id).toBeNull();
     const forkTurns = await (await get(bobContext, `/workspaces/${bw}/branches/${fork.branch_id}/turns`, bobLogin)).json() as Turn[];
     expect(forkTurns.map((turn) => ({ role: turn.role, content: turn.content }))).toEqual([{ role: "assistant", content: summary }]);
     expect((await get(aliceContext, `/workspaces/${bw}/sessions/${fork.session_id}`, aliceLogin)).status()).toBe(403);
+
     // Return from Toss to the source Session, retaining the immutable Bundle selection.
-    await alice.getByRole("button", { name: `세션 ${String(created.session_id).slice(0, 8)}`, exact: true }).click();
+    await alice.goto(`/w/${aw}/sessions/${created.session_id}?bundle=${bundle.resource_id}`);
+    // The agent writes document updates, so the proposal arrives as EDITS
+    // through the same endpoint sot_update calls — never typed by a person.
     const content = "Each user's work runs in a separate process.";
-    await alice.getByLabel("제안 본문").fill(content);
-    await alice.getByLabel("추가 승인자 ID (쉼표로 구분)").fill(bobLogin.user.id);
-    const proposalResponse = alice.waitForResponse((res) => res.request().method() === "POST" && res.url().endsWith("/proposals"));
-    await alice.getByRole("button", { name: "Proposal 만들기" }).click();
-    const proposal = await (await proposalResponse).json();
+    const created_proposal = await aliceContext.request.post(`${api}${documentPath}/proposals`, {
+      headers: { Authorization: `Bearer ${aliceLogin.access_token}` },
+      data: {
+        source_session_id: created.session_id,
+        edits: [{ find: "", replace: content }],
+        bundle_ids: [bundle.resource_id],
+        citations: [{ bundle_id: bundle.resource_id, bundle_item_position: 0, claim_anchor: content }],
+        additional_approver_ids: [bobLogin.user.id],
+      },
+    });
+    expect(created_proposal.status()).toBe(201);
+    const proposal = await created_proposal.json();
     expect(proposal.source_session_id).toBe(created.session_id);
     expect(proposal.current_version.required_approver_ids.sort()).toEqual([aliceLogin.user.id, bobLogin.user.id].sort());
+    expect(proposal.current_version.edits).toEqual([{ find: "", replace: content }]);
     expect(proposal.current_version.citations).toEqual([{ bundle_id: bundle.resource_id, bundle_item_position: 0, claim_anchor: content }]);
-    await bobWorkspace.selectOption({ label: "Alice Workspace" });
-    const bobProposal = bob.getByRole("article").filter({ hasText: content });
-    await expect(bobProposal).toBeVisible();
-    await bobProposal.getByRole("button", { name: "승인", exact: true }).click();
+    await alice.goto(`/w/${aw}/proposals/${proposal.id}`);
+    await expect(alice.getByRole("heading", { name: "Proposal" })).toBeVisible();
+
+    // Raw approver ids never reach the canvas.
+    await expect(alice.getByText(bobLogin.user.id)).toHaveCount(0);
+    await expect(alice.getByText(created.session_id)).toHaveCount(0);
+
     const proposalPath = `/workspaces/${aw}/proposals/${proposal.id}`;
+    await bob.goto(`/w/${aw}/proposals/${proposal.id}`);
+    await expect(bob.getByText(content).first()).toBeVisible();
+    await bob.getByRole("button", { name: "Approve" }).click();
     await expect.poll(async () => (await (await get(bobContext, proposalPath, bobLogin)).json()).approvals.length).toBe(1);
     expect((await get(bobContext, `${branchPath}/turns`, bobLogin)).status()).toBe(404);
-    await alice.getByRole("button", { name: "Alice Policy", exact: true }).click();
-    const aliceProposal = alice.getByRole("article").filter({ hasText: content });
-    await aliceProposal.getByRole("button", { name: "승인", exact: true }).click();
-    await expect(aliceProposal.getByText("APPROVED", { exact: true })).toBeVisible();
+
+    await alice.getByRole("button", { name: "Approve" }).click();
+    await expect(alice.getByText("Approved", { exact: true })).toBeVisible();
     expect((await (await get(aliceContext, documentPath, aliceLogin)).json()).current_revision).toEqual(original.current_revision);
-    await expect(bobProposal.getByRole("button", { name: "Merge" })).toHaveCount(0);
-    await aliceProposal.getByRole("button", { name: "Merge", exact: true }).click();
-    await expect(alice.getByText(`MAIN · REVISION ${original.current_revision.number + 1}`)).toBeVisible();
-    await expect(alice.getByLabel("Main revision provenance")).toContainText(content);
+    await expect(bob.getByRole("button", { name: "Merge" })).toHaveCount(0);
+    await alice.getByRole("button", { name: "Merge", exact: true }).click();
+    await expect(alice.getByText("Merged", { exact: true })).toBeVisible();
+
+    await alice.goto(`/w/${aw}/documents/${documents[0].id}`);
+    await expect(alice.getByText(`Revision ${original.current_revision.number + 1}`)).toBeVisible();
+    // The edit was an append, so the document it was written against is
+    // still there: merging edits, not overwriting.
+    await expect(alice.getByRole("article")).toContainText(content);
+    await expect(alice.getByRole("article")).toContainText(original.current_revision.content);
     const current = (await (await get(aliceContext, documentPath, aliceLogin)).json()).current_revision;
     expect(current.proposal_id).toBe(proposal.id);
     expect(current.citations).toEqual(proposal.current_version.citations);
@@ -175,8 +253,9 @@ test("private draft, public detached fork and explicit consensus merge", async (
     expect(results[1]).toContain('"code":"version_conflict"');
     expect(results[1]).not.toContain('"type":"RUN_FINISHED"');
     const proposals = await (await get(aliceContext, `${documentPath}/proposals`, aliceLogin)).json() as Proposal[];
-    expect(proposals.filter((item) => item.current_version.content === "race winner proposal")).toHaveLength(1);
-    expect(proposals.some((item) => item.current_version.content === "race loser proposal")).toBe(false);
+    const proposed = (item: Proposal) => item.current_version.edits.map((edit) => edit.replace).join("");
+    expect(proposals.filter((item) => proposed(item) === "race winner proposal")).toHaveLength(1);
+    expect(proposals.some((item) => proposed(item) === "race loser proposal")).toBe(false);
     const raceTurns = await (await get(aliceContext, `/workspaces/${aw}/branches/${race.branch_id}/turns`, aliceLogin)).json() as Turn[];
     expect(raceTurns.map((turn) => turn.content)).toEqual(["race winner", "Winner committed"]);
   } finally {

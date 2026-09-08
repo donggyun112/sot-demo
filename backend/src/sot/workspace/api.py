@@ -13,6 +13,8 @@ from sot.workspace.application import (
     GetCurrentWorkspaceMember,
     GetWorkspace,
     ListActorWorkspaces,
+    ListWorkspaceMembers,
+    WorkspaceMemberProfile,
 )
 from sot.workspace.domain import (
     Permission,
@@ -63,15 +65,40 @@ class CurrentWorkspaceMemberResponse(WorkspaceMemberResponse):
     permissions: tuple[Permission, ...]
 
 
+class WorkspaceMemberProfileResponse(WorkspaceMemberResponse):
+    display_name: str
+
+    @classmethod
+    def from_profile(
+        cls, profile: WorkspaceMemberProfile
+    ) -> "WorkspaceMemberProfileResponse":
+        return cls(
+            workspace_id=profile.membership.workspace_id,
+            user_id=profile.membership.user_id,
+            role=profile.membership.role,
+            display_name=profile.display_name,
+        )
+
+
 def build_workspace_router(
     create: CreateWorkspace,
     add_member: AddWorkspaceMember,
     list_workspaces: ListActorWorkspaces,
     get_workspace: GetWorkspace,
     get_member: GetCurrentWorkspaceMember,
+    list_members: ListWorkspaceMembers,
     actor: Callable[[Request], Awaitable[Actor]],
 ) -> APIRouter:
     router = APIRouter(prefix="/api/v1/workspaces")
+
+    @router.get("/{workspace_id}/members", operation_id="list_workspace_members")
+    async def members(
+        workspace_id: UUID, current: Annotated[Actor, Depends(actor)]
+    ) -> tuple[WorkspaceMemberProfileResponse, ...]:
+        return tuple(
+            WorkspaceMemberProfileResponse.from_profile(profile)
+            for profile in await list_members.execute(current, WorkspaceId(workspace_id))
+        )
 
     @router.get(
         "/{workspace_id}/members/me", operation_id="get_current_workspace_member"

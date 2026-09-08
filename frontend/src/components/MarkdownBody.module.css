@@ -1,0 +1,194 @@
+.md {
+  color: var(--ink);
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.md :global(h1),
+.md :global(h2),
+.md :global(h3) {
+  color: var(--ink);
+  line-height: 1.25;
+  margin: 1.4em 0 0.5em;
+}
+
+.md :global(h1) {
+  font-size: 28px;
+  font-weight: 500;
+  letter-spacing: -0.6px;
+}
+
+.md :global(h2) {
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.4px;
+}
+
+.md :global(h3) {
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: -0.2px;
+}
+
+.md :global(p),
+.md :global(li) {
+  color: var(--ink);
+}
+
+.md :global(blockquote) {
+  border-left: 2px solid var(--border);
+  margin: 1em 0;
+  padding-left: var(--space-lg);
+  color: var(--ink);
+}
+
+.md :global(hr) {
+  border: 0;
+  border-top: 1px solid var(--divider);
+  margin: 1.6em 0;
+}
+
+.md :global(pre),
+.md :global(code) {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.md :global(code) {
+  background: var(--surface-selected);
+  border-radius: var(--radius-sm);
+  padding: 1px 5px;
+  color: var(--ink);
+}
+
+.md :global(pre) {
+  background: var(--surface-raised);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  overflow: auto;
+}
+
+.md :global(pre code) {
+  background: transparent;
+  padding: 0;
+}
+
+.md :global(a) {
+  color: var(--brand);
+}
+
+.md :global(table) {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12px;
+}
+
+.md :global(th),
+.md :global(td) {
+  border: 1px solid var(--divider);
+  padding: var(--space-xs) var(--space-sm);
+  text-align: left;
+}
+
+.md :global(th) {
+  color: var(--ink);
+  font-weight: 500;
+  background: var(--surface-raised);
+}
+
+/*
+ * Chat density. A message is a paragraph, not a page: the outer block margins
+ * make a one-line bubble twice as tall as its text and push a reply away from
+ * the name above it. Paragraphs inside a long answer keep their air.
+ */
+.compact {
+  line-height: 1.6;
+}
+
+.compact :global(p) {
+  margin: 0;
+}
+
+.compact :global(p + p),
+.compact :global(p + ul),
+.compact :global(p + ol),
+.compact :global(ul + p),
+.compact :global(ol + p) {
+  margin-top: 0.75em;
+}
+
+.compact :global(ul),
+.compact :global(ol) {
+  margin-block: 0;
+}
+
+.compact :global(h1),
+.compact :global(h2),
+.compact :global(h3) {
+  margin-top: 0.9em;
+}
+
+.compact :global(h1:first-child),
+.compact :global(h2:first-child),
+.compact :global(h3:first-child) {
+  margin-top: 0;
+}
+
+/* Apple DESIGN.md typography ------------------------------------------ */
+
+.md {
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 17px;
+  line-height: 1.55;
+  letter-spacing: -0.022em;
+}
+
+.md :global(h1),
+.md :global(h2),
+.md :global(h3) {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+
+.md :global(h1) {
+  font-size: 40px;
+  line-height: 1.1;
+}
+
+.md :global(h2) {
+  font-size: 28px;
+  line-height: 1.14;
+}
+
+.md :global(h3) {
+  font-size: 21px;
+  line-height: 1.19;
+}
+
+.md :global(a) {
+  color: var(--brand);
+}
+
+.md :global(code) {
+  border-radius: 6px;
+  background: var(--canvas);
+}
+
+.md :global(pre) {
+  border-color: var(--divider);
+  border-radius: var(--radius-md);
+  background: var(--canvas);
+}
+
+.md :global(blockquote) {
+  border-left-color: var(--border);
+  color: var(--ink-muted);
+}
+
+.compact {
+  font-size: 15px;
+  line-height: 1.55;
+}

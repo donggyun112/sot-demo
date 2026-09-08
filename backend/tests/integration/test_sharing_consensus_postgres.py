@@ -25,7 +25,12 @@ from sot.consensus.application import (
     ProposalSources,
     ReviseProposal,
 )
-from sot.consensus.domain import ApprovalDecision, ProposalCitation, ProposalStatus
+from sot.consensus.domain import (
+    ApprovalDecision,
+    DocumentEdit,
+    ProposalCitation,
+    ProposalStatus,
+)
 from sot.consensus.postgres import PostgresProposalRepository
 from sot.document.application import (
     DocumentAccess,
@@ -76,7 +81,7 @@ class SharingConsensus:
             s.workspace_id,
             s.session.id,
             document_id=s.document_id,
-            content="First claim. Second claim.",
+            edits=(DocumentEdit("", "First claim. Second claim."),),
             bundle_ids=(self.bundle.id,),
             citations=(
                 ProposalCitation(self.bundle.id, 1, "Second claim"),
@@ -283,7 +288,7 @@ async def test_version_citations_roundtrip_and_decision_uniqueness(
         s.workspace_id,
         pid,
         expected_version=1,
-        content="Third claim",
+        edits=(DocumentEdit("", "Third claim"),),
         bundle_ids=(e.bundle.id,),
         citations=(ProposalCitation(e.bundle.id, 0, "Third claim"),),
     )
@@ -368,7 +373,7 @@ async def test_http_proposal_required_citations_permissions_and_minimal_merge(
     prefix = f"/api/v1/workspaces/{s.workspace_id}"
     body = {
         "source_session_id": str(s.session.id),
-        "content": "First claim",
+        "edits": [{"find": "", "replace": "First claim"}],
         "bundle_ids": [str(e.bundle.id)],
     }
     assert (
@@ -384,13 +389,13 @@ async def test_http_proposal_required_citations_permissions_and_minimal_merge(
         headers=bearer(s.owner.user_id),
         json=body,
     )
-    assert created.status_code == 201
+    assert created.status_code == 201, created.text
     path = prefix + "/proposals/" + created.json()["id"]
     assert (
         await api.put(
             path,
             headers=bearer(s.owner.user_id),
-            json={"expected_version": 1, "content": "Revision", "bundle_ids": []},
+            json={"expected_version": 1, "edits": [{"find": "", "replace": "Revision"}], "bundle_ids": []},
         )
     ).status_code == 422
     assert (
@@ -491,7 +496,7 @@ async def test_http_revise_citations_are_explicit_ordered_and_new_empty_version_
     ]
     body: dict[str, Any] = {
         "expected_version": 1,
-        "content": "Next claim",
+        "edits": [{"find": "", "replace": "Next claim"}],
         "bundle_ids": [str(e.bundle.id)],
         "citations": citations,
     }
@@ -531,7 +536,7 @@ async def test_authenticated_routes_reject_invalid_workspace_and_strict_inputs(
             f"/documents/{s.document_id}/proposals",
             {
                 "source_session_id": str(s.session.id),
-                "content": "claim",
+                "edits": [{"find": "", "replace": "claim"}],
                 "citations": [],
             },
         ),
@@ -541,7 +546,7 @@ async def test_authenticated_routes_reject_invalid_workspace_and_strict_inputs(
             f"/proposals/{uuid4()}",
             {
                 "expected_version": 1,
-                "content": "claim",
+                "edits": [{"find": "", "replace": "claim"}],
                 "bundle_ids": [],
                 "citations": [],
             },
@@ -643,7 +648,7 @@ async def test_proposal_read_holds_status_and_approvals_consistent(
         s.workspace_id,
         s.session.id,
         document_id=s.document_id,
-        content="claim",
+        edits=(DocumentEdit("", "claim"),),
         citations=(),
     )
     task = None
@@ -684,7 +689,7 @@ async def test_additional_approvers_remain_version_owned_snapshots(
         s.workspace_id,
         pid,
         expected_version=1,
-        content="new",
+        edits=(DocumentEdit("", "new"),),
         bundle_ids=(),
         citations=(),
         additional_approver_ids=frozenset({s.other.user_id}),
@@ -800,7 +805,7 @@ async def test_production_revision_absent_private_responses_match(
             headers=bearer(s.other.user_id),
             json={
                 "expected_version": 1,
-                "content": "private change",
+                "edits": [{"find": "", "replace": "private change"}],
                 "bundle_ids": [],
                 "citations": [],
             },

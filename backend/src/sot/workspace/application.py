@@ -1,6 +1,11 @@
+from dataclasses import dataclass
 from uuid import uuid4
 
-from sot.identity.contracts import Actor, IdentityReader
+from sot.identity.contracts import (
+    Actor,
+    IdentityAttributionReader,
+    IdentityReader,
+)
 from sot.shared.ids import UserId, WorkspaceId
 from sot.shared.unit_of_work import TransactionContext, UnitOfWorkFactory
 from sot.workspace.contracts import WorkspaceAuthorizer, WorkspaceMemberReader
@@ -112,6 +117,46 @@ class GetCurrentWorkspaceMember:
     ) -> WorkspaceMembership:
         async with self._uow_factory().transaction() as tx:
             return await self._members.require_member(tx, workspace_id, actor.user_id)
+
+
+@dataclass(frozen=True, slots=True)
+class WorkspaceMemberProfile:
+    """Membership plus the display name, so the UI never has to show a raw id."""
+
+    membership: WorkspaceMembership
+    display_name: str
+
+
+class ListWorkspaceMembers:
+    def __init__(
+        self,
+        repository: WorkspaceRepository,
+        members: WorkspaceMemberReader,
+        attribution: IdentityAttributionReader,
+        uow_factory: UnitOfWorkFactory,
+    ) -> None:
+        self._repository, self._members = repository, members
+        self._attribution, self._uow_factory = attribution, uow_factory
+
+    async def execute(
+        self, actor: Actor, workspace_id: WorkspaceId
+    ) -> tuple[WorkspaceMemberProfile, ...]:
+        async with self._uow_factory().transaction() as tx:
+            # Membership alone is the gate: everyone in a workspace may see who
+            # else is in it. Only the display name is exposed, never the profile.
+            await self._members.require_member(tx, workspace_id, actor.user_id)
+            memberships = await self._repository.list_members(tx, workspace_id)
+            # ponytail: one attribution read per member, fine at workspace size;
+            # batch the lookup if a workspace ever gets large enough to notice.
+            profiles = []
+            for membership in memberships:
+                attribution = await self._attribution.require_attribution(
+                    tx, membership.user_id
+                )
+                profiles.append(
+                    WorkspaceMemberProfile(membership, attribution.display_name)
+                )
+            return tuple(profiles)
 
 
 class GetWorkspace:

@@ -1,0 +1,801 @@
+.page {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--canvas);
+}
+
+/* Public routes carry no workspace chrome. */
+.publicBar {
+  height: var(--header);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: 0 var(--space-xl);
+  border-bottom: 1px solid var(--divider);
+}
+
+.brandMark {
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: -0.4px;
+  color: var(--ink);
+  text-decoration: none;
+  margin-right: auto;
+}
+
+.center {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  /* Let the stack be as tall as its content and scroll here. Stretching it to
+     this box made every child a flex item competing for a fixed height, and
+     anything with its own `overflow` — the patch, a long code block — lost
+     its automatic minimum size and collapsed to a sliver. */
+  align-items: flex-start;
+  padding: var(--space-xxl) var(--space-xl) 80px;
+  overflow: auto;
+}
+
+.stack {
+  width: min(640px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.stack h1 {
+  margin: 0;
+}
+
+.stack h2 {
+  margin: var(--space-xl) 0 var(--space-xs);
+}
+
+.sub {
+  color: var(--ink-muted);
+  margin: 0 0 var(--space-lg);
+  font-size: 14px;
+}
+
+.eyebrow {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  margin: 0;
+}
+
+.toolbar {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+  margin: var(--space-lg) 0 var(--space-sm);
+}
+
+.spacer {
+  flex: 1;
+}
+
+/* Rows -------------------------------------------------------------- */
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-md);
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-lg);
+  padding: 18px 20px;
+  margin: 0;
+  width: 100%;
+  text-align: left;
+  text-decoration: none;
+  color: inherit;
+}
+
+a.row:hover,
+button.row:hover {
+  background: var(--surface-hover);
+  border-color: var(--border);
+}
+
+.rowTitle {
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.2px;
+  /* A row is a target, not a link in prose: it does not take the link colour. */
+  color: var(--ink);
+}
+
+.meta {
+  font-size: 12px;
+  color: var(--ink-muted);
+  margin-top: 2px;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+
+/* Chips -------------------------------------------------------------- */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  height: 22px;
+  padding: 0 var(--space-sm);
+  border-radius: var(--radius-pill);
+  background: var(--surface-raised);
+  border: 1px solid var(--divider);
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.chip[data-tone="accent"] {
+  background: var(--surface-selected);
+  border-color: var(--border);
+  color: var(--ink);
+}
+
+.chip[data-tone="ok"] {
+  background: var(--success-tint);
+  border-color: var(--success);
+  color: var(--success);
+}
+
+.chip[data-tone="danger"] {
+  background: var(--danger-tint);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+/* Controls ----------------------------------------------------------- */
+
+.input,
+.select {
+  width: 100%;
+  height: 44px;
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink);
+  padding: 0 var(--space-md);
+  margin: var(--space-sm) 0 var(--space-md);
+  outline: none;
+}
+
+textarea.input {
+  height: auto;
+  min-height: 88px;
+  padding: var(--space-sm) var(--space-md);
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.input:focus,
+.select:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.input::placeholder {
+  color: var(--ink-dim);
+}
+
+.primary,
+.ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 18px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--divider);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.2;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.ghost:hover {
+  background: var(--surface-hover);
+  border-color: var(--border);
+}
+
+.primary {
+  background: var(--brand);
+  color: var(--on-brand);
+  border-color: var(--brand);
+}
+
+.primary:hover {
+  background: var(--brand-hover);
+  border-color: var(--brand-hover);
+}
+
+.primary:active,
+.ghost:active {
+  transform: scale(0.96);
+}
+
+.primary:disabled,
+.ghost:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.label {
+  display: block;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+/* Login -------------------------------------------------------------- */
+
+.login {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: 44px minmax(0, 1fr) auto;
+  background: var(--surface);
+}
+
+.loginMasthead {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 max(22px, calc((100vw - 1024px) / 2));
+  color: var(--ink-muted);
+  background: rgb(255 255 255 / 82%);
+  border-bottom: 1px solid rgb(0 0 0 / 6%);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  font-size: 12px;
+}
+
+.loginBrand {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.loginLayout {
+  width: min(1024px, calc(100% - 44px));
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) 390px;
+  align-items: center;
+  gap: clamp(56px, 9vw, 120px);
+  padding: 80px 0;
+}
+
+.loginIntro {
+  max-width: 620px;
+}
+
+.loginIntro h1 {
+  max-width: 11ch;
+  margin: 14px 0 24px;
+  font-size: clamp(48px, 6.2vw, 72px);
+  font-weight: 600;
+  line-height: 0.98;
+  letter-spacing: -0.052em;
+}
+
+.loginDeck {
+  max-width: 31em;
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 19px;
+  line-height: 1.45;
+  letter-spacing: -0.025em;
+}
+
+.loginIndex {
+  margin: 40px 0 0;
+  color: var(--ink-dim);
+  font-size: 12px;
+  letter-spacing: 0.01em;
+}
+
+.loginPanel {
+  padding: 36px;
+  border-radius: var(--radius-xl);
+  background: var(--canvas);
+}
+
+.loginPanel h2 {
+  margin: 8px 0 10px;
+  font-size: 32px;
+  letter-spacing: -0.035em;
+}
+
+.loginHint {
+  margin: 0 0 28px;
+  color: var(--ink-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.googleButton {
+  min-height: 40px;
+}
+
+.loginRule {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0 4px;
+  color: var(--ink-dim);
+  font-size: 11px;
+}
+
+.loginRule::before,
+.loginRule::after {
+  content: "";
+  height: 1px;
+  flex: 1;
+  background: var(--border);
+}
+
+.loginPanel button {
+  width: 100%;
+  margin-top: var(--space-md);
+  min-height: 44px;
+}
+
+.loginFooter {
+  display: flex;
+  justify-content: space-between;
+  padding: 20px max(22px, calc((100vw - 1024px) / 2));
+  color: var(--ink-dim);
+  background: var(--canvas);
+  font-size: 11px;
+}
+
+/* Document ----------------------------------------------------------- */
+
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--rail-w);
+  height: calc(100vh - var(--header));
+  min-height: 0;
+}
+
+.session {
+  display: grid;
+  grid-template-columns: 1fr var(--side-w);
+  height: calc(100vh - var(--header));
+  min-height: 0;
+}
+
+.outline,
+.rail,
+.side {
+  background: rgb(250 250 252 / 84%);
+  border-color: var(--divider);
+  border-style: solid;
+  overflow: auto;
+  padding: var(--space-lg);
+  min-height: 0;
+}
+
+.outline {
+  border-width: 0 1px 0 0;
+}
+
+.rail,
+.side {
+  border-width: 0 0 0 1px;
+  display: flex;
+  flex-direction: column;
+  /* 24px is the major-section gap; anything tighter reads as one block. */
+  gap: var(--space-xl);
+}
+
+.outline h3,
+.rail h3,
+.side h3 {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-dim);
+  letter-spacing: 0.4px;
+  margin: 0 0 var(--space-sm);
+  text-transform: uppercase;
+}
+
+.outline button {
+  display: flex;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  padding: var(--space-sm);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.outline button[data-depth="3"] {
+  padding-left: var(--space-lg);
+}
+
+.outline button:hover {
+  background: var(--surface-raised);
+  color: var(--ink);
+}
+
+.outline button[data-on="true"] {
+  background: var(--surface-selected);
+  color: var(--ink);
+}
+
+.doc {
+  overflow: auto;
+  padding: var(--space-xxl) var(--space-section) 80px;
+  background: var(--canvas);
+}
+
+.card {
+  max-width: var(--doc-w);
+  margin: 0 auto;
+  background: var(--surface);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-lg);
+  padding: 48px;
+}
+
+.card h1 {
+  font-size: 40px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.6px;
+  margin: var(--space-sm) 0 var(--space-xl);
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  color: var(--ink);
+  font-size: 12px;
+}
+
+/* Session ------------------------------------------------------------ */
+
+.thread {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--canvas);
+}
+
+.threadHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--space-lg);
+  background: var(--surface);
+  border-bottom: 1px solid var(--divider);
+  min-width: 0;
+}
+
+.threadTitle {
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.empty {
+  color: var(--ink-muted);
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.alert {
+  color: var(--danger);
+  background: var(--danger-tint);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm) var(--space-md);
+  font-size: 12px;
+  margin: var(--space-sm) 0;
+}
+
+.banner {
+  margin: var(--space-md) var(--space-lg) 0;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  border: 1px solid var(--divider);
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.note {
+  font-size: 12px;
+  color: var(--ink-dim);
+  line-height: 1.55;
+  margin: var(--space-xs) 0 0;
+}
+
+.who {
+  font-size: 12px;
+  color: var(--ink-muted);
+  margin-bottom: var(--space-xs);
+}
+
+.note[data-over="true"] {
+  color: var(--danger);
+}
+
+.sideCard {
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md);
+  background: var(--surface);
+}
+
+.sideCard a {
+  color: var(--brand-hover);
+  text-decoration: none;
+}
+
+.side h4 {
+  margin: 0;
+}
+
+.actionsColumn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.turn {
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-lg);
+  padding: var(--space-sm) var(--space-md);
+  margin-bottom: var(--space-sm);
+  background: var(--surface);
+}
+
+.turn[data-picked="true"] {
+  border-color: var(--focus-ring);
+  background: var(--surface-selected);
+}
+
+.turn[data-dropped="true"] .turnBody {
+  color: var(--ink-dim);
+  text-decoration: line-through;
+}
+
+/* The rail is narrow: a label, a state chip and three controls do not fit on
+   one line, so let the row wrap instead of overflowing it. */
+.turnHead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs) var(--space-sm);
+  align-items: center;
+  margin-bottom: var(--space-xs);
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.turnWho {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  white-space: nowrap;
+}
+
+.turnActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  margin-left: auto;
+}
+
+.turnActions button {
+  height: 24px;
+  padding: 0 var(--space-sm);
+  font-size: 12px;
+}
+
+.turnBody {
+  font-size: 12px;
+  color: var(--ink-muted);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+/* Proposal ----------------------------------------------------------- */
+
+.patch {
+  background: var(--surface);
+  border: 1px solid var(--divider);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  /* A diff is the thing being reviewed: never shrink it, and give a long one
+     its own scroll rather than letting it own the page. */
+  flex: none;
+  max-height: 60vh;
+  overflow: auto;
+  margin: 0;
+  color: var(--ink);
+}
+
+.patch div {
+  /* Tint the whole row, not just the glyphs on it. */
+  padding: 0 var(--space-md);
+  margin: 0 calc(var(--space-md) * -1);
+}
+
+.patch [data-kind="add"] {
+  background: var(--success-tint);
+  color: var(--success);
+}
+
+.patch [data-kind="del"] {
+  background: var(--danger-tint);
+  color: var(--danger);
+}
+
+/* Overlay ------------------------------------------------------------ */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 68%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-xl);
+  z-index: 60;
+}
+
+.sheet {
+  width: min(480px, 100%);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 32px;
+}
+
+.sheet h2 {
+  margin: 0 0 var(--space-md);
+}
+
+.sheetActions {
+  display: flex;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+
+/* Mobile: outline and rail become a panel instead of disappearing ----- */
+
+.panelBar {
+  display: none;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-lg);
+  background: var(--surface);
+  border-bottom: 1px solid var(--divider);
+}
+
+@media (max-width: 960px) {
+  .loginLayout {
+    grid-template-columns: 1fr;
+    width: min(640px, calc(100% - 44px));
+    gap: 48px;
+    padding: 64px 0;
+  }
+
+  .loginIntro {
+    text-align: center;
+  }
+
+  .loginIntro h1,
+  .loginDeck {
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .loginIndex {
+    display: none;
+  }
+
+  .columns,
+  .session {
+    grid-template-columns: 1fr;
+    height: auto;
+    min-height: calc(100vh - var(--header));
+  }
+
+  .panelBar {
+    display: flex;
+  }
+
+  .outline,
+  .rail,
+  .side {
+    display: none;
+    border-width: 1px 0 0;
+  }
+
+  .outline[data-open="true"],
+  .rail[data-open="true"],
+  .side[data-open="true"] {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .doc {
+    padding: var(--space-xl) var(--space-lg) var(--space-section);
+  }
+
+  .card {
+    padding: var(--space-xl);
+  }
+
+  .card h1 {
+    font-size: 28px;
+    letter-spacing: -0.6px;
+  }
+
+  .thread {
+    min-height: 60vh;
+  }
+}
+
+@media (max-width: 640px) {
+  .loginMasthead span,
+  .loginFooter span:last-child {
+    display: none;
+  }
+
+  .loginLayout {
+    width: calc(100% - 32px);
+    padding: 48px 0;
+  }
+
+  .loginIntro h1 {
+    font-size: 44px;
+  }
+
+  .loginDeck {
+    font-size: 17px;
+  }
+
+  .loginPanel {
+    padding: 28px 22px;
+  }
+}

@@ -1,0 +1,157 @@
+/* Tokens from DESIGN.md. Every value here is declared there; nothing is
+   invented at the CSS layer. */
+:root {
+  /* Apple DESIGN.md surface system. */
+  --canvas: #f5f5f7;
+  --surface: #ffffff;
+  --surface-raised: #fafafc;
+  --surface-hover: #f0f0f2;
+  --surface-selected: #e8e8ed;
+  --surface-strong: #d2d2d7;
+
+  /* Alpha borders read the same on every step of the ladder. */
+  --divider: #e5e5ea;
+  --border: #d2d2d7;
+
+  /* Three ink levels. A fourth means the hierarchy is wrong. */
+  --ink: #1d1d1f;
+  --ink-muted: #6e6e73;
+  --ink-dim: #86868b;
+
+  /* One accent, two semantics. Large areas use the same hue at 14%. */
+  --brand: #0066cc;
+  --brand-hover: #0071e3;
+  --focus-ring: rgb(0 102 204 / 28%);
+  --on-brand: #ffffff;
+  --success: #248a3d;
+  --success-tint: rgb(36 138 61 / 10%);
+  --danger: #d70015;
+  --danger-tint: rgb(215 0 21 / 8%);
+
+  --radius-sm: 8px;
+  --radius-md: 11px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
+  --radius-pill: 9999px;
+
+  /* Base unit 4px. Anything not a multiple of 4 is a bug. */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+  --space-xxl: 32px;
+  --space-section: 48px;
+
+  --header: 52px;
+  --outline-w: 232px;
+  --rail-w: 336px;
+  --side-w: 360px;
+  --doc-w: 760px;
+
+  --font: "SF Pro Text", "SF Pro Display", -apple-system, BlinkMacSystemFont,
+    "Pretendard Variable", "Noto Sans KR", "Helvetica Neue", Arial, sans-serif;
+  --font-display: "SF Pro Display", -apple-system, BlinkMacSystemFont,
+    "Pretendard Variable", "Noto Sans KR", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font);
+  color: var(--ink);
+  background: var(--canvas);
+  /* typography.body */
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: -0.022em;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Five sizes, two weights. No 18, no 20, no 32, no 40. */
+h1 {
+  font-family: var(--font-display);
+  font-size: clamp(34px, 4vw, 48px);
+  font-weight: 600;
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+  margin: 0;
+}
+
+h2 {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.14;
+  letter-spacing: -0.022em;
+  margin: 0;
+}
+
+h3,
+h4 {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.5;
+  letter-spacing: 0;
+  margin: 0;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+a {
+  color: var(--brand);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--brand-hover);
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+
+::selection {
+  background: var(--brand);
+  color: var(--on-brand);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgb(27 26 23 / 18%);
+  border-radius: var(--radius-pill);
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(27 26 23 / 32%);
+  background-clip: content-box;
+}

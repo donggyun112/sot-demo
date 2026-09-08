@@ -69,6 +69,23 @@ class PostgresWorkspaceRepository:
             else None
         )
 
+    async def list_members(
+        self, tx: TransactionContext, workspace_id: WorkspaceId
+    ) -> tuple[WorkspaceMembership, ...]:
+        rows = await (
+            await connection(tx).execute(
+                "SELECT workspace_id,user_id,role FROM sot.sot_workspace_member "
+                "WHERE workspace_id=%s ORDER BY user_id",
+                (workspace_id,),
+            )
+        ).fetchall()
+        return tuple(
+            WorkspaceMembership(
+                WorkspaceId(row[0]), UserId(row[1]), WorkspaceRole(row[2])
+            )
+            for row in rows
+        )
+
     async def list_for_user(
         self, tx: TransactionContext, user_id: UserId
     ) -> tuple[Workspace, ...]:
