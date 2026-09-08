@@ -183,6 +183,9 @@ class TurnResponse(BaseModel):
     content: str
     created_at: datetime
     created_by: UUID
+    # Present on a tool CALL: the handle a merged passage points at to name
+    # the moment its update was written. Never arguments, never a return.
+    tool_call_id: str | None = None
 
 
 class CitedConversationResponse(BaseModel):
@@ -280,16 +283,17 @@ def build_session_router(
     ) -> tuple[TurnResponse, ...]:
         return tuple(
             TurnResponse(
-                id=turn.id,
-                workspace_id=turn.workspace_id,
-                branch_id=turn.branch_id,
-                ordinal=turn.ordinal,
-                role=turn.role,
-                content=turn.content,
-                created_at=turn.created_at,
-                created_by=turn.created_by,
+                id=entry.turn.id,
+                workspace_id=entry.turn.workspace_id,
+                branch_id=entry.turn.branch_id,
+                ordinal=entry.turn.ordinal,
+                role=entry.turn.role,
+                content=entry.turn.content,
+                created_at=entry.turn.created_at,
+                created_by=entry.turn.created_by,
+                tool_call_id=entry.tool_call_id,
             )
-            for turn in await list_turns.execute(
+            for entry in await list_turns.execute(
                 current, WorkspaceId(workspace_id), BranchId(branch_id)
             )
         )

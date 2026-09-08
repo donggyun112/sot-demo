@@ -77,6 +77,7 @@ class ProposalCreator(Protocol):
         branch_id: BranchId,
         expected_branch_version: int,
         edits: tuple[DocumentEdit, ...],
+        tool_call_id: str | None = None,
     ) -> BranchMutationResult: ...
 
 

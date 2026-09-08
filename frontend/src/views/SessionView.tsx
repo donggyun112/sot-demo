@@ -215,6 +215,7 @@ export function SessionView() {
               canSend={can(member, "session.participate")}
               youLabel={user?.display_name ?? t("people.you")}
               nameOf={nameOf}
+              highlightCall={params.get("call") ?? undefined}
             />
           )}
         </div>

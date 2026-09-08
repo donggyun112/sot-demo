@@ -45,6 +45,17 @@ export const turns: Schema["TurnResponse"][] = [
     created_at: session.created_at,
     created_by: "user-2",
   },
+  {
+    id: "turn-3",
+    workspace_id: "w1",
+    branch_id: branch.id,
+    ordinal: 3,
+    role: "tool",
+    content: "sot_update",
+    created_at: session.created_at,
+    created_by: member.id,
+    tool_call_id: "call-abc123",
+  },
 ];
 export const proposal: Schema["ProposalResponse"] = {
   id: "proposal-1",
@@ -283,6 +294,8 @@ export function createServer() {
           bundle_id: "bundle-1",
           bundle_item_position: 1,
           revision_number: 2,
+          session_id: session.id,
+          tool_call_id: "call-abc123",
         },
       ]);
     if (path.endsWith("/documents/doc-1/revisions"))

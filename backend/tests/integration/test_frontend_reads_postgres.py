@@ -225,13 +225,13 @@ async def test_branch_version_and_completed_turns_exclude_execution_internals(
                     UserPromptPart("question"),
                 ]
             ),
-            ModelResponse(parts=[ToolCallPart("session_cite", {}, "private-call")]),
+            ModelResponse(parts=[ToolCallPart("session_cite", {}, "call-abc123")]),
             ModelRequest(
                 parts=[
                     ToolReturnPart(
                         "session_cite",
                         {"internal": "private tool payload"},
-                        "private-call",
+                        "call-abc123",
                     )
                 ]
             ),
@@ -267,6 +267,13 @@ async def test_branch_version_and_completed_turns_exclude_execution_internals(
     # Neither the arguments, the result, nor the envelope they travelled in.
     assert "private" not in response.text and "sot.tool-turn" not in response.text
     assert "internal" not in response.text
+    # The call's id IS given: an opaque handle, and the only way a merged
+    # passage can point at the moment its update was written.
+    assert [row["tool_call_id"] for row in response.json()] == [
+        None,
+        "call-abc123",
+        None,
+    ]
     branches = await api.get(branches_path, headers=bearer(s.owner.user_id))
     assert branches.status_code == 200
     assert [(row["id"], row["version"]) for row in branches.json()] == [

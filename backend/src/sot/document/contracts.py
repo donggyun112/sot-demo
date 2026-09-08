@@ -6,7 +6,14 @@ from typing import Protocol
 
 from sot.document.domain import RevisionCitationInput, RevisionId
 from sot.identity.contracts import Actor
-from sot.shared.ids import BundleId, DocumentId, ProposalId, UserId, WorkspaceId
+from sot.shared.ids import (
+    BundleId,
+    DocumentId,
+    ProposalId,
+    SessionId,
+    UserId,
+    WorkspaceId,
+)
 from sot.shared.unit_of_work import TransactionContext
 
 
@@ -65,6 +72,10 @@ class PassageGround:
     bundle_id: BundleId
     bundle_item_position: int
     revision_number: int
+    # The conversation, and the sot_update call inside it that wrote this
+    # passage. Both are absent for a revision no proposal produced.
+    session_id: SessionId | None = None
+    tool_call_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

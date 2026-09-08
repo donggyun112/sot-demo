@@ -11,7 +11,7 @@ import { MemoryRouter, useLocation } from "react-router";
 import { afterEach, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { AuthSession } from "./auth";
-import { createServer, member, proposal } from "./test/server";
+import { createServer, member, proposal, session } from "./test/server";
 import { PROPOSAL_CONTENT_LIMIT } from "./app/limits";
 
 afterEach(() => {
@@ -759,12 +759,39 @@ it("opens the session from the passage the update landed on", async () => {
     .closest("[data-cited]");
   expect(passage).not.toBeNull();
   const link = within(passage as HTMLElement).getByRole("link", {
-    name: "From this session",
+    name: "The update that wrote this",
   });
-  expect(link).toHaveAttribute("href", "/w/w1/sessions/session-1");
+  // Not just the session: the sot_update call inside it that wrote this.
+  expect(link).toHaveAttribute(
+    "href",
+    "/w/w1/sessions/session-1?call=call-abc123",
+  );
 
   // A passage no update wrote carries no such claim.
   const untouched = (await screen.findByRole("heading", { name: "문제 정의" }))
     .closest("[data-cited]");
   expect(untouched).toBeNull();
+});
+
+
+it("marks and opens the call that wrote the passage you came from", async () => {
+  // Landing in the session is not the answer on its own — the conversation is
+  // long. The reader arrives at the moment the update was written.
+  const server = createServer();
+  server.state.sessions = [session];
+  await signIn(server);
+  await openDocument();
+  const passage = (await screen.findByRole("heading", { name: "감사·모니터링" }))
+    .closest("[data-cited]");
+  await userEvent.click(
+    within(passage as HTMLElement).getByRole("link", {
+      name: "The update that wrote this",
+    }),
+  );
+
+  const call = await screen.findByText("sot_update");
+  const fold = call.closest("details");
+  expect(fold).not.toBeNull();
+  expect(fold!.dataset.marked).toBe("true");
+  expect(fold!.open).toBe(true);
 });

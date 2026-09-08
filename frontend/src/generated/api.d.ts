@@ -1057,6 +1057,10 @@ export interface components {
             claim_anchor: string;
             /** Revision Number */
             revision_number: number;
+            /** Session Id */
+            session_id?: string | null;
+            /** Tool Call Id */
+            tool_call_id?: string | null;
         };
         /**
          * Permission
@@ -1416,6 +1420,8 @@ export interface components {
              * @enum {string}
              */
             role: "user" | "assistant" | "tool";
+            /** Tool Call Id */
+            tool_call_id?: string | null;
             /**
              * Workspace Id
              * Format: uuid

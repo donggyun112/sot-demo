@@ -88,6 +88,7 @@ async def sot_update(
             branch_id=deps.branch_id,
             expected_branch_version=deps.lineage.expected_version,
             edits=tuple(DocumentEdit(e["find"], e["replace"]) for e in edits),
+            tool_call_id=ctx.tool_call_id,
         )
     except InvalidInput as rejected:
         # An anchor that matches nothing, an anchor that matches twice, an

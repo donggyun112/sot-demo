@@ -18,6 +18,7 @@ from sot.session.contracts import (
     SessionView,
     ShareableBundleSnapshot,
     ToolRecordReader,
+    TranscriptTurn,
 )
 from sot.session.domain import (
     Branch,
@@ -35,7 +36,6 @@ from sot.session.domain import (
     SessionNotFound,
     SessionPermission,
     SessionRole,
-    Turn,
     VersionConflict,
     is_allowed,
 )
@@ -355,7 +355,7 @@ class ListBranchTurns:
 
     async def execute(
         self, actor: Actor, workspace_id: WorkspaceId, branch_id: BranchId
-    ) -> tuple[Turn, ...]:
+    ) -> tuple[TranscriptTurn, ...]:
         async with self._uow_factory().transaction() as tx:
             branch = await self._reader.read(
                 tx,
@@ -367,14 +367,19 @@ class ListBranchTurns:
             # the agent make is one you have to take on trust. Its arguments
             # and its return do not, and curation keeps every tool turn out
             # of bundles, so none of this reaches shared evidence.
-            kept = []
+            kept: list[TranscriptTurn] = []
             for turn in branch.turns:
                 if turn.role != "tool":
-                    kept.append(turn)
+                    kept.append(TranscriptTurn(turn))
                     continue
                 name = self._records.call_name(turn.content)
                 if name is not None:
-                    kept.append(replace(turn, content=name))
+                    kept.append(
+                        TranscriptTurn(
+                            replace(turn, content=name),
+                            self._records.call_id(turn.content),
+                        )
+                    )
             return tuple(kept)
 
 

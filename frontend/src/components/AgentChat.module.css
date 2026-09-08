@@ -295,3 +295,10 @@
 .retry:active:not(:disabled) {
   transform: scale(0.95);
 }
+
+/* The call a reader arrived for, coming from a passage in the document. It is
+   marked so the answer to "where was this written" is the thing you land on. */
+.fold[data-marked="true"] {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 14%, transparent);
+}

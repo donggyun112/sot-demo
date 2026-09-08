@@ -97,6 +97,8 @@ class PassageGroundResponse(BaseModel):
     bundle_id: UUID
     bundle_item_position: int
     revision_number: int
+    session_id: UUID | None = None
+    tool_call_id: str | None = None
 
     @classmethod
     def from_ground(cls, value: PassageGround) -> "PassageGroundResponse":
@@ -105,6 +107,8 @@ class PassageGroundResponse(BaseModel):
             bundle_id=value.bundle_id,
             bundle_item_position=value.bundle_item_position,
             revision_number=value.revision_number,
+            session_id=value.session_id,
+            tool_call_id=value.tool_call_id,
         )
 
 

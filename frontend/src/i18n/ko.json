@@ -106,7 +106,7 @@
     "section": "문단",
     "wholeBody": "문서 전체",
     "openCitedSession": "이 구간을 만든 세션 열기",
-    "fromSession": "이 구간을 만든 세션"
+    "fromSession": "이 구간을 쓴 업데이트"
   },
   "sessions": {
     "title": "세션",

@@ -130,6 +130,29 @@ def browser_model() -> FunctionModel:
                 )
             }
             return
+        if prompt == "write the audit section":
+            # An update the agent itself writes, so the tool call is recorded
+            # and a merged passage can point at it.
+            if any(isinstance(part, ToolReturnPart) for part in messages[-1].parts):
+                yield "Proposed the audit section."
+                return
+            yield {
+                0: DeltaToolCall(
+                    "sot_update",
+                    json.dumps(
+                        {
+                            "edits": [
+                                {
+                                    "find": "",
+                                    "replace": "## audit\nKeep a log of every token.",
+                                }
+                            ]
+                        }
+                    ),
+                    tool_call_id="audit-call",
+                )
+            }
+            return
         if prompt == "what does the document say?":
             # Answered from the document the run was given, which is the whole
             # point of giving it: the agent used to say it could not read one.

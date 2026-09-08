@@ -94,6 +94,10 @@ class ProposalVersion:
     created_at: datetime
     citations: tuple[ProposalCitation, ...]
     additional_approver_ids: frozenset[UserId] = frozenset()
+    # The sot_update call that wrote this, so a merged passage can be traced
+    # to the moment in the conversation rather than only to the session.
+    # None for a version no tool call made.
+    tool_call_id: str | None = None
 
     @property
     def added(self) -> str:
@@ -199,6 +203,7 @@ class Proposal:
         citations: tuple[ProposalCitation, ...],
         now: datetime,
         additional_approver_ids: frozenset[UserId] = frozenset(),
+        tool_call_id: str | None = None,
     ) -> Proposal:
         cls._require_creator(created_by, required_approver_ids)
         proposal_id = ProposalId(uuid4())
@@ -213,6 +218,7 @@ class Proposal:
             now,
             citations,
             additional_approver_ids,
+            tool_call_id,
         )
         return cls(
             proposal_id,

@@ -22,6 +22,8 @@ interface AgentChatProps {
   youLabel: string;
   /** Names the author of a stored turn; without it every turn reads as yours. */
   nameOf?: (userId: string) => string;
+  /** A tool call to open and mark, for someone arriving from the document. */
+  highlightCall?: string;
 }
 type AgentMessage = PydanticAIAgent["messages"][number];
 /**
@@ -86,7 +88,16 @@ type Block =
      as an assistant turn made every reply look like two replies. It is never
      stored either, so it exists only while the run is on screen. */
   | { kind: "thinking"; id: string; content: string }
-  | { kind: "tool"; id: string; name: string; args?: unknown; result?: unknown };
+  | {
+      kind: "tool";
+      id: string;
+      name: string;
+      args?: unknown;
+      result?: unknown;
+      /* The provider's id, so a link from a document passage can name the
+         exact call that wrote it. */
+      callId?: string;
+    };
 
 /** A call and its result are one thing that happened, so they read as one. */
 function attachResult(blocks: Block[], callId: string, result: unknown) {
@@ -172,7 +183,12 @@ function isRunDetail(block: Block): boolean {
 function storedBlocks(turns: Turn[]): Block[] {
   return turns.map((turn) =>
     turn.role === "tool"
-      ? { kind: "tool" as const, id: turn.id, name: turn.content }
+      ? {
+          kind: "tool" as const,
+          id: turn.id,
+          name: turn.content,
+          callId: turn.tool_call_id ?? undefined,
+        }
       : {
           kind: "text" as const,
           id: turn.id,
@@ -370,9 +386,23 @@ export function AgentChat(props: AgentChatProps) {
               <details
                 className={styles.fold}
                 key={block.id}
+                ref={(node) => {
+                  /* Optional call: anything thrown from a ref unmounts the
+                     whole transcript, and scrolling is a nicety. */
+                  if (node && block.callId && block.callId === props.highlightCall)
+                    node.scrollIntoView?.({ block: "center" });
+                }}
+                data-marked={
+                  block.callId && block.callId === props.highlightCall
+                    ? "true"
+                    : undefined
+                }
                 /* Uncontrolled once touched: writing `open` on every render
                    fought the click that opened it. */
-                open={folds[block.id] ?? running}
+                open={
+                  folds[block.id] ??
+                  (running || (!!block.callId && block.callId === props.highlightCall))
+                }
                 onToggle={(event) => rememberFold(block.id, event)}
               >
                 <summary>

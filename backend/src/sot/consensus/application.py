@@ -222,6 +222,7 @@ class CreateProposal:
         edits: tuple[DocumentEdit, ...],
         branch_id: BranchId,
         additional_approver_ids: frozenset[UserId],
+        tool_call_id: str | None = None,
     ) -> Proposal:
         session = await self._sources.sessions.require(
             tx,
@@ -262,6 +263,7 @@ class CreateProposal:
             citations=citations,
             additional_approver_ids=additional_approver_ids,
             now=self._clock.now(),
+            tool_call_id=tool_call_id,
         )
         # Reject an anchor that does not name one place in the document now,
         # rather than at merge when approvers have already reviewed it.
@@ -277,6 +279,7 @@ class CreateProposal:
         branch_id: BranchId,
         expected_branch_version: int,
         edits: tuple[DocumentEdit, ...],
+        tool_call_id: str | None = None,
     ) -> BranchMutationResult:
         async with self._uow_factory().transaction() as tx:
             context = await self._branches.read(
@@ -306,6 +309,7 @@ class CreateProposal:
                 edits=edits,
                 branch_id=branch_id,
                 additional_approver_ids=frozenset(),
+                tool_call_id=tool_call_id,
             )
             return BranchMutationResult(proposal.id, branch_version)
 

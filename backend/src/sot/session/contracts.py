@@ -148,6 +148,10 @@ class ToolRecordReader(Protocol):
 
     def call_name(self, content: str) -> str | None: ...
 
+    def call_id(self, content: str) -> str | None:
+        """The provider's id for the call. An opaque handle, never payload."""
+        ...
+
 
 class BundleOwningSessionReader(Protocol):
     """Which session a bundle was published from, for someone allowed to read it.
@@ -193,6 +197,19 @@ class CiteCreator(Protocol):
         turn_ids: tuple[TurnId, ...],
         summary: str,
     ) -> BranchMutationResult: ...
+
+
+@dataclass(frozen=True, slots=True)
+class TranscriptTurn:
+    """A turn as a reader may see it.
+
+    A tool call keeps its name and its id — the id is what lets a merged
+    passage point at the moment its update was written — and never its
+    arguments or its return.
+    """
+
+    turn: Turn
+    tool_call_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

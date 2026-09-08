@@ -74,6 +74,7 @@ class RecordingProposalCreator:
         branch_id: BranchId,
         expected_branch_version: int,
         edits: tuple[DocumentEdit, ...],
+        tool_call_id: str | None = None,
     ) -> BranchMutationResult:
         self.calls.append(
             {
@@ -82,6 +83,7 @@ class RecordingProposalCreator:
                 "branch_id": branch_id,
                 "expected_branch_version": expected_branch_version,
                 "edits": edits,
+                "tool_call_id": tool_call_id,
             }
         )
         if self.failure is not None:
@@ -111,8 +113,13 @@ def agent_deps(
     )
 
 
-def tool_context(deps: AgentDeps) -> RunContext[AgentDeps]:
-    return cast(RunContext[AgentDeps], SimpleNamespace(deps=deps))
+def tool_context(
+    deps: AgentDeps, tool_call_id: str | None = "call-1"
+) -> RunContext[AgentDeps]:
+    return cast(
+        RunContext[AgentDeps],
+        SimpleNamespace(deps=deps, tool_call_id=tool_call_id),
+    )
 
 
 @pytest.mark.asyncio
@@ -161,6 +168,9 @@ async def test_sot_update_returns_open_proposal_and_advances_lineage() -> None:
             "branch_id": deps.branch_id,
             "expected_branch_version": 4,
             "edits": (DocumentEdit("", "candidate main"),),
+            # The call that wrote it, so a merged passage can point at the
+            # moment in the transcript rather than at the whole session.
+            "tool_call_id": "call-1",
         }
     ]
 

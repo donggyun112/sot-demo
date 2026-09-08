@@ -285,11 +285,23 @@ class ToolRecords:
     """Reads the tool envelope this module writes, for the session transcript."""
 
     def call_name(self, content: str) -> str | None:
+        return self._field(content, "tool_name")
+
+    def call_id(self, content: str) -> str | None:
+        """The provider's id for the call: an opaque handle, never payload.
+
+        It is what lets a merged passage point at the moment in the transcript
+        where its update was written, instead of at the whole session.
+        """
+        return self._field(content, "tool_call_id")
+
+    @staticmethod
+    def _field(content: str, key: str) -> str | None:
         try:
             payload = json.loads(content)
         except (TypeError, ValueError):
             return None
         if not isinstance(payload, dict) or payload.get("kind") != "call":
             return None
-        name = payload.get("tool_name")
-        return name if isinstance(name, str) and name else None
+        value = payload.get(key)
+        return value if isinstance(value, str) and value else None

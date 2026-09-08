@@ -20,24 +20,38 @@ import styles from "./product.module.css";
  */
 function PassageSession({
   workspaceId,
-  bundleId,
+  ground,
 }: {
   workspaceId: string;
-  bundleId: string;
+  ground: {
+    bundle_id: string;
+    session_id?: string | null;
+    tool_call_id?: string | null;
+  };
 }) {
   const { t } = useTranslation();
   const { api } = useSot();
-  /* Passages of one revision share a bundle, so this is one request. */
+  /*
+    The proposal already names the session. Falling back to the bundle covers
+    a passage merged before proposals recorded it; passages of one revision
+    share a bundle, so that fallback is one request.
+  */
   const cited = api.useQuery(
     "get",
     "/api/v1/workspaces/{workspace_id}/bundles/{bundle_id}",
-    { params: { path: { workspace_id: workspaceId, bundle_id: bundleId } } },
+    { params: { path: { workspace_id: workspaceId, bundle_id: ground.bundle_id } } },
+    { enabled: !ground.session_id },
   );
-  if (!cited.data) return null;
+  const sessionId = ground.session_id ?? cited.data?.session_id;
+  if (!sessionId) return null;
+  /* The moment inside the conversation, when the update recorded one. */
+  const at = ground.tool_call_id
+    ? `?call=${encodeURIComponent(ground.tool_call_id)}`
+    : "";
   return (
     <Link
       className={styles.passageLink}
-      to={`/w/${workspaceId}/sessions/${cited.data.session_id}`}
+      to={`/w/${workspaceId}/sessions/${sessionId}${at}`}
     >
       {t("document.fromSession")}
     </Link>
@@ -366,7 +380,7 @@ export function DocumentView() {
                         {grounds && (
                           <PassageSession
                             workspaceId={workspaceId}
-                            bundleId={grounds.bundle_id}
+                            ground={grounds}
                           />
                         )}
                       </div>

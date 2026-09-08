@@ -67,25 +67,20 @@ test("a merged passage leads back to the conversation that wrote it", async ({
     await alice.getByLabel("Agent message").press("Enter");
     await (await streamed).text();
 
-    // The update written out of it, approved and merged.
-    const proposed = await (
-      await context.request.post(
+    // The update written by the agent's own tool call, so the passage can
+    // point at the moment it was written rather than at the whole session.
+    const wrote = alice.waitForResponse((r) => r.url().endsWith("/agent"));
+    await alice.getByLabel("Agent message").fill("write the audit section");
+    await alice.getByLabel("Agent message").press("Enter");
+    await (await wrote).text();
+    const proposals = (await (
+      await context.request.get(
         `${api}/workspaces/${aw}/documents/${documentId}/proposals`,
-        {
-          headers: auth,
-          data: {
-            source_session_id: created.session_id,
-            branch_id: created.branch_id,
-            edits: [
-              {
-                find: "",
-                replace: "## 감사·모니터링\n생성·사용·폐기 이력을 남긴다.",
-              },
-            ],
-          },
-        },
+        { headers: auth },
       )
-    ).json();
+    ).json()) as { id: string; status: string }[];
+    const proposed = proposals.find((one) => one.status === "open")!;
+    expect(proposed).toBeDefined();
     await context.request.post(
       `${api}/workspaces/${aw}/proposals/${proposed.id}/decisions`,
       { headers: auth, data: { expected_version: 1, decision: "approve" } },
@@ -99,17 +94,20 @@ test("a merged passage leads back to the conversation that wrote it", async ({
       ).status(),
     ).toBe(200);
 
-    // The passage in the document leads into the session that wrote it. That
-    // is where a reader asks the question, so that is where it is answered.
+    // The passage in the document leads to the sot_update call that wrote it.
     await alice.goto(`/w/${aw}/documents/${documentId}`);
     const passage = alice
       .locator("[data-cited]")
-      .filter({ hasText: "감사·모니터링" });
+      .filter({ hasText: "audit" });
     await expect(passage).toBeVisible();
-    await passage.getByRole("link", { name: "From this session" }).click();
-    await expect(alice).toHaveURL(
-      new RegExp(`/sessions/${created.session_id}`),
-    );
+    await passage
+      .getByRole("link", { name: "The update that wrote this" })
+      .click();
+    await expect(alice).toHaveURL(new RegExp(`/sessions/${created.session_id}`));
+    await expect(alice).toHaveURL(/call=/);
+    // Landed on the call, opened and marked.
+    const marked = alice.locator('details[data-marked="true"]');
+    await expect(marked).toContainText("sot_update");
     await expect(
       alice.getByRole("paragraph").filter({ hasText: asked }),
     ).toBeVisible();

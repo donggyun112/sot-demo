@@ -107,7 +107,7 @@
     "section": "Passage",
     "wholeBody": "The whole document",
     "openCitedSession": "Open the session this came from",
-    "fromSession": "From this session"
+    "fromSession": "The update that wrote this"
   },
   "sessions": {
     "title": "Sessions",

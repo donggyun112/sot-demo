@@ -12,7 +12,14 @@ from sot.document.contracts import (
     RevisionView,
 )
 from sot.document.domain import Document, Revision, RevisionId, VersionConflict
-from sot.shared.ids import BundleId, DocumentId, ProposalId, UserId, WorkspaceId
+from sot.shared.ids import (
+    BundleId,
+    DocumentId,
+    ProposalId,
+    SessionId,
+    UserId,
+    WorkspaceId,
+)
 from sot.shared.unit_of_work import TransactionContext
 
 
@@ -172,16 +179,32 @@ class PostgresDocumentRepository:
         rows = await (
             await connection(tx).execute(
                 "SELECT DISTINCT ON (c.claim_anchor) "
-                "c.claim_anchor,c.bundle_id,c.bundle_item_position,r.number "
+                "c.claim_anchor,c.bundle_id,c.bundle_item_position,r.number,"
+                "p.source_session_id,v.tool_call_id "
                 "FROM sot.sot_revision_citation c "
                 "JOIN sot.sot_document_revision r "
                 "  ON r.workspace_id=c.workspace_id AND r.id=c.revision_id "
+                "LEFT JOIN sot.sot_proposal p "
+                "  ON p.workspace_id=r.workspace_id AND p.id=r.proposal_id "
+                "LEFT JOIN sot.sot_proposal_version v "
+                "  ON v.workspace_id=p.workspace_id AND v.proposal_id=p.id "
+                " AND v.proposal_version=p.current_version "
                 "WHERE r.workspace_id=%s AND r.document_id=%s "
                 "ORDER BY c.claim_anchor, r.number DESC",
                 (workspace_id, document_id),
             )
         ).fetchall()
-        return tuple(PassageGround(r[0], BundleId(r[1]), r[2], r[3]) for r in rows)
+        return tuple(
+            PassageGround(
+                r[0],
+                BundleId(r[1]),
+                r[2],
+                r[3],
+                SessionId(r[4]) if r[4] else None,
+                r[5],
+            )
+            for r in rows
+        )
 
     @staticmethod
     def _validate(

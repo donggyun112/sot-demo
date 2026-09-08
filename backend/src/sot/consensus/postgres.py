@@ -75,7 +75,10 @@ class PostgresProposalRepository:
         scope = (workspace_id, proposal_id, row[6])
         versions = await (
             await conn.execute(
-                "SELECT proposal_version,base_revision_id,created_by,created_at FROM sot.sot_proposal_version WHERE workspace_id=%s AND proposal_id=%s AND proposal_version<=%s ORDER BY proposal_version",
+                "SELECT proposal_version,base_revision_id,created_by,created_at,tool_call_id "
+                "FROM sot.sot_proposal_version "
+                "WHERE workspace_id=%s AND proposal_id=%s AND proposal_version<=%s "
+                "ORDER BY proposal_version",
                 scope,
             )
         ).fetchall()
@@ -132,6 +135,7 @@ class PostgresProposalRepository:
                         if c[0] == v[0]
                     ),
                     frozenset(UserId(a[1]) for a in approvers if a[0] == v[0] and a[2]),
+                    v[4],
                 )
                 for v in versions
             ),
@@ -183,13 +187,19 @@ class PostgresProposalRepository:
             scope = (proposal.workspace_id, proposal.id, version.version)
             inserted = await (
                 await conn.execute(
-                    "INSERT INTO sot.sot_proposal_version(workspace_id,proposal_id,proposal_version,document_id,base_revision_id,created_by,created_at) VALUES (%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (workspace_id,proposal_id,proposal_version) DO NOTHING RETURNING proposal_version",
+                    "INSERT INTO sot.sot_proposal_version"
+                    "(workspace_id,proposal_id,proposal_version,document_id,"
+                    "base_revision_id,created_by,created_at,tool_call_id) "
+                    "VALUES (%s,%s,%s,%s,%s,%s,%s,%s) "
+                    "ON CONFLICT (workspace_id,proposal_id,proposal_version) "
+                    "DO NOTHING RETURNING proposal_version",
                     (
                         *scope,
                         proposal.document_id,
                         version.base_revision_id,
                         version.created_by,
                         version.created_at,
+                        version.tool_call_id,
                     ),
                 )
             ).fetchone()
