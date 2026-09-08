@@ -2,6 +2,7 @@ import { cjk } from "@streamdown/cjk";
 import { code } from "@streamdown/code";
 import remarkBreaks from "remark-breaks";
 import remarkFrontmatter from "remark-frontmatter";
+import remarkGfm from "remark-gfm";
 import { Streamdown } from "streamdown";
 import "streamdown/styles.css";
 import type { Root, RootContent } from "mdast";
@@ -28,12 +29,17 @@ function frontMatterAsCode() {
 }
 
 /*
-  A document here is whatever someone pasted or uploaded, not something an
-  author wrote for a Markdown renderer. Plain Markdown joins consecutive
-  lines into one paragraph, which turned an uploaded text file into a single
-  unreadable run of text. Every newline in the source is a newline on screen.
+  GFM, because the agent answers with tables and task lists constantly and
+  they were printing as rows of raw pipes. Declared here rather than assumed:
+  nothing in the chain was adding it.
+
+  remark-breaks, because a document here is whatever someone pasted or
+  uploaded, not something an author wrote for a Markdown renderer. Plain
+  Markdown joins consecutive lines into one paragraph, which turned an
+  uploaded text file into a single unreadable run of text. Every newline in
+  the source is a newline on screen.
 */
-const plugins = [remarkFrontmatter, frontMatterAsCode, remarkBreaks];
+const plugins = [remarkGfm, remarkFrontmatter, frontMatterAsCode, remarkBreaks];
 
 export function MarkdownBody({
   text,
