@@ -11,6 +11,7 @@ from sot.session.contracts import (
     BranchMutationResult,
     BundleSnapshot,
     CreatedSessionResult,
+    FrozenEvidence,
     SessionAuthorizer,
     SessionView,
     ShareableBundleSnapshot,
@@ -655,60 +656,49 @@ class PreviewBundle:
             return projection.items
 
 
-class PublishBundle:
+class FreezeEvidence:
+    """Answers EvidenceFreezer: the curated conversation, frozen where it is.
+
+    No version is advanced here. The command that proposes the update owns the
+    branch version; this only records what that update was written from.
+    """
+
     def __init__(
         self,
         repository: BundleRepository,
         curation: CurationRepository,
-        branches: SessionRepository,
         reader: BranchContextReader,
-        uow_factory: UnitOfWorkFactory,
         clock: Clock,
     ) -> None:
         self._repository = repository
         self._curation = curation
-        self._branches = branches
         self._reader = reader
-        self._uow_factory = uow_factory
         self._clock = clock
 
-    async def execute(
+    async def freeze(
         self,
+        tx: TransactionContext,
+        *,
         actor: Actor,
         workspace_id: WorkspaceId,
         branch_id: BranchId,
-        *,
-        expected_version: int,
         title: str,
-    ) -> BranchMutationResult:
-        async with self._uow_factory().transaction() as tx:
-            context = await self._reader.read(
-                tx,
-                actor=actor,
-                workspace_id=workspace_id,
-                branch_id=branch_id,
-                permission=SessionPermission.PUBLISH_BUNDLE,
-            )
-            if context.version != expected_version:
-                raise VersionConflict()
-            projection, _ = await _projection(self._curation, tx, context)
-            version = await self._branches.advance_version(
-                tx,
-                workspace_id,
-                branch_id,
-                expected_version=expected_version,
-            )
-            if version is None:
-                raise VersionConflict()
-            now = self._clock.now()
-            branch = Branch(
-                branch_id, workspace_id, context.session_id, actor.user_id, now
-            )
-            bundle = Bundle.publish(
-                branch, projection.items, actor.user_id, now, title=title
-            )
-            await self._repository.create_bundle(tx, workspace_id, bundle)
-            return BranchMutationResult(bundle.id, version)
+    ) -> FrozenEvidence:
+        context = await self._reader.read(
+            tx,
+            actor=actor,
+            workspace_id=workspace_id,
+            branch_id=branch_id,
+            permission=SessionPermission.PUBLISH_BUNDLE,
+        )
+        projection, _ = await _projection(self._curation, tx, context)
+        now = self._clock.now()
+        branch = Branch(branch_id, workspace_id, context.session_id, actor.user_id, now)
+        bundle = Bundle.publish(
+            branch, projection.items, actor.user_id, now, title=title
+        )
+        await self._repository.create_bundle(tx, workspace_id, bundle)
+        return FrozenEvidence(bundle.id, bundle.items)
 
 
 class BundleAccess:

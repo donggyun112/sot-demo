@@ -39,6 +39,26 @@ from tests.consensus.test_application import (
 from tests.document.test_application import document_view
 
 
+class FakeEvidence:
+    """Answers EvidenceFreezer for tests that do not exercise curation.
+
+    A proposal freezes the conversation it was written from; these tests are
+    about the proposal, so the frozen result is a stable stand-in they can
+    assert against.
+    """
+
+    def __init__(self, items: tuple[BundleItem, ...] = ()) -> None:
+        self.items = items
+        self.bundle_id = BundleId(uuid4())
+        self.calls: list[BranchId] = []
+
+    async def freeze(
+        self, tx, *, actor, workspace_id, branch_id, title
+    ) -> FrozenEvidence:
+        self.calls.append(branch_id)
+        return FrozenEvidence(self.bundle_id, self.items)
+
+
 @dataclass(kw_only=True)
 class MergeTransaction(MemoryTransaction):
     document: Document
@@ -187,8 +207,14 @@ class MergeHarness:
         self.publisher = PublishDocumentRevision(
             documents, self.authorizer, FixedClock()
         )
+        self.evidence = FakeEvidence()
         sources = ProposalSources(
-            self.access, self.documents, self.access, self.access, self.access
+            self.access,
+            self.documents,
+            self.access,
+            self.access,
+            self.access,
+            self.evidence,
         )
         self.create = CreateProposal(
             self.store,

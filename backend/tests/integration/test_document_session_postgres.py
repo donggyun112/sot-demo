@@ -34,7 +34,7 @@ from sot.session.application import (
     ApplyCuration,
     BranchAccess,
     CreateSession,
-    PublishBundle,
+    FreezeEvidence,
     SessionAccess,
 )
 from sot.session.domain import (
@@ -388,15 +388,19 @@ async def test_completed_turns_curation_and_immutable_bundle_round_trip(
             expected_version=1,
             operation=DropTurn(appended.turns[0].id),
         )
-    published = await PublishBundle(
-        s.sessions, s.sessions, s.sessions, s.reader(), s.uow, SystemClock()
-    ).execute(
-        s.owner, s.workspace_id, s.branch.id, expected_version=4, title="Snapshot"
-    )
     async with s.uow().transaction() as tx:
-        bundle = await s.sessions.load_bundle(
-            tx, s.workspace_id, BundleId(published.resource_id)
+        # Evidence is frozen inside the caller's transaction, the way a
+        # proposal records the conversation it was written from.
+        frozen = await FreezeEvidence(
+            s.sessions, s.sessions, s.reader(), SystemClock()
+        ).freeze(
+            tx,
+            actor=s.owner,
+            workspace_id=s.workspace_id,
+            branch_id=s.branch.id,
+            title="Snapshot",
         )
+        bundle = await s.sessions.load_bundle(tx, s.workspace_id, frozen.bundle_id)
         assert bundle is not None
         assert [(i.content, i.provenance) for i in bundle.items] == [
             ("summary", "edited")

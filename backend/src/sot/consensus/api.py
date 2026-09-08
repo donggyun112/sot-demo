@@ -19,7 +19,6 @@ from sot.consensus.domain import (
     PROPOSAL_CONTENT_LIMIT,
     ApprovalDecision,
     DocumentEdit,
-    ProposalCitation,
     ProposalStatus,
 )
 from sot.document.contracts import RevisionResult
@@ -32,18 +31,6 @@ from sot.shared.ids import (
     UserId,
     WorkspaceId,
 )
-
-
-class CitationRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    bundle_id: UUID
-    bundle_item_position: Annotated[StrictInt, Field(ge=0)]
-    claim_anchor: Annotated[StrictStr, Field(min_length=1)]
-
-    def to_citation(self) -> ProposalCitation:
-        return ProposalCitation(
-            BundleId(self.bundle_id), self.bundle_item_position, self.claim_anchor
-        )
 
 
 class DocumentEditRequest(BaseModel):
@@ -60,18 +47,18 @@ class DocumentEditRequest(BaseModel):
 class CreateProposalRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     source_session_id: UUID
+    # The branch the update was written in. Its conversation IS the grounds,
+    # frozen when the proposal is made, so nothing is passed in here.
+    branch_id: UUID
     edits: Annotated[list[DocumentEditRequest], Field(min_length=1)]
-    bundle_ids: list[UUID] = Field(default_factory=list)
-    citations: list[CitationRequest]
     additional_approver_ids: list[UUID] = Field(default_factory=list)
 
 
 class ReviseProposalRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     expected_version: Annotated[StrictInt, Field(ge=1)]
+    branch_id: UUID
     edits: Annotated[list[DocumentEditRequest], Field(min_length=1)]
-    bundle_ids: list[UUID]
-    citations: list[CitationRequest]
     additional_approver_ids: list[UUID] | None = None
 
 

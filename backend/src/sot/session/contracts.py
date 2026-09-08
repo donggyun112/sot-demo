@@ -81,6 +81,34 @@ class ShareableBundleReader(Protocol):
     ) -> ShareableBundleSnapshot: ...
 
 
+@dataclass(frozen=True, slots=True)
+class FrozenEvidence:
+    """The conversation an update was written from, frozen at that moment."""
+
+    bundle_id: BundleId
+    items: tuple[BundleItem, ...]
+
+
+class EvidenceFreezer(Protocol):
+    """Freeze a branch's curated conversation as the grounds for an update.
+
+    The grounds for an edit are the conversation that produced it, so they are
+    captured when the edit is proposed rather than asked for as a separate
+    chore. Runs inside the caller's transaction: an update that cannot record
+    what it was written from is not an update that happened.
+    """
+
+    async def freeze(
+        self,
+        tx: TransactionContext,
+        *,
+        actor: Actor,
+        workspace_id: WorkspaceId,
+        branch_id: BranchId,
+        title: str,
+    ) -> FrozenEvidence: ...
+
+
 class ToolRecordReader(Protocol):
     """Name the tool a turn records, for a transcript someone can audit.
 
@@ -234,6 +262,8 @@ __all__ = [
     "CompletedTurnsAppender",
     "CompletedTurnsResult",
     "CreatedSessionResult",
+    "EvidenceFreezer",
+    "FrozenEvidence",
     "NewTurn",
     "SessionApproverReader",
     "SessionAuthorizer",

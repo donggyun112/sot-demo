@@ -20,7 +20,6 @@ async def test_all_session_routes_require_bearer_authentication() -> None:
             ("POST", f"/sessions/{uuid4()}/branches", {}),
             ("POST", f"/branches/{uuid4()}/curation-ops", {}),
             ("GET", f"/branches/{uuid4()}/bundle-preview", None),
-            ("POST", f"/branches/{uuid4()}/bundles", {}),
         ):
             result = await client.request(method, prefix + path, json=body)
             assert result.status_code == 401
@@ -35,7 +34,6 @@ def test_session_request_and_response_models_are_closed() -> None:
         ("/sessions/{session_id}", "get", "200", "SessionResponse"),
         ("/sessions/{session_id}/branches", "post", "201", "BranchResponse"),
         ("/branches/{branch_id}/curation-ops", "post", "201", "BranchMutationResponse"),
-        ("/branches/{branch_id}/bundles", "post", "201", "BranchMutationResponse"),
     ):
         response = schema["paths"][prefix + path][method]["responses"][status]
         assert response["content"]["application/json"]["schema"] == {
@@ -45,7 +43,6 @@ def test_session_request_and_response_models_are_closed() -> None:
     for model in (
         "EmptySessionRequest",
         "CurationRequest",
-        "PublishBundleRequest",
         "DropTurnRequest",
         "EditTurnRequest",
         "JoinTurnsRequest",

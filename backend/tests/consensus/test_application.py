@@ -68,6 +68,26 @@ BUNDLE = BundleId(uuid4())
 BASE_REVISION = RevisionId(uuid4())
 
 
+class FakeEvidence:
+    """Answers EvidenceFreezer for tests that do not exercise curation.
+
+    A proposal freezes the conversation it was written from; these tests are
+    about the proposal, so the frozen result is a stable stand-in they can
+    assert against.
+    """
+
+    def __init__(self, items: tuple[BundleItem, ...] = ()) -> None:
+        self.items = items
+        self.bundle_id = BundleId(uuid4())
+        self.calls: list[BranchId] = []
+
+    async def freeze(
+        self, tx, *, actor, workspace_id, branch_id, title
+    ) -> FrozenEvidence:
+        self.calls.append(branch_id)
+        return FrozenEvidence(self.bundle_id, self.items)
+
+
 @dataclass
 class MemoryTransaction:
     proposals: dict[ProposalId, Proposal]
@@ -322,7 +342,7 @@ class Harness:
 def env() -> Harness:
     store = Store()
     access = Capabilities(store)
-    sources = ProposalSources(access, access, access, access, access)
+    sources = ProposalSources(access, access, access, access, access, FakeEvidence())
     return Harness(
         store,
         access,

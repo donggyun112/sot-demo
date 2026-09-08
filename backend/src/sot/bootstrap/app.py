@@ -62,6 +62,7 @@ from sot.session.application import (
     BundleAccess,
     CreateBranch,
     CreateSession,
+    FreezeEvidence,
     GetSession,
     InviteSessionMember,
     ListBranchTurns,
@@ -69,7 +70,6 @@ from sot.session.application import (
     ListSessionBranches,
     ListSessionMembers,
     PreviewBundle,
-    PublishBundle,
     RequiredApprovers,
     SessionAccess,
     VersionGuard,
@@ -249,9 +249,6 @@ def build_app(
             CreateBranch(sessions, session_access, uow_factory, clock),
             curation,
             PreviewBundle(sessions, branch_access, uow_factory),
-            PublishBundle(
-                sessions, sessions, sessions, branch_access, uow_factory, clock
-            ),
             ListDocumentSessions(
                 sessions, document_access, session_access, uow_factory
             ),
@@ -266,7 +263,13 @@ def build_app(
     proposals = PostgresProposalRepository()
     proposal_reader = ReadProposal(proposals, session_access, access, uow_factory)
     sources = ProposalSources(
-        session_access, document_access, bundles, RequiredApprovers(sessions), access
+        session_access,
+        document_access,
+        bundles,
+        RequiredApprovers(sessions),
+        access,
+        # A proposal records the conversation it was written from, itself.
+        FreezeEvidence(sessions, sessions, branch_access, clock),
     )
     create_proposal = CreateProposal(
         proposals,
