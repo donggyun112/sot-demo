@@ -73,6 +73,7 @@ from sot.session.application import (
     ListSessionBranches,
     ListSessionMembers,
     PreviewBundle,
+    ReadCitedConversation,
     RequiredApprovers,
     SessionAccess,
     VersionGuard,
@@ -247,6 +248,7 @@ def build_app(
             actor,
         )
     )
+    bundles = BundleAccess(sessions, session_access, access)
     application.include_router(
         build_session_router(
             CreateSession(sessions, access, document_access, uow_factory, clock),
@@ -260,12 +262,12 @@ def build_app(
             ),
             ListSessionBranches(sessions, session_access, uow_factory),
             ListBranchTurns(branch_access, uow_factory, ToolRecords()),
+            ReadCitedConversation(bundles, uow_factory),
             InviteSessionMember(sessions, session_access, access, uow_factory),
             ListSessionMembers(sessions, session_access, uow_factory),
             actor,
         )
     )
-    bundles = BundleAccess(sessions, session_access, access)
     proposals = PostgresProposalRepository()
     proposal_reader = ReadProposal(proposals, session_access, access, uow_factory)
     sources = ProposalSources(

@@ -105,7 +105,8 @@
     "historyOpenProposal": "Proposal",
     "historyOpenSession": "Session it came from",
     "section": "Passage",
-    "wholeBody": "The whole document"
+    "wholeBody": "The whole document",
+    "openCitedSession": "Open the session this came from"
   },
   "sessions": {
     "title": "Sessions",

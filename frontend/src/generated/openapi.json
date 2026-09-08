@@ -219,6 +219,40 @@
         "title": "CitationResponse",
         "type": "object"
       },
+      "CitedConversationResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "bundle_id": {
+            "format": "uuid",
+            "title": "Bundle Id",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/BundleItemResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "bundle_id",
+          "title",
+          "session_id",
+          "items"
+        ],
+        "title": "CitedConversationResponse",
+        "type": "object"
+      },
       "CreateDocumentRequest": {
         "additionalProperties": false,
         "properties": {
@@ -2324,6 +2358,61 @@
           }
         ],
         "summary": "Turns For Branch"
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/bundles/{bundle_id}": {
+      "get": {
+        "operationId": "read_cited_conversation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "bundle_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Bundle Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CitedConversationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Cited"
       }
     },
     "/api/v1/workspaces/{workspace_id}/documents": {

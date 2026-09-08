@@ -49,6 +49,22 @@ class BundleSnapshot:
     published_at: datetime
 
 
+@dataclass(frozen=True, slots=True)
+class CitedConversation:
+    """The frozen conversation a document passage was written out of.
+
+    A citation on its own is an ordinal — it says a passage stands on the
+    second item of some bundle, which tells a reader nothing. This is what
+    the reader actually needs: what was said, and which session to open to
+    keep reading it.
+    """
+
+    bundle_id: BundleId
+    title: str
+    session_id: SessionId
+    items: tuple[BundleItem, ...]
+
+
 class BundleReader(Protocol):
     async def require_snapshot(
         self,
@@ -58,6 +74,19 @@ class BundleReader(Protocol):
         workspace_id: WorkspaceId,
         bundle_id: BundleId,
     ) -> BundleSnapshot: ...
+
+
+class CitedConversationReader(BundleReader, Protocol):
+    """Reads the frozen turns AND names the session they came from."""
+
+    async def require_owning_session(
+        self,
+        tx: TransactionContext,
+        *,
+        actor: Actor,
+        workspace_id: WorkspaceId,
+        bundle_id: BundleId,
+    ) -> SessionId: ...
 
 
 @dataclass(frozen=True, slots=True)

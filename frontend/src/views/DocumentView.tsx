@@ -3,13 +3,57 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { can, rememberWorkspace, useSot, useWorkspaceUi } from "../app/sot";
-import { ordinalLabel, useDisplayName, useTimestamp } from "../app/identity";
+import { useDisplayName, useTimestamp } from "../app/identity";
 import { TopBar } from "../components/AppShell";
 import { Section } from "../components/Page";
 import { MarkdownBody } from "../components/MarkdownBody";
 import { claimKey, headingsFrom } from "./outline";
 import { editSummary } from "./patch";
 import styles from "./product.module.css";
+
+/**
+ * The conversation a passage was written out of.
+ *
+ * A citation on its own is an ordinal — "bundle 1, item 2" — which tells a
+ * reader nothing and leads nowhere. What the record is FOR is being able to
+ * read the argument and then go on reading it, so this shows the frozen turns
+ * and opens the session they came from.
+ */
+function CitedConversation({
+  workspaceId,
+  bundleId,
+}: {
+  workspaceId: string;
+  bundleId: string;
+}) {
+  const { t } = useTranslation();
+  const { api } = useSot();
+  const cited = api.useQuery(
+    "get",
+    "/api/v1/workspaces/{workspace_id}/bundles/{bundle_id}",
+    { params: { path: { workspace_id: workspaceId, bundle_id: bundleId } } },
+  );
+  if (cited.isLoading) return <p className={styles.empty}>{t("common.loading")}</p>;
+  if (!cited.data) return <p className={styles.empty}>{t("document.naked")}</p>;
+  return (
+    <>
+      {cited.data.items.map((item, index) => (
+        <div key={index} className={styles.sideCard}>
+          <div className={styles.who}>{t(`turnRole.${item.role}`)}</div>
+          <div className={styles.turnBody}>{item.content}</div>
+        </div>
+      ))}
+      <p className={styles.meta}>
+        <Link
+          className={styles.inlineLink}
+          to={`/w/${workspaceId}/sessions/${cited.data.session_id}`}
+        >
+          {t("document.openCitedSession")}
+        </Link>
+      </p>
+    </>
+  );
+}
 
 export function DocumentView() {
   const { t } = useTranslation();
@@ -434,28 +478,10 @@ export function DocumentView() {
                 {cited.length === 0 ? (
                   <p className={styles.empty}>{t("document.naked")}</p>
                 ) : (
-                  cited.map((item) => {
-                    const bundleIndex = [
-                      ...new Set(citations.map((one) => one.bundle_id)),
-                    ].indexOf(item.bundle_id);
-                    return (
-                      <div
-                        key={`${item.bundle_id}-${item.bundle_item_position}`}
-                        className={styles.sideCard}
-                        title={item.bundle_id}
-                      >
-                        <div className={styles.who}>
-                          {t("document.citation", {
-                            bundle: ordinalLabel(t("proposal.bundle"), bundleIndex),
-                            position: item.bundle_item_position + 1,
-                          })}
-                        </div>
-                        <div className={styles.turnBody}>
-                          {claimKey(item.claim_anchor)}
-                        </div>
-                      </div>
-                    );
-                  })
+                  <CitedConversation
+                    workspaceId={workspaceId}
+                    bundleId={cited[0].bundle_id}
+                  />
                 )}
               </Section>
 

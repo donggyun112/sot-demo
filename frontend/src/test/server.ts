@@ -441,6 +441,23 @@ export function createServer() {
         branch_version: state.branchVersion,
       });
     }
+    if (path.includes("/bundles/")) {
+      // The frozen conversation a passage stands on, and the session to open.
+      return Response.json({
+        bundle_id: "bundle-1",
+        title: "감사 로그를 남길까?",
+        session_id: session.id,
+        items: [
+          { source_ids: ["turn-9"], role: "user", content: "감사 로그 남겨야 하나?", provenance: "copied" },
+          {
+            source_ids: ["turn-10"],
+            role: "assistant",
+            content: "남겨야 합니다. 유출 시 추적이 안 됩니다.",
+            provenance: "copied",
+          },
+        ],
+      });
+    }
     if (path.endsWith("/bundle-preview"))
       return Response.json(bundleItems);
     if (path.endsWith("/sessions/session-1/members")) {

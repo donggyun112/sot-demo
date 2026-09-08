@@ -718,9 +718,15 @@ it("shows the grounds for the section you are reading", async () => {
   expect(
     within(rail).queryByText("No evidence is linked to this passage."),
   ).toBeNull();
-  // Shown as the claim, not as markdown syntax.
-  expect(within(rail).getAllByText("감사·모니터링").length).toBeGreaterThan(0);
-  expect(within(rail).queryByText("## 감사·모니터링")).toBeNull();
+  // The grounds are the conversation, not an ordinal: what was said, and the
+  // way back into the session that said it.
+  expect(
+    await within(rail).findByText("남겨야 합니다. 유출 시 추적이 안 됩니다."),
+  ).toBeVisible();
+  expect(within(rail).getByText("감사 로그 남겨야 하나?")).toBeVisible();
+  expect(
+    within(rail).getByRole("link", { name: "Open the session this came from" }),
+  ).toHaveAttribute("href", "/w/w1/sessions/session-1");
 });
 
 it("walks from a revision back to the conversation behind it", async () => {

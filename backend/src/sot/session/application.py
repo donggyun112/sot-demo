@@ -10,6 +10,8 @@ from sot.session.contracts import (
     BranchContextReader,
     BranchMutationResult,
     BundleSnapshot,
+    CitedConversation,
+    CitedConversationReader,
     CreatedSessionResult,
     FrozenEvidence,
     SessionAuthorizer,
@@ -774,6 +776,34 @@ class FreezeEvidence:
         )
         await self._repository.create_bundle(tx, workspace_id, bundle)
         return FrozenEvidence(bundle.id, bundle.items)
+
+
+class ReadCitedConversation:
+    """Open the conversation a citation points at.
+
+    Authorization is the owning session's: a citation is only readable by
+    someone who may read the conversation it froze.
+    """
+
+    def __init__(
+        self, bundles: CitedConversationReader, uow_factory: UnitOfWorkFactory
+    ) -> None:
+        self._bundles = bundles
+        self._uow_factory = uow_factory
+
+    async def execute(
+        self, actor: Actor, workspace_id: WorkspaceId, bundle_id: BundleId
+    ) -> CitedConversation:
+        async with self._uow_factory().transaction() as tx:
+            snapshot = await self._bundles.require_snapshot(
+                tx, actor=actor, workspace_id=workspace_id, bundle_id=bundle_id
+            )
+            session_id = await self._bundles.require_owning_session(
+                tx, actor=actor, workspace_id=workspace_id, bundle_id=bundle_id
+            )
+            return CitedConversation(
+                snapshot.bundle_id, snapshot.title, session_id, snapshot.items
+            )
 
 
 class BundleAccess:

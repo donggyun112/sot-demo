@@ -19,6 +19,7 @@ from sot.session.application import (
     ListSessionBranches,
     ListSessionMembers,
     PreviewBundle,
+    ReadCitedConversation,
 )
 from sot.session.contracts import (
     BranchMutationResult,
@@ -36,7 +37,14 @@ from sot.session.domain import (
     SessionRole,
     SessionStatus,
 )
-from sot.shared.ids import BranchId, DocumentId, SessionId, UserId, WorkspaceId
+from sot.shared.ids import (
+    BranchId,
+    BundleId,
+    DocumentId,
+    SessionId,
+    UserId,
+    WorkspaceId,
+)
 
 
 class EmptySessionRequest(BaseModel):
@@ -177,6 +185,16 @@ class TurnResponse(BaseModel):
     created_by: UUID
 
 
+class CitedConversationResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    bundle_id: UUID
+    title: str
+    # The conversation to open. A citation that cannot be read back is not
+    # evidence, it is an ordinal.
+    session_id: UUID
+    items: tuple["BundleItemResponse", ...]
+
+
 class BundleItemResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
     source_ids: tuple[UUID, ...]
@@ -219,6 +237,7 @@ def build_session_router(
     list_sessions: ListDocumentSessions,
     list_branches: ListSessionBranches,
     list_turns: ListBranchTurns,
+    read_cited: ReadCitedConversation,
     invite_member: InviteSessionMember,
     list_members: ListSessionMembers,
     actor: Callable[[Request], Awaitable[Actor]],
@@ -385,6 +404,24 @@ def build_session_router(
                 expected_version=body.expected_version,
                 operation=body.to_operation(),
             )
+        )
+
+    @router.get("/bundles/{bundle_id}", operation_id="read_cited_conversation")
+    async def cited(
+        workspace_id: UUID,
+        bundle_id: UUID,
+        current: Annotated[Actor, Depends(actor)],
+    ) -> CitedConversationResponse:
+        result = await read_cited.execute(
+            current, WorkspaceId(workspace_id), BundleId(bundle_id)
+        )
+        return CitedConversationResponse(
+            bundle_id=result.bundle_id,
+            title=result.title,
+            session_id=result.session_id,
+            items=tuple(
+                BundleItemResponse.from_item(item) for item in result.items
+            ),
         )
 
     @router.get("/branches/{branch_id}/bundle-preview")
