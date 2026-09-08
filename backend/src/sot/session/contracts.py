@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Protocol
+from typing import Any, Protocol
 from uuid import UUID
 
 from sot.identity.contracts import Actor
@@ -209,6 +209,25 @@ class CiteCreator(Protocol):
     ) -> BranchMutationResult: ...
 
 
+class ToolRecordWriter(Protocol):
+    """Writes the tool envelope the transcript reads back.
+
+    An imported conversation carries what its agent called and what came
+    back, and those records have to be indistinguishable from the ones this
+    system writes — a reader should not have to know which. The envelope is
+    the agent module's, so importing borrows its pen rather than copying its
+    shape.
+    """
+
+    def call(
+        self, *, tool_name: str, tool_call_id: str, args: dict[str, Any]
+    ) -> NewTurn: ...
+
+    def result(
+        self, *, tool_name: str, tool_call_id: str, result: Any
+    ) -> NewTurn: ...
+
+
 @dataclass(frozen=True, slots=True)
 class TranscriptTurn:
     """A turn as a reader sees it: a tool turn keeps its whole record."""
@@ -225,6 +244,9 @@ class BranchContext:
     branch_id: BranchId
     version: int
     turns: tuple[Turn, ...]
+    # An imported conversation was run somewhere else. Its tool records are
+    # part of the record and none of them are this agent's calls.
+    imported: bool = False
 
 
 @dataclass(frozen=True, slots=True)

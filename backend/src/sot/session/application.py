@@ -20,6 +20,7 @@ from sot.session.contracts import (
     SessionView,
     ShareableBundleSnapshot,
     ToolRecordReader,
+    ToolRecordWriter,
     TranscriptTurn,
 )
 from sot.session.domain import (
@@ -41,6 +42,8 @@ from sot.session.domain import (
     SessionRole,
     VersionConflict,
     is_allowed,
+    looks_like_export,
+    read_session_export,
     read_transcript,
 )
 from sot.session.ports import (
@@ -154,6 +157,7 @@ class BranchAccess:
             branch_id,
             branch.version,
             branch.turns,
+            session.imported_from is not None,
         )
 
 
@@ -216,14 +220,42 @@ class ImportSession:
         repository: SessionRepository,
         authorizer: WorkspaceAuthorizer,
         documents: DocumentReader,
+        tools: ToolRecordWriter,
         uow_factory: UnitOfWorkFactory,
         clock: Clock,
     ) -> None:
         self._repository = repository
         self._authorizer = authorizer
         self._documents = documents
+        self._tools = tools
         self._uow_factory = uow_factory
         self._clock = clock
+
+    def _turns(self, content: str) -> tuple[NewTurn, ...]:
+        """A copied transcript is words; an export carries the tool records too."""
+        if not looks_like_export(content):
+            return read_transcript(content)
+        messages: list[NewTurn] = []
+        for entry in read_session_export(content):
+            if isinstance(entry, NewTurn):
+                messages.append(entry)
+                continue
+            messages.append(
+                self._tools.call(
+                    tool_name=entry.name,
+                    tool_call_id=entry.call_id,
+                    args=entry.args,
+                )
+            )
+            if entry.answered:
+                messages.append(
+                    self._tools.result(
+                        tool_name=entry.name,
+                        tool_call_id=entry.call_id,
+                        result=entry.result,
+                    )
+                )
+        return tuple(messages)
 
     async def execute(
         self,
@@ -234,7 +266,7 @@ class ImportSession:
         filename: str,
         content: str,
     ) -> CreatedSessionResult:
-        turns = read_transcript(content)
+        turns = self._turns(content)
         if not turns:
             raise InvalidInput("transcript_empty", "The file holds no conversation")
         async with self._uow_factory().transaction() as tx:

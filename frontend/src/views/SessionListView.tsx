@@ -105,7 +105,7 @@ export function SessionListView() {
                 <input
                   className={styles.fileInput}
                   type="file"
-                  accept=".md,.markdown,.mdx,.txt,text/markdown,text/plain"
+                  accept=".md,.markdown,.mdx,.txt,.json,text/markdown,text/plain,application/json"
                   disabled={busy}
                   onChange={(event) => {
                     const file = event.target.files?.[0];

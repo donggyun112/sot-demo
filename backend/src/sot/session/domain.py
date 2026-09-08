@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass, replace
 from datetime import datetime
@@ -244,9 +245,13 @@ class NewTurn:
             raise InvalidInput("turn_role_invalid", "Turn role is invalid")
 
 
-# A conversation is read by people and re-read by the agent every run, so an
-# imported one is bounded the way an attachment is.
+# A copied conversation is words, and words are small. An export carries
+# what its agent did as well — every file it read, every command it ran — and
+# a real session's record runs to megabytes. Both are bounded, at the size
+# each actually is, and an import over the line is refused rather than
+# quietly shortened.
 TRANSCRIPT_LIMIT = 400_000
+EXPORT_LIMIT = 20_000_000
 
 # The line that says who speaks next, in the forms the tools actually emit:
 # a heading, a bold label, or a bare label.
@@ -289,6 +294,82 @@ def _speaker(line: str) -> str | None:
     if folded in _ASSISTANT_LABELS:
         return "assistant"
     return None
+
+
+@dataclass(frozen=True, slots=True)
+class ExportedTool:
+    """What an agent called somewhere else, and what came back.
+
+    A conversation with an agent in it is mostly what the agent did, and an
+    import that keeps only the words keeps the story without the evidence:
+    the reader can no longer see which file was read or what a command
+    returned. So a call and its result come across whole. Writing them as
+    turns needs the envelope the transcript reads back, which belongs to the
+    agent module, so this carries the pieces and the caller borrows the pen.
+    """
+
+    name: str
+    call_id: str
+    args: dict[str, object]
+    result: object = None
+    # A call that was interrupted has no result. Keeping the call anyway is
+    # the point: it says the agent tried.
+    answered: bool = False
+
+
+ExportedEntry = NewTurn | ExportedTool
+
+
+def read_session_export(content: str) -> tuple[ExportedEntry, ...]:
+    """A conversation exported as structured turns, tool records included.
+
+    The shape is the one an export can actually be mapped onto without
+    guessing: an ordered list of turns, each either something said or one
+    tool call with its result. Anything a caller sends that is not one of
+    those is refused rather than half-read.
+    """
+    try:
+        document = json.loads(content)
+    except ValueError:
+        raise InvalidInput("transcript_invalid", "The file is not a conversation")
+    if not isinstance(document, dict) or not isinstance(
+        document.get("turns"), list
+    ):
+        raise InvalidInput("transcript_invalid", "The file is not a conversation")
+    entries: list[ExportedEntry] = []
+    for turn in document["turns"]:
+        if not isinstance(turn, dict):
+            raise InvalidInput("transcript_invalid", "A turn is not a turn")
+        role = turn.get("role")
+        if role == "tool":
+            name, call_id = turn.get("name"), turn.get("call_id")
+            args = turn.get("args")
+            if not isinstance(name, str) or not name.strip():
+                raise InvalidInput("transcript_invalid", "A tool record has no name")
+            if not isinstance(call_id, str) or not call_id.strip():
+                raise InvalidInput("transcript_invalid", "A tool record has no call")
+            entries.append(
+                ExportedTool(
+                    name,
+                    call_id,
+                    args if isinstance(args, dict) else {},
+                    turn.get("result"),
+                    "result" in turn,
+                )
+            )
+            continue
+        if role not in {"user", "assistant"}:
+            raise InvalidInput("transcript_invalid", "A turn has no speaker")
+        said = turn.get("content")
+        if not isinstance(said, str) or not said.strip():
+            continue
+        entries.append(NewTurn(role, said))
+    return tuple(entries)
+
+
+def looks_like_export(content: str) -> bool:
+    """Whether this file is structured turns rather than a copied transcript."""
+    return content.lstrip().startswith("{")
 
 
 def read_transcript(content: str) -> tuple[NewTurn, ...]:

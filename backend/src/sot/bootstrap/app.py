@@ -256,7 +256,14 @@ def build_app(
     application.include_router(
         build_session_router(
             CreateSession(sessions, access, document_access, uow_factory, clock),
-            ImportSession(sessions, access, document_access, uow_factory, clock),
+            ImportSession(
+                sessions,
+                access,
+                document_access,
+                ToolRecords(),
+                uow_factory,
+                clock,
+            ),
             ForkSession(sessions, access, branch_access, uow_factory, clock),
             GetSession(session_access, uow_factory),
             CreateBranch(sessions, session_access, uow_factory, clock),

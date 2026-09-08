@@ -30,7 +30,7 @@ from sot.session.contracts import (
 )
 from sot.session.domain import (
     ATTACHMENT_LIMIT,
-    TRANSCRIPT_LIMIT,
+    EXPORT_LIMIT,
     Attachment,
     Branch,
     BundleItem,
@@ -122,9 +122,11 @@ class AttachmentRequest(BaseModel):
 
 class ImportSessionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    # One file: the conversation as it was copied out of wherever it happened.
+    # One file: the conversation as it came out of wherever it happened. A
+    # copied transcript is words; an export also carries what its agent did,
+    # which is most of a real session and is why the bound is the larger one.
     filename: Annotated[str, Field(min_length=1, max_length=200)]
-    content: Annotated[str, Field(min_length=1, max_length=TRANSCRIPT_LIMIT)]
+    content: Annotated[str, Field(min_length=1, max_length=EXPORT_LIMIT)]
 
 
 class ForkSessionRequest(BaseModel):

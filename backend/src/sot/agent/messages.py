@@ -289,7 +289,25 @@ def completed_messages_to_new_turns(
 
 
 class ToolRecords:
-    """Reads the tool envelope this module writes, for the session transcript."""
+    """Reads and writes the tool envelope, for the session transcript.
+
+    Importing a conversation had elsewhere writes through here so its records
+    are the same envelope as the ones a run here produces.
+    """
+
+    def call(
+        self, *, tool_name: str, tool_call_id: str, args: dict[str, JsonValue]
+    ) -> NewTurn:
+        return encode_tool_call(
+            tool_name=tool_name, tool_call_id=tool_call_id, args=args
+        )
+
+    def result(
+        self, *, tool_name: str, tool_call_id: str, result: JsonValue
+    ) -> NewTurn:
+        return encode_tool_return(
+            tool_name=tool_name, tool_call_id=tool_call_id, result=result
+        )
 
     def record(self, content: str) -> ToolRecord | None:
         """The envelope this module wrote, read back whole.

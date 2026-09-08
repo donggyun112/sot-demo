@@ -14,7 +14,7 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 
 from sot.agent.application import AgentRunPreparer, CompletedRunWriter
 from sot.agent.deps import DOCUMENT_CONTEXT_LIMIT, AgentDeps, BranchLineage
-from sot.agent.messages import turns_to_model_messages
+from sot.agent.messages import encode_tool_call, turns_to_model_messages
 from sot.agent.models import build_agent
 from sot.agent.prompts import request_context
 from sot.bootstrap.app import build_app
@@ -88,6 +88,37 @@ async def scenario() -> Scenario:
         CompletedRunWriter(appender),
         document_id,
     )
+
+
+@pytest.mark.asyncio
+async def test_an_imported_conversation_replays_its_words_not_its_tools() -> None:
+    """Imported tool records stay in the transcript and out of the history.
+    They are another agent's calls, to tools this one does not have, and the
+    ones that were interrupted have no result to pair with — the model would
+    be asked to resume a call that never finished."""
+    s = await scenario()
+    for session in s.store.sessions.values():
+        session.imported_from = "chat.md"
+    appender = AppendCompletedTurns(
+        s.store,
+        BranchAccess(s.store, SessionAccess(s.store, s.store), s.store),
+        lambda: s.store,
+        FixedClock(),
+    )
+    await appender.execute(
+        s.actor,
+        s.workspace_id,
+        s.branch_id,
+        expected_version=1,
+        messages=(encode_tool_call(tool_name="Bash", tool_call_id="c1", args={}),),
+    )
+
+    prepared = await s.preparer.prepare(
+        actor=s.actor, workspace_id=s.workspace_id, branch_id=s.branch_id
+    )
+
+    assert [turn.role for turn in prepared.canonical_turns] == ["user", "assistant"]
+    assert turns_to_model_messages(prepared.canonical_turns)
 
 
 @pytest.mark.asyncio

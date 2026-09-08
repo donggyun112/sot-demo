@@ -84,8 +84,18 @@ class AgentRunPreparer:
                     view.current_revision.content,
                 )
         # Mapping and all model work happen after this read transaction closes.
+        #
+        # An imported conversation's tool records stay in the transcript and
+        # out of the history: they are another agent's calls to tools this one
+        # does not have, and half of them were interrupted before they
+        # returned. The conversation is what this model reads.
+        turns = (
+            tuple(turn for turn in context.turns if turn.role != "tool")
+            if context.imported
+            else context.turns
+        )
         return PreparedAgentRun(
-            context.turns,
+            turns,
             AgentDeps(
                 actor,
                 workspace_id,
