@@ -24,6 +24,18 @@ class Settings(BaseSettings):
     access_token_lifetime_seconds: int = 900
     refresh_token_lifetime_seconds: int = 2592000
 
+    @property
+    def secure_cookies(self) -> bool:
+        """Whether the refresh cookie may only travel over HTTPS.
+
+        Anywhere real, yes. A local or test install is served over plain HTTP,
+        and Safari drops a Secure cookie there even on localhost: the person
+        signs in, the cookie is silently discarded, and the next load throws
+        them back to the login screen. This is keyed to the environment and
+        never to anything a request can claim.
+        """
+        return self.environment == "production"
+
     @model_validator(mode="after")
     def validate_auth(self) -> Settings:
         if self.environment == "production" and self.development_auth:

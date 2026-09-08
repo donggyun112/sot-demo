@@ -70,7 +70,7 @@ def build_auth_router(facade: AuthFacade, settings: Settings) -> APIRouter:
             COOKIE,
             result.tokens.refresh_token,
             httponly=True,
-            secure=True,
+            secure=settings.secure_cookies,
             samesite="lax",
             path=AUTH_PATH,
             max_age=settings.refresh_token_lifetime_seconds,
@@ -83,7 +83,11 @@ def build_auth_router(facade: AuthFacade, settings: Settings) -> APIRouter:
 
     def clear_cookie(response: Response) -> None:
         response.delete_cookie(
-            COOKIE, path=AUTH_PATH, httponly=True, secure=True, samesite="lax"
+            COOKIE,
+            path=AUTH_PATH,
+            httponly=True,
+            secure=settings.secure_cookies,
+            samesite="lax",
         )
 
     @router.post(AUTH_PATH + "/google")

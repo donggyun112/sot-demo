@@ -48,8 +48,11 @@ async def test_production_with_google_rejects_local_skip() -> None:
 
 @pytest.mark.asyncio
 async def test_login_cookie_me_rotation_and_logout_contract() -> None:
+    production = make_app(
+        Settings(environment="production", google_client_id="google-client")
+    )
     async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=make_app()), base_url="https://test"
+        transport=httpx.ASGITransport(app=production), base_url="https://test"
     ) as client:
         login = await client.post(
             "/api/v1/auth/google", json={"credential": "alice@example.com"}
@@ -136,3 +139,29 @@ async def test_production_never_resolves_development_header() -> None:
         assert (
             await client.get("/api/v1/me", headers={"X-SOT-User": user_id})
         ).status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_a_local_install_keeps_the_session_over_plain_http() -> None:
+    """A Secure cookie is dropped on http, so a local install would sign you
+    in and forget you on the next load. Safari does exactly that, localhost
+    included. Every other protection on the cookie stays."""
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=make_app()), base_url="http://test"
+    ) as client:
+        login = await client.post("/api/v1/auth/local")
+        assert login.status_code == 200
+        cookie = login.headers["set-cookie"]
+        assert "Secure" not in cookie
+        for attribute in ("HttpOnly", "SameSite=lax", "Path=/api/v1/auth"):
+            assert attribute in cookie
+        # It is a session, not a one-off: the cookie comes back.
+        assert (await client.post("/api/v1/auth/refresh")).status_code == 200
+        assert (await client.post("/api/v1/auth/logout")).status_code == 204
+        assert (await client.post("/api/v1/auth/refresh")).status_code == 401
+
+
+def test_only_production_marks_the_cookie_secure() -> None:
+    assert Settings(environment="production").secure_cookies is True
+    assert Settings(environment="local").secure_cookies is False
+    assert Settings(environment="test").secure_cookies is False
