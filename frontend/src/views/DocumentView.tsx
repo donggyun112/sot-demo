@@ -128,6 +128,17 @@ export function DocumentView() {
     { params: { path: { workspace_id: workspaceId, document_id: documentId } } },
   );
   /*
+    Grounds for the document AS IT STANDS, not for its latest update. A
+    revision only cites what that update wrote, so reading the current
+    revision's citations left every passage written earlier looking like
+    nobody had decided it.
+  */
+  const grounds = api.useQuery(
+    "get",
+    "/api/v1/workspaces/{workspace_id}/documents/{document_id}/grounds",
+    { params: { path: { workspace_id: workspaceId, document_id: documentId } } },
+  );
+  /*
     Reading an old revision is reading, not editing: the number lives in the
     URL so a link to "what it said then" is a link someone else can open.
   */
@@ -155,7 +166,8 @@ export function DocumentView() {
   const selected = params.get("block") ?? headings[0]?.id;
   const heading = headings.find((item) => item.id === selected) ?? headings[0];
   const panel = params.get("panel");
-  const citations = revision?.citations ?? [];
+  /* Reading history shows what that revision itself cited. */
+  const citations = historical ? (revision?.citations ?? []) : (grounds.data ?? []);
   /** Merged proposals are already in the text; only unresolved ones are pending. */
   const open = (proposals.data ?? []).filter(
     (item) => item.status === "open" || item.status === "approved",

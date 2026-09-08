@@ -40,6 +40,7 @@ from sot.document.application import (
     GetDocument,
     GetRevision,
     ListDocuments,
+    ListPassageGrounds,
     ListRevisions,
     PublishDocumentRevision,
     RenameDocument,
@@ -244,6 +245,7 @@ def build_app(
             GetRevision(documents, access, uow_factory),
             ListDocuments(documents, access, uow_factory),
             ListRevisions(documents, access, uow_factory),
+            ListPassageGrounds(documents, access, uow_factory),
             RenameDocument(documents, access, uow_factory),
             actor,
         )

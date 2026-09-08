@@ -4,6 +4,7 @@ from sot.document.contracts import (
     DocumentReader,
     DocumentSummary,
     DocumentView,
+    PassageGround,
     RevisionCitationInput,
     RevisionCitationView,
     RevisionResult,
@@ -240,6 +241,29 @@ class ListRevisions:
             return await self._query.list_revisions(tx, workspace_id, document_id)
 
 
+class ListPassageGrounds:
+    """What every passage of the document as it stands is grounded in."""
+
+    def __init__(
+        self,
+        query: DocumentQuery,
+        authorizer: WorkspaceAuthorizer,
+        uow_factory: UnitOfWorkFactory,
+    ) -> None:
+        self._query = query
+        self._authorizer = authorizer
+        self._uow_factory = uow_factory
+
+    async def execute(
+        self, actor: Actor, workspace_id: WorkspaceId, document_id: DocumentId
+    ) -> tuple[PassageGround, ...]:
+        async with self._uow_factory().transaction() as tx:
+            await self._authorizer.require(
+                tx, actor, workspace_id, Permission.DOCUMENT_READ
+            )
+            return await self._query.list_grounds(tx, workspace_id, document_id)
+
+
 class GetRevision:
     def __init__(
         self,
@@ -330,6 +354,7 @@ __all__ = [
     "GetDocument",
     "GetRevision",
     "ListDocuments",
+    "ListPassageGrounds",
     "ListRevisions",
     "PublishDocumentRevision",
     "RenameDocument",

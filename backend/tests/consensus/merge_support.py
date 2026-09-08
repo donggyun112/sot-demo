@@ -15,7 +15,12 @@ from sot.consensus.application import (
 )
 from sot.consensus.domain import ApprovalDecision, DocumentEdit
 from sot.document.application import DocumentAccess, PublishDocumentRevision
-from sot.document.contracts import DocumentView, RevisionSummary, RevisionView
+from sot.document.contracts import (
+    DocumentView,
+    PassageGround,
+    RevisionSummary,
+    RevisionView,
+)
 from sot.document.domain import Document, Revision, VersionConflict
 from sot.identity.contracts import Actor
 from sot.shared.ids import DocumentId, ProposalId, WorkspaceId
@@ -148,6 +153,14 @@ class MergeDocuments:
         document_id: DocumentId,
     ) -> tuple[RevisionSummary, ...]:
         raise AssertionError("Merge must never read the history")
+
+    async def list_grounds(
+        self,
+        tx: TransactionContext,
+        workspace_id: WorkspaceId,
+        document_id: DocumentId,
+    ) -> tuple[PassageGround, ...]:
+        raise AssertionError("Merge must never read the grounds")
 
     async def get(
         self, tx: TransactionContext, workspace_id: WorkspaceId, document_id: DocumentId

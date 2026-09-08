@@ -11,12 +11,14 @@ from sot.document.application import (
     GetDocument,
     GetRevision,
     ListDocuments,
+    ListPassageGrounds,
     ListRevisions,
     RenameDocument,
 )
 from sot.document.contracts import (
     DocumentSummary,
     DocumentView,
+    PassageGround,
     RevisionSummary,
     RevisionView,
 )
@@ -89,6 +91,23 @@ DocumentTitle = Annotated[
 ]
 
 
+class PassageGroundResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    claim_anchor: str
+    bundle_id: UUID
+    bundle_item_position: int
+    revision_number: int
+
+    @classmethod
+    def from_ground(cls, value: PassageGround) -> "PassageGroundResponse":
+        return cls(
+            claim_anchor=value.claim_anchor,
+            bundle_id=value.bundle_id,
+            bundle_item_position=value.bundle_item_position,
+            revision_number=value.revision_number,
+        )
+
+
 class CreateDocumentRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     title: DocumentTitle
@@ -138,6 +157,7 @@ def build_document_router(
     get_revision: GetRevision,
     list_documents: ListDocuments,
     list_revisions: ListRevisions,
+    list_grounds: ListPassageGrounds,
     rename_document: RenameDocument,
     actor: Callable[[Request], Awaitable[Actor]],
 ) -> APIRouter:
@@ -194,6 +214,19 @@ def build_document_router(
                 WorkspaceId(workspace_id),
                 DocumentId(document_id),
                 title=body.title,
+            )
+        )
+
+    @router.get("/{document_id}/grounds", operation_id="list_passage_grounds")
+    async def grounds(
+        workspace_id: UUID,
+        document_id: UUID,
+        current: Annotated[Actor, Depends(actor)],
+    ) -> tuple[PassageGroundResponse, ...]:
+        return tuple(
+            PassageGroundResponse.from_ground(item)
+            for item in await list_grounds.execute(
+                current, WorkspaceId(workspace_id), DocumentId(document_id)
             )
         )
 

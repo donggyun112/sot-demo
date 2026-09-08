@@ -274,6 +274,17 @@ export function createServer() {
           citations: [],
         },
       } satisfies Schema["DocumentResponse"]);
+    if (path.endsWith("/documents/doc-1/grounds"))
+      // What the document as it stands is grounded in, newest citation per
+      // claim across every revision.
+      return Response.json([
+        {
+          claim_anchor: "## 감사·모니터링",
+          bundle_id: "bundle-1",
+          bundle_item_position: 1,
+          revision_number: 2,
+        },
+      ]);
     if (path.endsWith("/documents/doc-1/revisions"))
       return Response.json(state.revisions);
     if (path.includes("/documents/doc-1/revisions/")) {

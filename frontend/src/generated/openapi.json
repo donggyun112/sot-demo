@@ -843,6 +843,36 @@
         "title": "MyInvitationResponse",
         "type": "object"
       },
+      "PassageGroundResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "bundle_id": {
+            "format": "uuid",
+            "title": "Bundle Id",
+            "type": "string"
+          },
+          "bundle_item_position": {
+            "title": "Bundle Item Position",
+            "type": "integer"
+          },
+          "claim_anchor": {
+            "title": "Claim Anchor",
+            "type": "string"
+          },
+          "revision_number": {
+            "title": "Revision Number",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "claim_anchor",
+          "bundle_id",
+          "bundle_item_position",
+          "revision_number"
+        ],
+        "title": "PassageGroundResponse",
+        "type": "object"
+      },
       "Permission": {
         "enum": [
           "workspace.manage",
@@ -2633,6 +2663,65 @@
           }
         ],
         "summary": "Rename"
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/documents/{document_id}/grounds": {
+      "get": {
+        "operationId": "list_passage_grounds",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Document Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PassageGroundResponse"
+                  },
+                  "title": "Response List Passage Grounds",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Grounds"
       }
     },
     "/api/v1/workspaces/{workspace_id}/documents/{document_id}/proposals": {

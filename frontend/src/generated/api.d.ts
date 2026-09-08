@@ -325,6 +325,23 @@ export interface paths {
         patch: operations["rename_workspace_document"];
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/documents/{document_id}/grounds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Grounds */
+        get: operations["list_passage_grounds"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/documents/{document_id}/proposals": {
         parameters: {
             query?: never;
@@ -1026,6 +1043,20 @@ export interface components {
             workspace_id: string;
             /** Workspace Name */
             workspace_name: string;
+        };
+        /** PassageGroundResponse */
+        PassageGroundResponse: {
+            /**
+             * Bundle Id
+             * Format: uuid
+             */
+            bundle_id: string;
+            /** Bundle Item Position */
+            bundle_item_position: number;
+            /** Claim Anchor */
+            claim_anchor: string;
+            /** Revision Number */
+            revision_number: number;
         };
         /**
          * Permission
@@ -2081,6 +2112,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DocumentSummaryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_passage_grounds: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PassageGroundResponse"][];
                 };
             };
             /** @description Validation Error */

@@ -5,6 +5,7 @@ from typing import Protocol
 from sot.document.contracts import (
     DocumentSummary,
     DocumentView,
+    PassageGround,
     RevisionSummary,
     RevisionView,
 )
@@ -74,6 +75,15 @@ class DocumentQuery(Protocol):
         document_id: DocumentId,
     ) -> tuple[RevisionSummary, ...]:
         """Newest first. Empty for a document the workspace does not have."""
+        ...
+
+    async def list_grounds(
+        self,
+        tx: TransactionContext,
+        workspace_id: WorkspaceId,
+        document_id: DocumentId,
+    ) -> tuple[PassageGround, ...]:
+        """The newest citation for each claim across every revision."""
         ...
 
 

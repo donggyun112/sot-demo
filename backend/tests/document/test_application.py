@@ -13,6 +13,7 @@ from sot.document.application import (
     DocumentAccess,
     GetDocument,
     GetRevision,
+    ListPassageGrounds,
     ListRevisions,
     PublishDocumentRevision,
     RenameDocument,
@@ -20,14 +21,20 @@ from sot.document.application import (
 from sot.document.contracts import (
     DocumentSummary,
     DocumentView,
+    PassageGround,
     RevisionCitationView,
     RevisionResult,
     RevisionSummary,
     RevisionView,
 )
-from sot.document.domain import Document, DocumentNotFound, Revision
+from sot.document.domain import (
+    Document,
+    DocumentNotFound,
+    Revision,
+    RevisionCitationInput,
+)
 from sot.identity.contracts import Actor
-from sot.shared.ids import DocumentId, ProposalId, UserId, WorkspaceId
+from sot.shared.ids import BundleId, DocumentId, ProposalId, UserId, WorkspaceId
 from sot.shared.unit_of_work import TransactionContext
 from sot.workspace.domain import (
     Permission,
@@ -168,6 +175,26 @@ class MemoryDocuments:
                 self.revisions.get((workspace_id, document_id), [])
             )
         )
+
+    async def list_grounds(
+        self,
+        tx: TransactionContext,
+        workspace_id: WorkspaceId,
+        document_id: DocumentId,
+    ) -> tuple[PassageGround, ...]:
+        self.check(tx)
+        assert self.authorized
+        self.events.append("query_grounds")
+        newest: dict[str, PassageGround] = {}
+        for revision in self.revisions.get((workspace_id, document_id), []):
+            for citation in revision.citations:
+                newest[citation.claim_anchor] = PassageGround(
+                    citation.claim_anchor,
+                    citation.bundle_id,
+                    citation.bundle_item_position,
+                    revision.number,
+                )
+        return tuple(newest[key] for key in sorted(newest))
 
     async def get(
         self,
@@ -423,3 +450,88 @@ async def test_history_denial_never_reads_the_revisions() -> None:
         )
 
     assert store.events == ["authorize"]
+
+
+@pytest.mark.asyncio
+async def test_grounds_follow_the_document_forward_not_just_its_last_update() -> None:
+    """A revision only cites what THAT update wrote.
+
+    A document is the sum of many updates, so a passage written two revisions
+    ago and untouched since is still grounded by the conversation that wrote
+    it. Reading only the current revision's citations left every earlier
+    passage looking like nobody had decided it.
+    """
+    store = MemoryDocuments()
+    actor, workspace_id = Actor(UserId(uuid4())), WorkspaceId(uuid4())
+    created = await CreateDocument(store, store, lambda: store, FixedClock()).execute(
+        actor, workspace_id, title="Policy", content="머리말"
+    )
+    document = store.documents[workspace_id, created.document.id]
+    publish = PublishDocumentRevision(store, store, FixedClock())
+    bundle, later = BundleId(uuid4()), BundleId(uuid4())
+    async with store.transaction() as tx:
+        await publish.publish(
+            tx,
+            actor=actor,
+            workspace_id=workspace_id,
+            document_id=document.id,
+            expected_version=1,
+            proposal_id=ProposalId(uuid4()),
+            content="머리말\n\n## 전달 방식\n헤더로.",
+            citations=(RevisionCitationInput("## 전달 방식", bundle, 0),),
+        )
+    async with store.transaction() as tx:
+        await publish.publish(
+            tx,
+            actor=actor,
+            workspace_id=workspace_id,
+            document_id=document.id,
+            expected_version=2,
+            proposal_id=ProposalId(uuid4()),
+            content="머리말\n\n## 전달 방식\n헤더로.\n\n## 감사\n남긴다.",
+            citations=(RevisionCitationInput("## 감사", later, 0),),
+        )
+
+    grounds = await ListPassageGrounds(store, store, lambda: store).execute(
+        actor, workspace_id, document.id
+    )
+
+    # Both passages are grounded, each by the update that wrote it.
+    assert {(one.claim_anchor, one.revision_number) for one in grounds} == {
+        ("## 전달 방식", 2),
+        ("## 감사", 3),
+    }
+    assert {one.bundle_id for one in grounds} == {bundle, later}
+
+
+@pytest.mark.asyncio
+async def test_a_rewritten_passage_is_grounded_by_the_update_that_rewrote_it() -> None:
+    store = MemoryDocuments()
+    actor, workspace_id = Actor(UserId(uuid4())), WorkspaceId(uuid4())
+    created = await CreateDocument(store, store, lambda: store, FixedClock()).execute(
+        actor, workspace_id, title="Policy", content="머리말"
+    )
+    document = store.documents[workspace_id, created.document.id]
+    publish = PublishDocumentRevision(store, store, FixedClock())
+    first, second = BundleId(uuid4()), BundleId(uuid4())
+    for version, bundle in ((1, first), (2, second)):
+        async with store.transaction() as tx:
+            await publish.publish(
+                tx,
+                actor=actor,
+                workspace_id=workspace_id,
+                document_id=document.id,
+                expected_version=version,
+                proposal_id=ProposalId(uuid4()),
+                content="머리말\n\n## 전달 방식\n다시 씀.",
+                citations=(RevisionCitationInput("## 전달 방식", bundle, 0),),
+            )
+
+    grounds = await ListPassageGrounds(store, store, lambda: store).execute(
+        actor, workspace_id, document.id
+    )
+
+    # The newer conversation supersedes the older one for that passage.
+    assert len(grounds) == 1
+    assert grounds[0].bundle_id == second
+    assert grounds[0].revision_number == 3

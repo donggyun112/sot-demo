@@ -51,6 +51,23 @@ class RevisionSummary:
 
 
 @dataclass(frozen=True, slots=True)
+class PassageGround:
+    """What a passage of the document AS IT STANDS is grounded in.
+
+    A revision only cites what that update wrote. A document is the sum of
+    many updates, so a passage written three revisions ago and untouched
+    since is still grounded by the conversation that wrote it — and stops
+    being grounded by it the moment a later update rewrites the passage.
+    Hence: the most recent citation for each claim.
+    """
+
+    claim_anchor: str
+    bundle_id: BundleId
+    bundle_item_position: int
+    revision_number: int
+
+
+@dataclass(frozen=True, slots=True)
 class DocumentView:
     document: DocumentSummary
     current_revision: RevisionView
@@ -93,6 +110,7 @@ __all__ = [
     "DocumentReader",
     "DocumentSummary",
     "DocumentView",
+    "PassageGround",
     "RevisionCitationInput",
     "RevisionCitationView",
     "RevisionResult",
