@@ -178,8 +178,6 @@
     "send": "Send",
     "stop": "Stop",
     "retry": "Retry sync",
-    "steps_one": "{{count}} step",
-    "steps_other": "{{count}} steps",
     "running": "Generating a reply.",
     "synced": "Synced the finished exchange.",
     "syncFailed": "The exchange finished but did not sync. Retry the sync on its own.",
@@ -192,7 +190,10 @@
     "title": "Who holds this session",
     "action": "Send session",
     "title2": "Send it to",
-    "everyone": "Everyone already holds it."
+    "everyone": "Everyone already holds it.",
+    "review": "Before sending to {{name}}",
+    "reviewHint": "This is the conversation they will read. Take out what should not go.",
+    "confirm": "Send"
   },
   "sessionRole": {
     "owner": "Owner",
