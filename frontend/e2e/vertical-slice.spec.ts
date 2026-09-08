@@ -160,8 +160,13 @@ test("private draft, hand-off to a teammate and explicit consensus merge", async
     // Handing it over is adding Bob to it: he continues the same session
     // rather than receiving a copy of the turns.
     const sendResponse = alice.waitForResponse((res) => res.request().method() === "POST" && res.url().endsWith("/members"));
-    await alice.getByLabel("Send to").selectOption(bobLogin.user.id);
-    await alice.getByRole("button", { name: "Send session" }).click();
+    // Send is a list of people, not a picker, and you are never on it.
+    const recipients = alice.getByRole("region", { name: "Send it to" });
+    await expect(recipients.getByText(aliceLogin.user.display_name)).toHaveCount(0);
+    await recipients
+      .getByRole("button", { name: "Send session" })
+      .first()
+      .click();
     expect((await sendResponse).status()).toBe(201);
     await expect(alice.getByText("Editor")).toBeVisible();
 

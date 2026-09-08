@@ -187,9 +187,9 @@
   },
   "send": {
     "title": "이 세션을 가진 사람",
-    "recipient": "보낼 멤버",
-    "choose": "멤버 선택",
-    "action": "세션 보내기"
+    "action": "세션 보내기",
+    "title2": "보낼 수 있는 멤버",
+    "everyone": "이미 모두 가지고 있습니다."
   },
   "sessionRole": {
     "owner": "만든 사람",

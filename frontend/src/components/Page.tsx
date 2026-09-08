@@ -1,3 +1,4 @@
+import { useId } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import styles from "./Page.module.css";
@@ -70,10 +71,13 @@ export function Section({
   aside?: ReactNode;
   children: ReactNode;
 }) {
+  // Named by its own heading, so a section is a landmark a reader can jump to
+  // rather than an anonymous box.
+  const headingId = useId();
   return (
-    <section className={styles.section}>
+    <section className={styles.section} aria-labelledby={headingId}>
       <div className={styles.sectionHead}>
-        <h3>{title}</h3>
+        <h3 id={headingId}>{title}</h3>
         {typeof count === "number" && (
           <span className={styles.count}>{count}</span>
         )}

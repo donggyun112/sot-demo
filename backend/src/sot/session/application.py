@@ -41,6 +41,7 @@ from sot.session.ports import (
     SessionRepository,
 )
 from sot.shared.clock import Clock
+from sot.shared.errors import InvalidInput
 from sot.shared.ids import (
     BranchId,
     BundleId,
@@ -314,6 +315,13 @@ class InviteSessionMember:
                 session_id=session_id,
                 permission=SessionPermission.MANAGE_MEMBERS,
             )
+            # You already hold what you are sending, so this is a mistake
+            # rather than an action, and it would only hit the member
+            # uniqueness constraint anyway.
+            if user_id == actor.user_id:
+                raise InvalidInput(
+                    "session_member_self", "You already hold this session"
+                )
             await self._members.require_member(tx, workspace_id, user_id)
             member = SessionMember(workspace_id, session_id, user_id, role)
             await self._repository.add_member(tx, workspace_id, member)

@@ -468,7 +468,10 @@ it("switches branches from the session side panel", async () => {
   await openDocument();
   await userEvent.click(await screen.findByRole("link", { name: "Sessions" }));
   await userEvent.click(await screen.findByRole("button", { name: "New session" }));
-  await userEvent.selectOptions(await screen.findByLabelText("Branch"), "branch-2");
+  await userEvent.selectOptions(
+    await screen.findByRole("combobox", { name: "Branch" }),
+    "branch-2",
+  );
   expect((await screen.findAllByText("다른 전제")).length).toBeGreaterThan(0);
 });
 
@@ -569,16 +572,17 @@ it("sends a session to a workspace member instead of minting a link", async () =
   await userEvent.click(await screen.findByRole("link", { name: "Sessions" }));
   await userEvent.click(await screen.findByRole("button", { name: "New session" }));
 
-  // Whoever already holds it is listed; only the others can be sent it.
+  // Whoever already holds it is listed; the others are the ones you can send
+  // it to, each with the one action that applies. Never yourself.
   expect(await screen.findByRole("heading", { name: "Who holds this session" }))
     .toBeVisible();
-  const picker = await screen.findByLabelText("Send to");
-  expect(
-    [...picker.querySelectorAll("option")].map((item) => item.textContent),
-  ).toEqual(["Choose a member", "Reviewer"]);
+  const recipients = await screen.findByRole("region", { name: "Send it to" });
+  expect(within(recipients).getByText("Reviewer")).toBeVisible();
+  expect(within(recipients).queryByText("Member")).not.toBeInTheDocument();
 
-  await userEvent.selectOptions(picker, "user-2");
-  await userEvent.click(screen.getByRole("button", { name: "Send session" }));
+  await userEvent.click(
+    within(recipients).getByRole("button", { name: "Send session" }),
+  );
 
   await waitFor(() =>
     expect(

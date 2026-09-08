@@ -398,6 +398,7 @@ function SessionSide({
     "/api/v1/workspaces/{workspace_id}/sessions/{session_id}/members",
   );
   const nameOf = useDisplayName();
+  const { user } = useSot();
   const members = api.useQuery(
     "get",
     "/api/v1/workspaces/{workspace_id}/sessions/{session_id}/members",
@@ -408,10 +409,12 @@ function SessionSide({
     "/api/v1/workspaces/{workspace_id}/members",
     { params: { path: { workspace_id: workspaceId } } },
   );
-  const [recipient, setRecipient] = useState("");
-  /* Only people who do not already hold it can be sent it. */
+  /* Only people who do not already hold it, and never yourself: you are the
+     one sending it, and adding yourself twice is a conflict, not an action. */
   const candidates = (roster.data ?? []).filter(
-    (item) => !(members.data ?? []).some((held) => held.user_id === item.user_id),
+    (item) =>
+      item.user_id !== user?.id &&
+      !(members.data ?? []).some((held) => held.user_id === item.user_id),
   );
   const propose = api.useMutation(
     "post",
@@ -525,21 +528,18 @@ function SessionSide({
         />
       )}
 
-      <div role="region" aria-label={t("sessions.preview")}>
-        <Section title={t("sessions.preview")} count={previewItems.length}>
-          {previewItems.length === 0 ? (
-            <p className={styles.empty}>{t("sessions.previewEmpty")}</p>
-          ) : (
-            previewItems.map((item, index) => (
-              <div key={index} className={styles.sideCard}>
-                <div className={styles.who}>{t(`turnRole.${item.role}`)}</div>
-                <div className={styles.turnBody}>{item.content}</div>
-              </div>
-            ))
-          )}
-        </Section>
-      </div>
-
+      <Section title={t("sessions.preview")} count={previewItems.length}>
+        {previewItems.length === 0 ? (
+          <p className={styles.empty}>{t("sessions.previewEmpty")}</p>
+        ) : (
+          previewItems.map((item, index) => (
+            <div key={index} className={styles.sideCard}>
+              <div className={styles.who}>{t(`turnRole.${item.role}`)}</div>
+              <div className={styles.turnBody}>{item.content}</div>
+            </div>
+          ))
+        )}
+      </Section>
     </aside>
   );
 
@@ -595,58 +595,48 @@ function SessionSide({
               <span className={styles.chip}>{t(`sessionRole.${item.role}`)}</span>
             </div>
           ))}
-          {participate ? (
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                if (!recipient) return;
-                send.mutate(
-                  {
-                    params: {
-                      path: { workspace_id: workspaceId, session_id: sessionId },
-                    },
-                    body: { user_id: recipient, role: "editor" },
-                  },
-                  {
-                    onSuccess: () => {
-                      setRecipient("");
-                      void queryClient.invalidateQueries();
-                    },
-                  },
-                );
-              }}
-            >
-              <label className={styles.label} htmlFor="session-recipient">
-                {t("send.recipient")}
-                <select
-                  id="session-recipient"
-                  className={styles.select}
-                  value={recipient}
-                  onChange={(event) => setRecipient(event.target.value)}
-                >
-                  <option value="">{t("send.choose")}</option>
-                  {candidates.map((item) => (
-                    <option key={item.user_id} value={item.user_id}>
-                      {item.display_name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button
-                className={styles.primary}
-                type="submit"
-                disabled={!recipient || send.isPending}
-              >
-                {send.isPending ? t("common.working") : t("send.action")}
-              </button>
-              {send.isError && (
-                <p className={styles.alert} role="alert">
-                  {t("common.error")}
-                </p>
-              )}
-            </form>
-          ) : (
+        </Section>
+
+        {/*
+          Send is a list of people, not a picker: the members who do not hold
+          it yet, each with the one action that applies to them. A dropdown
+          made "nobody" a selectable option and let you pick yourself, which
+          only ever ended in a conflict.
+        */}
+        <Section title={t("send.title2")} count={candidates.length}>
+          {!participate ? (
             <p className={styles.note}>{t("sessions.needParticipate")}</p>
+          ) : candidates.length === 0 ? (
+            <p className={styles.empty}>{t("send.everyone")}</p>
+          ) : (
+            candidates.map((item) => (
+              <div key={item.user_id} className={styles.row}>
+                <div className={styles.rowTitle}>{item.display_name}</div>
+                <button
+                  type="button"
+                  className={styles.ghost}
+                  disabled={send.isPending}
+                  onClick={() =>
+                    send.mutate(
+                      {
+                        params: {
+                          path: { workspace_id: workspaceId, session_id: sessionId },
+                        },
+                        body: { user_id: item.user_id, role: "editor" },
+                      },
+                      { onSuccess: () => void queryClient.invalidateQueries() },
+                    )
+                  }
+                >
+                  {send.isPending ? t("common.working") : t("send.action")}
+                </button>
+              </div>
+            ))
+          )}
+          {send.isError && (
+            <p className={styles.alert} role="alert">
+              {t("common.error")}
+            </p>
           )}
         </Section>
 

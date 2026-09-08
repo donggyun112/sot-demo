@@ -40,6 +40,7 @@ from sot.session.domain import (
     Turn,
     VersionConflict,
 )
+from sot.shared.errors import InvalidInput
 from sot.shared.ids import BranchId, DocumentId, SessionId, UserId, WorkspaceId
 from sot.shared.unit_of_work import TransactionContext
 from sot.workspace.contracts import Permission, WorkspaceMembership, WorkspaceRole
@@ -385,6 +386,24 @@ async def test_private_branch_existence_is_hidden_from_uninvited_member(
         if existing
         else ["workspace", "branch_ownership"]
     )
+
+
+@pytest.mark.asyncio
+async def test_sending_a_session_to_yourself_is_refused() -> None:
+    """You already hold what you are sending: this is a mistake, not an action."""
+    store, actor, workspace_id, document_id = setup()
+    result = await creator(store).execute(actor, workspace_id, document_id)
+    before = dict(store.members)
+    with pytest.raises(InvalidInput) as caught:
+        await InviteSessionMember(store, access(store), store, lambda: store).execute(
+            actor,
+            workspace_id,
+            result.session_id,
+            user_id=actor.user_id,
+            role=SessionRole.EDITOR,
+        )
+    assert caught.value.code == "session_member_self"
+    assert store.members == before
 
 
 @pytest.mark.asyncio

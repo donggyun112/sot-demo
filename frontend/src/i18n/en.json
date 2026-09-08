@@ -190,9 +190,9 @@
   },
   "send": {
     "title": "Who holds this session",
-    "recipient": "Send to",
-    "choose": "Choose a member",
-    "action": "Send session"
+    "action": "Send session",
+    "title2": "Send it to",
+    "everyone": "Everyone already holds it."
   },
   "sessionRole": {
     "owner": "Owner",
