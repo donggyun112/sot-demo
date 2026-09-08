@@ -11,7 +11,6 @@ import {
 } from "react-router";
 import { can, rememberWorkspace, useSot, useWorkspaceUi } from "../app/sot";
 import { useOpenProposals } from "../app/inbox";
-import { headingsFrom } from "../views/outline";
 import { editSummary } from "../views/patch";
 import styles from "./AppShell.module.css";
 
@@ -150,12 +149,6 @@ function DocumentBranch({
     { params: { path: { workspace_id: workspaceId, document_id: id } } },
     { enabled: open },
   );
-  const headings = open
-    ? headingsFrom(document.data?.current_revision.content ?? "").filter(
-        (item) => item.id !== "body",
-      )
-    : [];
-  const selected = params.get("block") ?? headings[0]?.id;
   const pending = (proposals.data ?? []).filter(
     (item) => item.status === "open" || item.status === "approved",
   );
@@ -173,24 +166,12 @@ function DocumentBranch({
           <span className={styles.count}>{pending.length}</span>
         )}
       </NavLink>
-      {/* The open document's own structure, then what is pending against it. */}
-      {headings.map((item) => (
-        <button
-          key={item.id}
-          type="button"
-          className={
-            item.id === selected ? `${styles.child} ${styles.childOn}` : styles.child
-          }
-          data-depth={item.depth >= 3 ? "3" : String(item.depth)}
-          onClick={() => {
-            const next = new URLSearchParams(params);
-            next.set("block", item.id);
-            setParams(next, { replace: true });
-          }}
-        >
-          <span className={styles.itemLabel}>{item.title}</span>
-        </button>
-      ))}
+      {/*
+        What is pending against this document — a link to another screen, which
+        is what navigation is for. Its sections are not: they are parts of one
+        page, and listing them beside the documents made them read as more
+        documents. The section selector lives with the evidence it selects.
+      */}
       {open &&
         pending.map((item) => (
           <NavLink

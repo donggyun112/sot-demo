@@ -306,7 +306,7 @@ export function createServer() {
           content:
             workspace_id === "w2"
               ? "목적지 합의"
-              : "초기 합의\n\n## 감사·모니터링\n\n이력을 남긴다.",
+              : "초기 합의\n\n## 문제 정의\n\n토큰이 샌다.\n\n## 감사·모니터링\n\n이력을 남긴다.",
           proposal_id: "proposal-1",
           created_by: member.id,
           created_at: session.created_at,

@@ -415,8 +415,19 @@ export function DocumentView() {
                 title={t("document.evidence")}
                 count={cited.length}
                 aside={
-                  heading?.title ? (
-                    <span className={styles.meta}>{heading.title}</span>
+                  headings.length > 1 ? (
+                    <select
+                      className={styles.select}
+                      aria-label={t("document.section")}
+                      value={heading?.id ?? ""}
+                      onChange={(event) => setParam("block", event.target.value)}
+                    >
+                      {headings.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.title || t("document.wholeBody")}
+                        </option>
+                      ))}
+                    </select>
                   ) : undefined
                 }
               >

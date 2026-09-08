@@ -103,7 +103,9 @@
     "past": "Earlier revision",
     "emptyBody": "This document has no text yet. Ask the agent for an update in a session.",
     "historyOpenProposal": "Proposal",
-    "historyOpenSession": "Session it came from"
+    "historyOpenSession": "Session it came from",
+    "section": "Passage",
+    "wholeBody": "The whole document"
   },
   "sessions": {
     "title": "Sessions",

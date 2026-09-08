@@ -5,6 +5,7 @@ import type { AuthSession } from "../auth";
 import { serviceRoot } from "../transport";
 import type { Turn } from "../types";
 import { MarkdownBody } from "./MarkdownBody";
+import { useSmoothText } from "./smoothText";
 import { Turn as TurnRow } from "./Turn";
 import turns from "./Turn.module.css";
 import styles from "./AgentChat.module.css";
@@ -308,6 +309,16 @@ export function AgentChat(props: AgentChatProps) {
   const settled = !running && !preservePartial.current && !needsRefetch;
   const live = liveBlocks(messages);
   const blocks = settled && !live.some(isRunDetail) ? storedBlocks(props.turns) : live;
+  /*
+    Only the block still being written is paced. Everything above it is
+    finished text, and pacing that would replay the conversation on every
+    render. The agent's own words are what a reader watches arrive; their own
+    prompt was complete before they sent it.
+  */
+  const tail = blocks.at(-1);
+  const writing =
+    running && tail?.kind === "text" && tail.role !== "user" ? tail : undefined;
+  const paced = useSmoothText(writing?.content ?? "", Boolean(writing));
 
   return (
     <div className={styles.chat}>
@@ -332,7 +343,10 @@ export function AgentChat(props: AgentChatProps) {
                   <MarkdownBody compact text={block.content} />
                 ) : (
                   <div className={turns.prose}>
-                    <MarkdownBody compact text={block.content} />
+                    <MarkdownBody
+                      compact
+                      text={block === writing ? paced : block.content}
+                    />
                   </div>
                 )}
               </TurnRow>

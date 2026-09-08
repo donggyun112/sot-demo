@@ -102,7 +102,9 @@
     "past": "이전 리비전",
     "emptyBody": "아직 본문이 없습니다. 세션에서 에이전트에게 반영을 요청하세요.",
     "historyOpenProposal": "제안 열기",
-    "historyOpenSession": "출처 세션 열기"
+    "historyOpenSession": "출처 세션 열기",
+    "section": "문단",
+    "wholeBody": "문서 전체"
   },
   "sessions": {
     "title": "세션",

@@ -708,7 +708,12 @@ it("shows the grounds for the section you are reading", async () => {
   await openDocument();
   await userEvent.click(await screen.findByRole("button", { name: "Evidence" }));
   const rail = await screen.findByRole("region", { name: "Evidence" });
-  await userEvent.click(await screen.findByRole("button", { name: /감사·모니터링/ }));
+  // The passage selector lives with the grounds it chooses, not in the
+  // workspace sidebar where sections read as more documents.
+  await userEvent.selectOptions(
+    within(rail).getByLabelText("Passage"),
+    within(rail).getByRole("option", { name: "감사·모니터링" }),
+  );
 
   expect(
     within(rail).queryByText("No evidence is linked to this passage."),

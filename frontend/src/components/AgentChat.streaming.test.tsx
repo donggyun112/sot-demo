@@ -126,7 +126,7 @@ it("keeps a delayed native stream connected across rerenders and refetches only 
   const h = await harness();
   await h.start();
   h.rendered.rerender(<AgentChat {...h.props} turns={[]} />);
-  expect(screen.getByText("부분 응답")).toBeVisible();
+  expect(await screen.findByText("부분 응답")).toBeVisible();
   expect(h.onSaved).not.toHaveBeenCalled();
   await h.finish();
   await waitFor(() => expect(h.onSaved).toHaveBeenCalledOnce());
@@ -335,4 +335,46 @@ it("opens a tool fold on click instead of tearing the transcript down", async ()
   await userEvent.click(summary);
   expect(screen.getByText("sot_read")).toBeVisible();
   expect(fold!.open).toBe(true);
+});
+
+
+it("lets a burst of text arrive as writing, and finishes it at once", async () => {
+  // A provider flushes whatever it has: nothing, then a paragraph. Drawing
+  // each lump as it lands is what made generation look like a stutter.
+  const h = await harness();
+  const paragraph = "결론부터 말하면 계정당 초당 10회입니다. ".repeat(8);
+  await h.emit(
+    { type: "RUN_STARTED", threadId: "session-1", runId: "run-1" },
+    {
+      type: "TEXT_MESSAGE_START",
+      messageId: "assistant-streamed",
+      role: "assistant",
+    },
+    {
+      type: "TEXT_MESSAGE_CONTENT",
+      messageId: "assistant-streamed",
+      delta: paragraph,
+    },
+  );
+
+  // It is written out rather than pasted, and it does get there. The turn
+  // carries the speaker's name too, so read it by what it contains.
+  const shown = () =>
+    document.querySelector('[data-role="assistant"]')?.textContent ?? "";
+  expect(shown()).not.toContain(paragraph.trim());
+  await waitFor(() => expect(shown()).toContain(paragraph.trim()));
+
+  // A second run starts over instead of continuing the first one's text.
+  await h.emit(
+    {
+      type: "TEXT_MESSAGE_CONTENT",
+      messageId: "assistant-streamed",
+      delta: "그리고 예외가 하나 있습니다.",
+    },
+    { type: "TEXT_MESSAGE_END", messageId: "assistant-streamed" },
+    { type: "RUN_FINISHED", threadId: "session-1", runId: "run-1" },
+  );
+  // Finishing a run shows the rest immediately: an answer must never sit
+  // half-written once it is done.
+  await waitFor(() => expect(shown()).toContain("예외가 하나 있습니다"));
 });
