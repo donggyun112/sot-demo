@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from uuid import uuid4
 
 import psycopg
 import pytest
@@ -29,7 +30,7 @@ async def test_migrations_are_ordered_once_and_not_run_by_app_startup(
 ) -> None:
     await run_migrations(database_url, MIGRATIONS)
     await run_migrations(database_url, MIGRATIONS)
-    expected = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13)
+    expected = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14)
     assert await applied_versions(database_url) == expected
 
     app = build_app(Settings(database_url=database_url, models=("test",)))
@@ -92,3 +93,138 @@ def test_migration_cli_exits_nonzero_when_the_plan_is_invalid(
 
     assert raised.value.code == 1
     assert "migration version gap" in capsys.readouterr().err
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_backfill_grounds_every_passage_an_update_wrote(
+    database_url: str,
+) -> None:
+    """The repair in 014, on data shaped the way the old derivation left it.
+
+    Running the migrations proves only that the statement parses. This proves
+    it does the thing: a revision that carried one anchor for a skeleton of
+    sections ends up carrying one per section, on the bundle it already cited.
+    """
+    await run_migrations(database_url, MIGRATIONS)
+    async with await psycopg.AsyncConnection.connect(database_url) as conn:
+        ids = {
+            name: uuid4()
+            for name in (
+                "user",
+                "workspace",
+                "document",
+                "session",
+                "branch",
+                "bundle",
+                "first",
+                "second",
+            )
+        }
+        await conn.execute(
+            "INSERT INTO sot.sot_user(id,email,display_name) VALUES (%s,'a@test','A')",
+            (ids["user"],),
+        )
+        await conn.execute(
+            "INSERT INTO sot.sot_workspace(id,name) VALUES (%s,'W')",
+            (ids["workspace"],),
+        )
+        await conn.execute(
+            "INSERT INTO sot.sot_document(id,workspace_id,created_by,title,version) "
+            "VALUES (%s,%s,%s,'D',2)",
+            (ids["document"], ids["workspace"], ids["user"]),
+        )
+        await conn.execute(
+            "INSERT INTO sot.sot_session(id,workspace_id,document_id,created_by,created_at,status) "
+            "VALUES (%s,%s,%s,%s,now(),'open')",
+            (ids["session"], ids["workspace"], ids["document"], ids["user"]),
+        )
+        await conn.execute(
+            "INSERT INTO sot.sot_branch(id,workspace_id,session_id,created_by,created_at,version) "
+            "VALUES (%s,%s,%s,%s,now(),1)",
+            (ids["branch"], ids["workspace"], ids["session"], ids["user"]),
+        )
+        await conn.execute(
+            "INSERT INTO sot.sot_bundle"
+            "(id,workspace_id,session_id,branch_id,title,published_by,published_at) "
+            "VALUES (%s,%s,%s,%s,'B',%s,now())",
+            (
+                ids["bundle"],
+                ids["workspace"],
+                ids["session"],
+                ids["branch"],
+                ids["user"],
+            ),
+        )
+        await conn.execute(
+            "INSERT INTO sot.sot_bundle_item"
+            "(workspace_id,bundle_id,position,source_ids,role,content,provenance) "
+            "VALUES (%s,%s,0,%s,'user','왜?','copied')",
+            (ids["workspace"], ids["bundle"], [uuid4()]),
+        )
+        # Revision one: the document before the update.
+        await conn.execute(
+            "INSERT INTO sot.sot_document_revision"
+            "(id,workspace_id,document_id,number,content,created_by,created_at) "
+            "VALUES (%s,%s,%s,1,'머리말',%s,now())",
+            (ids["first"], ids["workspace"], ids["document"], ids["user"]),
+        )
+        # Revision two: one update wrote three sections, and the old
+        # derivation anchored only the first of them.
+        await conn.execute(
+            "INSERT INTO sot.sot_document_revision"
+            "(id,workspace_id,document_id,number,content,created_by,created_at) "
+            "VALUES (%s,%s,%s,2,%s,%s,now())",
+            (
+                ids["second"],
+                ids["workspace"],
+                ids["document"],
+                (
+                    "머리말\n\n## 문제 정의\n샌다.\n\n## 전달 방식\n헤더로.\n\n"
+                    "## 미결정 사항\n(추가)"
+                ),
+                ids["user"],
+            ),
+        )
+        await conn.execute(
+            "INSERT INTO sot.sot_revision_citation"
+            "(workspace_id,revision_id,position,claim_anchor,bundle_id,bundle_item_position) "
+            "VALUES (%s,%s,0,'## 문제 정의',%s,0)",
+            (ids["workspace"], ids["second"], ids["bundle"]),
+        )
+
+        await conn.execute(
+            (MIGRATIONS / "014_backfill_passage_grounds.sql").read_text()
+        )
+
+        anchors = await (
+            await conn.execute(
+                "SELECT claim_anchor FROM sot.sot_revision_citation "
+                "WHERE revision_id=%s ORDER BY position",
+                (ids["second"],),
+            )
+        ).fetchall()
+        assert [row[0] for row in anchors] == [
+            "## 문제 정의",
+            "## 전달 방식",
+            "## 미결정 사항",
+        ]
+        # The heading revision one already had is not this update's to claim,
+        # and revision one carried no grounds, so it gains none.
+        assert await (
+            await conn.execute(
+                "SELECT count(*) FROM sot.sot_revision_citation WHERE revision_id=%s",
+                (ids["first"],),
+            )
+        ).fetchone() == (0,)
+        # Applying the repair twice adds nothing: anchors are matched, not
+        # appended blindly.
+        await conn.execute(
+            (MIGRATIONS / "014_backfill_passage_grounds.sql").read_text()
+        )
+        assert await (
+            await conn.execute(
+                "SELECT count(*) FROM sot.sot_revision_citation WHERE revision_id=%s",
+                (ids["second"],),
+            )
+        ).fetchone() == (3,)

@@ -419,9 +419,7 @@ def build_session_router(
             bundle_id=result.bundle_id,
             title=result.title,
             session_id=result.session_id,
-            items=tuple(
-                BundleItemResponse.from_item(item) for item in result.items
-            ),
+            items=tuple(BundleItemResponse.from_item(item) for item in result.items),
         )
 
     @router.get("/branches/{branch_id}/bundle-preview")
