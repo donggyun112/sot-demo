@@ -5,6 +5,7 @@ import type { AuthSession } from "../auth";
 import { serviceRoot } from "../transport";
 import type { Turn } from "../types";
 import { MarkdownBody } from "./MarkdownBody";
+import { readableJson } from "./readableJson";
 import { useSmoothText } from "./smoothText";
 import { Turn as TurnRow } from "./Turn";
 import turns from "./Turn.module.css";
@@ -423,12 +424,12 @@ export function AgentChat(props: AgentChatProps) {
                 <div className={styles.foldBody}>
                   {block.args !== undefined && (
                     <pre className={styles.toolOut}>
-                      {JSON.stringify(block.args, null, 2)}
+                      {readableJson(block.args)}
                     </pre>
                   )}
                   {block.result !== undefined && (
                     <pre className={styles.toolOut}>
-                      {JSON.stringify(block.result, null, 2)}
+                      {readableJson(block.result)}
                     </pre>
                   )}
                 </div>

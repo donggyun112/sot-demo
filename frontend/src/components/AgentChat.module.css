@@ -79,7 +79,7 @@
 
 .toolOut {
   margin: 2px 0 0 18px;
-  max-height: 160px;
+  max-height: 50vh;
   overflow: auto;
   border-radius: var(--radius-sm);
   background: var(--surface-raised);
