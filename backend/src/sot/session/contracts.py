@@ -81,6 +81,17 @@ class ShareableBundleReader(Protocol):
     ) -> ShareableBundleSnapshot: ...
 
 
+class ToolRecordReader(Protocol):
+    """Name the tool a turn records, for a transcript someone can audit.
+
+    Only a CALL is nameable. A tool's return is execution data the caller
+    never wrote and must not read back, so it has no name here and is left
+    out of the transcript entirely.
+    """
+
+    def call_name(self, content: str) -> str | None: ...
+
+
 class BundleOwningSessionReader(Protocol):
     """Which session a bundle was published from, for someone allowed to read it.
 
@@ -233,6 +244,7 @@ __all__ = [
     "SessionView",
     "ShareableBundleReader",
     "ShareableBundleSnapshot",
+    "ToolRecordReader",
     "Turn",
     "TurnId",
 ]

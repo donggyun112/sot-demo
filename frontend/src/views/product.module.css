@@ -654,7 +654,7 @@ textarea.input {
      its own scroll rather than letting it own the page. */
   flex: none;
   max-height: 60vh;
-  overflow: auto;
+  overflow-y: auto;
   margin: 0;
   color: var(--ink);
 }
@@ -663,6 +663,15 @@ textarea.input {
   /* Tint the whole row, not just the glyphs on it. */
   padding: 0 var(--space-md);
   margin: 0 calc(var(--space-md) * -1);
+  /*
+   * A prose diff has real sentences in it. Wrapping keeps the whole line
+   * readable instead of running off to the right, and the hanging indent
+   * keeps a wrapped line under its own text rather than under the +/-.
+   */
+  white-space: pre-wrap;
+  padding-left: calc(var(--space-md) + 1ch);
+  text-indent: -1ch;
+  overflow-wrap: break-word;
 }
 
 .patch [data-kind="add"] {

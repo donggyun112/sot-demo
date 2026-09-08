@@ -9,10 +9,20 @@ test("the Korean hero wraps between words, never inside one", async ({ page }) =
   const heading = page.getByRole("heading", { level: 1 });
   await expect(heading).toBeVisible();
 
+  // This spec compiles in the Node project, which has no DOM lib, so the
+  // browser globals are reached through globalThis rather than typed here.
   const breaks = await heading.evaluate((el) => {
-    const node = el.firstChild as Text;
+    const dom = globalThis as unknown as {
+      document: { createRange(): Range };
+    };
+    type Range = {
+      setStart(node: unknown, offset: number): void;
+      setEnd(node: unknown, offset: number): void;
+      getBoundingClientRect(): { top: number };
+    };
+    const node = el.firstChild as unknown as { textContent: string | null };
     const text = node.textContent ?? "";
-    const range = document.createRange();
+    const range = dom.document.createRange();
     const at: number[] = [];
     let top: number | null = null;
     for (let i = 0; i < text.length; i++) {

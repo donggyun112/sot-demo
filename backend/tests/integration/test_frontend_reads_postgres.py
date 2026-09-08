@@ -245,11 +245,18 @@ async def test_branch_version_and_completed_turns_exclude_execution_internals(
     )
     response = await api.get(turns_path, headers=bearer(s.owner.user_id))
     assert response.status_code == 200
+    # The system prompt never becomes a turn, a tool CALL is kept as the name
+    # of what the agent did, and its return stays out of the transcript.
     assert [
         (row["ordinal"], row["role"], row["content"]) for row in response.json()
-    ] == [(1, "user", "question"), (4, "assistant", "completed answer")]
+    ] == [
+        (1, "user", "question"),
+        (2, "tool", "session_cite"),
+        (4, "assistant", "completed answer"),
+    ]
     assert [row["id"] for row in response.json()] == [
         str(saved.turns[0].id),
+        str(saved.turns[1].id),
         str(saved.turns[3].id),
     ]
     assert all(
@@ -257,7 +264,9 @@ async def test_branch_version_and_completed_turns_exclude_execution_internals(
         and row["workspace_id"] == str(s.workspace_id)
         for row in response.json()
     )
+    # Neither the arguments, the result, nor the envelope they travelled in.
     assert "private" not in response.text and "sot.tool-turn" not in response.text
+    assert "internal" not in response.text
     branches = await api.get(branches_path, headers=bearer(s.owner.user_id))
     assert branches.status_code == 200
     assert [(row["id"], row["version"]) for row in branches.json()] == [

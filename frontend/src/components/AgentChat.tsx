@@ -21,8 +21,19 @@ interface AgentChatProps {
   youLabel: string;
 }
 type AgentMessage = PydanticAIAgent["messages"][number];
+/**
+ * What the model is replayed: the conversation itself. A stored tool turn is
+ * the NAME of what the agent did, not the call the model would need to resume
+ * from, so it belongs in the record below rather than in this history.
+ */
 const canonicalMessages = (turns: Turn[]): AgentMessage[] =>
-  turns.map(({ id, role, content }) => ({ id, role, content }));
+  turns
+    .filter((turn) => turn.role === "user" || turn.role === "assistant")
+    .map(({ id, role, content }) => ({
+      id,
+      role: role as "user" | "assistant",
+      content,
+    }));
 
 function textContent(message: AgentMessage): string {
   const content = "content" in message ? message.content : "";
@@ -36,6 +47,62 @@ function textContent(message: AgentMessage): string {
       return "";
     })
     .join("");
+}
+
+type ToolEnvelope = {
+  kind?: string;
+  tool_name?: string;
+  tool_call_id?: string;
+  args?: unknown;
+  result?: unknown;
+};
+
+/** The envelope the server wraps a tool turn in, or null for anything else. */
+function toolEnvelope(text: string): ToolEnvelope | null {
+  if (!text.startsWith("{")) return null;
+  try {
+    const value: unknown = JSON.parse(text);
+    return value && typeof value === "object" ? (value as ToolEnvelope) : null;
+  } catch {
+    return null;
+  }
+}
+
+type ToolRecord = { id: string; name: string; args?: unknown; result?: unknown };
+
+/**
+ * A call and its result are one thing that happened, so they are read as one.
+ * Split across two rows they were two walls of JSON with no way to tell which
+ * result belonged to which call.
+ */
+function toolRecords(messages: readonly AgentMessage[]): ToolRecord[] {
+  const order: string[] = [];
+  const byId = new Map<
+    string,
+    { name: string; args?: unknown; result?: unknown }
+  >();
+  const take = (id: string, name: string) => {
+    if (!byId.has(id)) {
+      byId.set(id, { name });
+      order.push(id);
+    }
+    return byId.get(id)!;
+  };
+  for (const message of messages) {
+    if ("toolCalls" in message && Array.isArray(message.toolCalls))
+      for (const call of message.toolCalls) {
+        const record = take(call.id, call.function.name);
+        if (call.function.arguments)
+          record.args = toolEnvelope(call.function.arguments) ?? call.function.arguments;
+      }
+    if (message.role !== "tool") continue;
+    const envelope = toolEnvelope(textContent(message));
+    if (!envelope?.tool_call_id) continue;
+    const record = take(envelope.tool_call_id, envelope.tool_name ?? "");
+    if (envelope.kind === "call") record.args = envelope.args;
+    else record.result = envelope.result ?? textContent(message);
+  }
+  return order.map((id) => ({ id, ...byId.get(id)! }));
 }
 
 export function AgentChat(props: AgentChatProps) {
@@ -61,6 +128,8 @@ export function AgentChat(props: AgentChatProps) {
   const completed = useRef(false);
   const stopped = useRef(false);
   const preservePartial = useRef(false);
+  /* The draft that is in flight, so stopping or failing gives it back. */
+  const sent = useRef("");
   const [messages, setMessages] = useState<AgentMessage[]>(() => [
     ...agent.messages,
   ]);
@@ -121,14 +190,15 @@ export function AgentChat(props: AgentChatProps) {
     // A failed draft stays visible, but the next run starts from server-owned Turns.
     agent.setMessages(canonicalMessages(latest.current.turns));
     agent.addMessage({ id: crypto.randomUUID(), role: "user", content });
+    // The message is in the transcript now, so the box is empty: leaving the
+    // draft sitting there made it look like nothing had been sent.
+    sent.current = content;
+    setInput("");
     try {
       // The SDK's fetch boundary refreshes HTTP 401 before any stream is read.
       // RUN_ERROR, reader failures, and aborts are never replayed.
       await agent.runAgent();
-      if (completed.current && !stopped.current) {
-        setInput("");
-        await refetch();
-      }
+      if (completed.current && !stopped.current) await refetch();
     } catch (error) {
       const detail =
         error instanceof Error
@@ -137,11 +207,18 @@ export function AgentChat(props: AgentChatProps) {
       setStatus(t("agent.disconnected", { detail }));
     } finally {
       setRunning(false);
+      // A run that did not finish gives the draft back rather than losing it.
+      if (!completed.current || stopped.current) setInput(content);
     }
   };
 
   const sendable = props.canSend !== false;
-  const last = messages[messages.length - 1];
+  const records: ToolRecord[] = [
+    ...props.turns
+      .filter((turn) => turn.role === "tool")
+      .map((turn) => ({ id: turn.id, name: turn.content })),
+    ...toolRecords(messages),
+  ];
   return (
     <div className={styles.chat}>
       <div aria-live="polite" className={styles.transcript}>
@@ -150,15 +227,9 @@ export function AgentChat(props: AgentChatProps) {
         <div className={turns.column}>
           {messages.map((message) => {
             const content = textContent(message);
-            const calls =
-              "toolCalls" in message && Array.isArray(message.toolCalls)
-                ? message.toolCalls
-                : [];
-            if (!content && calls.length === 0) return null;
+            // Tool turns are read as records below, not as messages here.
+            if (message.role === "tool" || !content) return null;
             const isUser = message.role === "user";
-            // Tool work is process, not answer: it folds away under a step
-            // count and reads at caption size, above the reply itself.
-            const steps = message.role === "tool" ? 1 : calls.length;
             return (
               <TurnRow
                 key={message.id}
@@ -168,45 +239,39 @@ export function AgentChat(props: AgentChatProps) {
                 {isUser ? (
                   <MarkdownBody compact text={content} />
                 ) : (
-                  <>
-                    {steps > 0 && (
-                      <details
-                        className={styles.fold}
-                        open={running && message === last}
-                      >
-                        <summary>{t("agent.steps", { count: steps })}</summary>
-                        <div className={styles.foldBody}>
-                          {message.role === "tool" ? (
-                            <pre className={styles.toolOut}>{content}</pre>
-                          ) : (
-                            calls.map((call) => (
-                              <details className={styles.step} key={call.id}>
-                                <summary>
-                                  <span className={styles.stepName}>
-                                    {call.function.name}
-                                  </span>
-                                </summary>
-                                {call.function.arguments && (
-                                  <pre className={styles.toolOut}>
-                                    {call.function.arguments}
-                                  </pre>
-                                )}
-                              </details>
-                            ))
-                          )}
-                        </div>
-                      </details>
-                    )}
-                    {content && message.role !== "tool" && (
-                      <div className={turns.prose}>
-                        <MarkdownBody compact text={content} />
-                      </div>
-                    )}
-                  </>
+                  <div className={turns.prose}>
+                    <MarkdownBody compact text={content} />
+                  </div>
                 )}
               </TurnRow>
             );
           })}
+
+          {/* What the agent did, once, with each result under its own call. */}
+          {records.length > 0 && (
+            <details className={styles.fold} open={running}>
+              <summary>{t("agent.steps", { count: records.length })}</summary>
+              <div className={styles.foldBody}>
+                {records.map((record) => (
+                  <details className={styles.step} key={record.id}>
+                    <summary>
+                      <span className={styles.stepName}>{record.name}</span>
+                    </summary>
+                    {record.args !== undefined && (
+                      <pre className={styles.toolOut}>
+                        {JSON.stringify(record.args, null, 2)}
+                      </pre>
+                    )}
+                    {record.result !== undefined && (
+                      <pre className={styles.toolOut} data-kind="result">
+                        {JSON.stringify(record.result, null, 2)}
+                      </pre>
+                    )}
+                  </details>
+                ))}
+              </div>
+            </details>
+          )}
         </div>
       </div>
       {sendable && (
@@ -246,6 +311,7 @@ export function AgentChat(props: AgentChatProps) {
                     stopped.current = true;
                     agent.abortRun();
                     setRunning(false);
+                    setInput(sent.current);
                     setStatus(t("agent.stopped"));
                   }}
                   type="button"

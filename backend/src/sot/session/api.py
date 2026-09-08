@@ -167,7 +167,7 @@ class TurnResponse(BaseModel):
     workspace_id: UUID
     branch_id: UUID
     ordinal: int
-    role: Literal["user", "assistant"]
+    role: Literal["user", "assistant", "tool"]
     content: str
     created_at: datetime
 
@@ -175,7 +175,7 @@ class TurnResponse(BaseModel):
 class BundleItemResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
     source_ids: tuple[UUID, ...]
-    role: Literal["user", "assistant"]
+    role: Literal["user", "assistant", "tool"]
     content: str
     provenance: Literal["copied", "edited"]
 
@@ -267,7 +267,6 @@ def build_session_router(
             for turn in await list_turns.execute(
                 current, WorkspaceId(workspace_id), BranchId(branch_id)
             )
-            if turn.role != "tool"
         )
 
     @router.post("/documents/{document_id}/sessions", status_code=201)

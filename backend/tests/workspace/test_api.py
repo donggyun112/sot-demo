@@ -308,9 +308,10 @@ def test_resource_read_openapi_contracts_are_closed_scoped_and_bearer_secured() 
         "type": "http",
         "scheme": "bearer",
     }
+    # A tool turn reaches the transcript as the NAME of what the agent did.
     assert schema["components"]["schemas"]["TurnResponse"]["properties"]["role"][
         "enum"
-    ] == ["user", "assistant"]
+    ] == ["user", "assistant", "tool"]
 
 
 @pytest.mark.asyncio

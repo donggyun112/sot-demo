@@ -279,3 +279,17 @@ def completed_messages_to_new_turns(
     except (TypeError, ValidationError, ValueError):
         raise ValueError("completed agent message is invalid") from None
     return tuple(turns)
+
+
+class ToolRecords:
+    """Reads the tool envelope this module writes, for the session transcript."""
+
+    def call_name(self, content: str) -> str | None:
+        try:
+            payload = json.loads(content)
+        except (TypeError, ValueError):
+            return None
+        if not isinstance(payload, dict) or payload.get("kind") != "call":
+            return None
+        name = payload.get("tool_name")
+        return name if isinstance(name, str) and name else None

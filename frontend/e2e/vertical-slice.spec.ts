@@ -105,7 +105,7 @@ test("private draft, hand-off to a teammate and explicit consensus merge", async
     const documentPath = `/workspaces/${aw}/documents/${documents[0].id}`;
     const original = await (await get(aliceContext, documentPath, aliceLogin)).json();
 
-    await alice.getByRole("link", { name: documents[0].title }).click();
+    await alice.getByRole("main").getByRole("link", { name: documents[0].title }).click();
     await alice.getByRole("link", { name: "Sessions", exact: true }).click();
     const createdResponse = alice.waitForResponse((res) => res.request().method() === "POST" && res.url().endsWith("/sessions"));
     await alice.getByRole("button", { name: "New session" }).click();
@@ -254,7 +254,14 @@ test("private draft, hand-off to a teammate and explicit consensus merge", async
     expect(proposals.filter((item) => proposed(item) === "race winner proposal")).toHaveLength(1);
     expect(proposals.some((item) => proposed(item) === "race loser proposal")).toBe(false);
     const raceTurns = await (await get(aliceContext, `/workspaces/${aw}/branches/${race.branch_id}/turns`, aliceLogin)).json() as Turn[];
-    expect(raceTurns.map((turn) => turn.content)).toEqual(["race winner", "Winner committed"]);
+    // The tool CALL is kept, by name: the update is auditable. Its arguments
+    // and its return are not in the transcript.
+    expect(raceTurns.map((turn) => turn.content)).toEqual([
+      "race winner",
+      "sot_update",
+      "Winner committed",
+    ]);
+    expect(JSON.stringify(raceTurns)).not.toContain("sot.tool-turn");
   } finally {
     await Promise.allSettled([aliceContext.close(), bobContext.close(), publicContext.close()]);
   }

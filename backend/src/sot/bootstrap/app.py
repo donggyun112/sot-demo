@@ -15,6 +15,7 @@ from starlette.responses import JSONResponse
 
 from sot.agent.api import build_agent_router
 from sot.agent.application import AgentRunPreparer, CompletedRunWriter
+from sot.agent.messages import ToolRecords
 from sot.agent.models import build_agent, build_model
 from sot.bootstrap.database import PostgresUnitOfWork
 from sot.bootstrap.errors import handle_sot_error, register_error_handlers
@@ -255,7 +256,7 @@ def build_app(
                 sessions, document_access, session_access, uow_factory
             ),
             ListSessionBranches(sessions, session_access, uow_factory),
-            ListBranchTurns(branch_access, uow_factory),
+            ListBranchTurns(branch_access, uow_factory, ToolRecords()),
             InviteSessionMember(sessions, session_access, access, uow_factory),
             ListSessionMembers(sessions, session_access, uow_factory),
             actor,

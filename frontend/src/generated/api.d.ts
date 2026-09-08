@@ -690,7 +690,7 @@ export interface components {
              * Role
              * @enum {string}
              */
-            role: "user" | "assistant";
+            role: "user" | "assistant" | "tool";
             /** Source Ids */
             source_ids: string[];
         };
@@ -1305,7 +1305,7 @@ export interface components {
              * Role
              * @enum {string}
              */
-            role: "user" | "assistant";
+            role: "user" | "assistant" | "tool";
             /**
              * Workspace Id
              * Format: uuid

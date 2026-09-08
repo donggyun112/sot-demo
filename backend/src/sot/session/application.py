@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from uuid import UUID, uuid4
 
 from sot.document.contracts import DocumentReader
@@ -13,6 +14,7 @@ from sot.session.contracts import (
     SessionAuthorizer,
     SessionView,
     ShareableBundleSnapshot,
+    ToolRecordReader,
 )
 from sot.session.domain import (
     Branch,
@@ -268,9 +270,13 @@ class ListSessionBranches:
 
 class ListBranchTurns:
     def __init__(
-        self, reader: BranchContextReader, uow_factory: UnitOfWorkFactory
+        self,
+        reader: BranchContextReader,
+        uow_factory: UnitOfWorkFactory,
+        records: ToolRecordReader,
     ) -> None:
         self._reader, self._uow_factory = reader, uow_factory
+        self._records = records
 
     async def execute(
         self, actor: Actor, workspace_id: WorkspaceId, branch_id: BranchId
@@ -282,7 +288,19 @@ class ListBranchTurns:
                 workspace_id=workspace_id,
                 branch_id=branch_id,
             )
-            return tuple(turn for turn in branch.turns if turn.role != "tool")
+            # A tool CALL stays in the transcript: an update you cannot see
+            # the agent make is one you have to take on trust. Its arguments
+            # and its return do not, and curation keeps every tool turn out
+            # of bundles, so none of this reaches shared evidence.
+            kept = []
+            for turn in branch.turns:
+                if turn.role != "tool":
+                    kept.append(turn)
+                    continue
+                name = self._records.call_name(turn.content)
+                if name is not None:
+                    kept.append(replace(turn, content=name))
+            return tuple(kept)
 
 
 class InviteSessionMember:
