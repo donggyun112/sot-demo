@@ -399,6 +399,8 @@ function SessionSide({
   );
   const nameOf = useDisplayName();
   const { user } = useSot();
+  /* Who the session is being handed to, while its last look is open. */
+  const [sending, setSending] = useState<string | null>(null);
   const members = api.useQuery(
     "get",
     "/api/v1/workspaces/{workspace_id}/sessions/{session_id}/members",
@@ -508,26 +510,6 @@ function SessionSide({
         </Section>
       )}
 
-      {branchId != null && (
-        <CurationTurns
-          workspaceId={workspaceId}
-          branchId={branchId}
-          version={version}
-          onVersion={(next) => setBumped({ id: branchId, version: next })}
-          turns={turns}
-          groups={
-            new Map(
-              previewItems.flatMap((item) =>
-                item.source_ids.map(
-                  (id) => [id, item.source_ids] as [string, readonly string[]],
-                ),
-              ),
-            )
-          }
-          editable={participate}
-        />
-      )}
-
       <Section title={t("sessions.preview")} count={previewItems.length}>
         {previewItems.length === 0 ? (
           <p className={styles.empty}>{t("sessions.previewEmpty")}</p>
@@ -540,6 +522,78 @@ function SessionSide({
           ))
         )}
       </Section>
+
+      {/*
+        Choosing what to hand over belongs to the moment you hand it over.
+        In the rail it was a permanent instrument nobody asked for; here it is
+        the last look before someone else reads the conversation.
+      */}
+      {sending && branchId != null && (
+        <div className={styles.overlay}>
+          <div
+            className={`${styles.sheet} ${styles.sendSheet}`}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="send-review"
+          >
+            <h2 id="send-review">{t("send.review", { name: nameOf(sending) })}</h2>
+            <p className={styles.note}>{t("send.reviewHint")}</p>
+            <div className={styles.sendSheetBody}>
+              {branchId != null && (
+                <CurationTurns
+                  workspaceId={workspaceId}
+                  branchId={branchId}
+                  version={version}
+                  onVersion={(next) => setBumped({ id: branchId, version: next })}
+                  turns={turns}
+                  groups={
+            new Map(
+              previewItems.flatMap((item) =>
+                item.source_ids.map(
+                  (id) => [id, item.source_ids] as [string, readonly string[]],
+                ),
+              ),
+            )
+          }
+                  editable={participate}
+                />
+              )}
+            </div>
+            <div className={styles.sheetActions}>
+              <button
+                className={styles.primary}
+                type="button"
+                disabled={send.isPending}
+                onClick={() =>
+                  send.mutate(
+                    {
+                      params: {
+                        path: { workspace_id: workspaceId, session_id: sessionId },
+                      },
+                      body: { user_id: sending, role: "editor" },
+                    },
+                    {
+                      onSuccess: () => {
+                        setSending(null);
+                        void queryClient.invalidateQueries();
+                      },
+                    },
+                  )
+                }
+              >
+                {send.isPending ? t("common.working") : t("send.confirm")}
+              </button>
+              <button
+                className={styles.ghost}
+                type="button"
+                onClick={() => setSending(null)}
+              >
+                {t("common.cancel")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </aside>
   );
 
@@ -615,20 +669,9 @@ function SessionSide({
                 <button
                   type="button"
                   className={styles.ghost}
-                  disabled={send.isPending}
-                  onClick={() =>
-                    send.mutate(
-                      {
-                        params: {
-                          path: { workspace_id: workspaceId, session_id: sessionId },
-                        },
-                        body: { user_id: item.user_id, role: "editor" },
-                      },
-                      { onSuccess: () => void queryClient.invalidateQueries() },
-                    )
-                  }
+                  onClick={() => setSending(item.user_id)}
                 >
-                  {send.isPending ? t("common.working") : t("send.action")}
+                  {t("send.action")}
                 </button>
               </div>
             ))

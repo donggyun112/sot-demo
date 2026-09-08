@@ -68,41 +68,87 @@ function toolEnvelope(text: string): ToolEnvelope | null {
   }
 }
 
-type ToolRecord = { id: string; name: string; args?: unknown; result?: unknown };
-
 /**
- * A call and its result are one thing that happened, so they are read as one.
- * Split across two rows they were two walls of JSON with no way to tell which
- * result belonged to which call.
+ * One entry in the transcript, in the order it happened.
+ *
+ * A tool call sits between the turns it sits between: hoisting every call to
+ * the end lost the one thing the record is for, which is knowing what the
+ * agent did and when.
  */
-function toolRecords(messages: readonly AgentMessage[]): ToolRecord[] {
-  const order: string[] = [];
-  const byId = new Map<
-    string,
-    { name: string; args?: unknown; result?: unknown }
-  >();
-  const take = (id: string, name: string) => {
-    if (!byId.has(id)) {
-      byId.set(id, { name });
-      order.push(id);
+type Block =
+  | { kind: "text"; id: string; role: string; content: string }
+  | { kind: "tool"; id: string; name: string; args?: unknown; result?: unknown };
+
+/** A call and its result are one thing that happened, so they read as one. */
+function attachResult(blocks: Block[], callId: string, result: unknown) {
+  for (let i = blocks.length - 1; i >= 0; i--) {
+    const block = blocks[i];
+    if (block.kind === "tool" && block.id === callId) {
+      block.result = result;
+      return true;
     }
-    return byId.get(id)!;
-  };
+  }
+  return false;
+}
+
+/** The live run: AG-UI messages, already in order. */
+function liveBlocks(messages: readonly AgentMessage[]): Block[] {
+  const blocks: Block[] = [];
   for (const message of messages) {
     if ("toolCalls" in message && Array.isArray(message.toolCalls))
-      for (const call of message.toolCalls) {
-        const record = take(call.id, call.function.name);
-        if (call.function.arguments)
-          record.args = toolEnvelope(call.function.arguments) ?? call.function.arguments;
-      }
-    if (message.role !== "tool") continue;
-    const envelope = toolEnvelope(textContent(message));
-    if (!envelope?.tool_call_id) continue;
-    const record = take(envelope.tool_call_id, envelope.tool_name ?? "");
-    if (envelope.kind === "call") record.args = envelope.args;
-    else record.result = envelope.result ?? textContent(message);
+      for (const call of message.toolCalls)
+        blocks.push({
+          kind: "tool",
+          id: call.id,
+          name: call.function.name,
+          args: call.function.arguments
+            ? (toolEnvelope(call.function.arguments)?.args ??
+              call.function.arguments)
+            : undefined,
+        });
+    if (message.role === "tool") {
+      const envelope = toolEnvelope(textContent(message));
+      if (!envelope?.tool_call_id) continue;
+      if (envelope.kind === "call")
+        blocks.push({
+          kind: "tool",
+          id: envelope.tool_call_id,
+          name: envelope.tool_name ?? "",
+          args: envelope.args,
+        });
+      else if (!attachResult(blocks, envelope.tool_call_id, envelope.result))
+        blocks.push({
+          kind: "tool",
+          id: envelope.tool_call_id,
+          name: envelope.tool_name ?? "",
+          result: envelope.result,
+        });
+      continue;
+    }
+    const content = textContent(message);
+    if (content)
+      blocks.push({
+        kind: "text",
+        id: message.id,
+        role: message.role,
+        content,
+      });
   }
-  return order.map((id) => ({ id, ...byId.get(id)! }));
+  return blocks;
+}
+
+/** What was stored: turns in their own order, tool calls named. */
+function storedBlocks(turns: Turn[]): Block[] {
+  return turns.map((turn) =>
+    turn.role === "tool"
+      ? { kind: "tool" as const, id: turn.id, name: turn.content }
+      : {
+          kind: "text" as const,
+          id: turn.id,
+          role: turn.role,
+          content: turn.content,
+        },
+  );
 }
 
 export function AgentChat(props: AgentChatProps) {
@@ -137,6 +183,8 @@ export function AgentChat(props: AgentChatProps) {
   const [running, setRunning] = useState(false);
   const [needsRefetch, setNeedsRefetch] = useState(false);
   const [status, setStatus] = useState("");
+  /* Which tool records the reader has opened, so a re-render leaves them. */
+  const [folds, setFolds] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     const subscription = agent.subscribe({
@@ -213,64 +261,64 @@ export function AgentChat(props: AgentChatProps) {
   };
 
   const sendable = props.canSend !== false;
-  const records: ToolRecord[] = [
-    ...props.turns
-      .filter((turn) => turn.role === "tool")
-      .map((turn) => ({ id: turn.id, name: turn.content })),
-    ...toolRecords(messages),
-  ];
+  // While a run streams — or after one that failed or was stopped, whose
+  // partial output is still on screen — the live messages are the record.
+  // Once it lands and syncs, the stored turns are. Both are already in order.
+  const settled = !running && !preservePartial.current && !needsRefetch;
+  const blocks = settled ? storedBlocks(props.turns) : liveBlocks(messages);
+
   return (
     <div className={styles.chat}>
       <div aria-live="polite" className={styles.transcript}>
         {/* One reading column shared by the transcript and the composer, so
             their left and right edges line up. */}
         <div className={turns.column}>
-          {messages.map((message) => {
-            const content = textContent(message);
-            // Tool turns are read as records below, not as messages here.
-            if (message.role === "tool" || !content) return null;
-            const isUser = message.role === "user";
-            return (
+          {blocks.map((block) =>
+            block.kind === "text" ? (
               <TurnRow
-                key={message.id}
-                role={message.role}
-                name={isUser ? props.youLabel : t("agent.name")}
+                key={block.id}
+                role={block.role}
+                name={block.role === "user" ? props.youLabel : t("agent.name")}
               >
-                {isUser ? (
-                  <MarkdownBody compact text={content} />
+                {block.role === "user" ? (
+                  <MarkdownBody compact text={block.content} />
                 ) : (
                   <div className={turns.prose}>
-                    <MarkdownBody compact text={content} />
+                    <MarkdownBody compact text={block.content} />
                   </div>
                 )}
               </TurnRow>
-            );
-          })}
-
-          {/* What the agent did, once, with each result under its own call. */}
-          {records.length > 0 && (
-            <details className={styles.fold} open={running}>
-              <summary>{t("agent.steps", { count: records.length })}</summary>
-              <div className={styles.foldBody}>
-                {records.map((record) => (
-                  <details className={styles.step} key={record.id}>
-                    <summary>
-                      <span className={styles.stepName}>{record.name}</span>
-                    </summary>
-                    {record.args !== undefined && (
-                      <pre className={styles.toolOut}>
-                        {JSON.stringify(record.args, null, 2)}
-                      </pre>
-                    )}
-                    {record.result !== undefined && (
-                      <pre className={styles.toolOut} data-kind="result">
-                        {JSON.stringify(record.result, null, 2)}
-                      </pre>
-                    )}
-                  </details>
-                ))}
-              </div>
-            </details>
+            ) : (
+              <details
+                className={styles.fold}
+                key={block.id}
+                /* Uncontrolled once touched: writing `open` on every render
+                   fought the click that opened it. */
+                open={folds[block.id] ?? running}
+                onToggle={(event) =>
+                  setFolds((current) => ({
+                    ...current,
+                    [block.id]: event.currentTarget.open,
+                  }))
+                }
+              >
+                <summary>
+                  <span className={styles.stepName}>{block.name}</span>
+                </summary>
+                <div className={styles.foldBody}>
+                  {block.args !== undefined && (
+                    <pre className={styles.toolOut}>
+                      {JSON.stringify(block.args, null, 2)}
+                    </pre>
+                  )}
+                  {block.result !== undefined && (
+                    <pre className={styles.toolOut}>
+                      {JSON.stringify(block.result, null, 2)}
+                    </pre>
+                  )}
+                </div>
+              </details>
+            ),
           )}
         </div>
       </div>

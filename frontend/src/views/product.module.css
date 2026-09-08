@@ -709,6 +709,22 @@ textarea.input {
   margin: 0 0 var(--space-md);
 }
 
+/* The last look before someone else reads the conversation: wide enough to
+   read the turns, and it scrolls rather than growing past the window. */
+.sendSheet {
+  width: min(720px, 100%);
+  display: flex;
+  flex-direction: column;
+  max-height: min(80vh, 720px);
+}
+
+.sendSheetBody {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin-top: var(--space-md);
+}
+
 .sheetActions {
   display: flex;
   gap: var(--space-sm);

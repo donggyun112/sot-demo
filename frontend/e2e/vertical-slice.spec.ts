@@ -129,19 +129,40 @@ test("private draft, hand-off to a teammate and explicit consensus merge", async
     ]);
     expect(posts.every((url) => !url.endsWith("/turns"))).toBe(true);
 
-    // Curate in the side panel: rewrite the assistant turn to the shareable
-    // summary, then drop the private one. The chat transcript is not the bundle.
+    // Before it is handed over, the session is Alice's alone: Bob is in this
+    // workspace but holds nothing in it.
+    expect((await get(bobContext, `${branchPath}/turns`, bobLogin)).status()).toBe(404);
+    expect((await get(publicContext, `${branchPath}/turns`)).status()).toBe(401);
+    expect(await (await get(bobContext, `${documentPath}/sessions`, bobLogin)).json()).toEqual([]);
+    expect((await get(bobContext, `/workspaces/${bw}/branches/${created.branch_id}/turns`, bobLogin)).status()).toBe(404);
+
+    // Choosing what to hand over belongs to the moment of handing it over, so
+    // it is the last look before someone else reads the conversation. Send is
+    // a list of people, not a picker, and you are never on it.
     const summary = "Publish only this curated rationale";
-    const curation = alice.getByRole("complementary");
-    await curation.getByRole("article").filter({ hasText: "Public reasoning" })
+    const recipients = alice.getByRole("region", { name: "Send it to" });
+    await expect(recipients.getByText(aliceLogin.user.display_name)).toHaveCount(0);
+    await recipients.getByRole("button", { name: "Send session" }).first().click();
+
+    const review = alice.getByRole("dialog");
+    await expect(review).toBeVisible();
+    await review.getByRole("article").filter({ hasText: "Public reasoning" })
       .getByRole("button", { name: "Edit" }).click();
     await alice.getByLabel("Edit").fill(summary);
-    await alice.getByRole("button", { name: "Save edit" }).click();
-    const privateTurn = curation.getByRole("article").filter({ hasText: privatePrompt });
+    await review.getByRole("button", { name: "Save edit" }).click();
+    const privateTurn = review.getByRole("article").filter({ hasText: privatePrompt });
     await privateTurn.getByRole("button", { name: "Drop" }).click();
     // Curation ops are an append-only log, so the turn stays and is marked.
     await expect(privateTurn.getByText("Dropped")).toBeVisible();
 
+    // Handing it over is adding Bob to it: he continues the same session
+    // rather than receiving a copy of the turns.
+    const sendResponse = alice.waitForResponse((res) => res.request().method() === "POST" && res.url().endsWith("/members"));
+    await review.getByRole("button", { name: "Send", exact: true }).click();
+    expect((await sendResponse).status()).toBe(201);
+    await expect(alice.getByText("Editor")).toBeVisible();
+
+    // The curated conversation is frozen as the evidence the proposal cites.
     const preview = alice.getByRole("region", { name: "Bundle preview" });
     await expect(preview).toContainText(summary);
     await expect(preview).not.toContainText(privatePrompt);
@@ -150,25 +171,6 @@ test("private draft, hand-off to a teammate and explicit consensus merge", async
     const bundle = await (await publishedResponse).json();
     // The published bundle lives in the URL, so a reload still has it.
     await expect(alice).toHaveURL(new RegExp(`bundle=${bundle.resource_id}`));
-    // Before it is handed over, the session is Alice's alone: Bob is in this
-    // workspace but holds nothing in it.
-    expect((await get(bobContext, `${branchPath}/turns`, bobLogin)).status()).toBe(404);
-    expect((await get(publicContext, `${branchPath}/turns`)).status()).toBe(401);
-    expect(await (await get(bobContext, `${documentPath}/sessions`, bobLogin)).json()).toEqual([]);
-    expect((await get(bobContext, `/workspaces/${bw}/branches/${created.branch_id}/turns`, bobLogin)).status()).toBe(404);
-
-    // Handing it over is adding Bob to it: he continues the same session
-    // rather than receiving a copy of the turns.
-    const sendResponse = alice.waitForResponse((res) => res.request().method() === "POST" && res.url().endsWith("/members"));
-    // Send is a list of people, not a picker, and you are never on it.
-    const recipients = alice.getByRole("region", { name: "Send it to" });
-    await expect(recipients.getByText(aliceLogin.user.display_name)).toHaveCount(0);
-    await recipients
-      .getByRole("button", { name: "Send session" })
-      .first()
-      .click();
-    expect((await sendResponse).status()).toBe(201);
-    await expect(alice.getByText("Editor")).toBeVisible();
 
     await bob.goto(`/w/${aw}/sessions/${created.session_id}`);
     await expect(bob.getByLabel("Agent message")).toBeVisible();

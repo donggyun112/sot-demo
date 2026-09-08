@@ -343,14 +343,35 @@ it("lets an owner create an empty document from the list", async () => {
   ).toBeVisible();
 });
 
-it("drops a curated turn from the live session", async () => {
-  await signIn();
+it("shapes what a teammate gets at the moment of handing it over", async () => {
+  const server = createServer();
+  await signIn(server);
   await openDocument();
   await userEvent.click(await screen.findByRole("link", { name: "Sessions" }));
   await userEvent.click(await screen.findByRole("button", { name: "New session" }));
-  expect(await screen.findByRole("button", { name: "Drop" })).toBeVisible();
-  await userEvent.click(screen.getByRole("button", { name: "Drop" }));
+
+  // Curation is not a permanent instrument in the rail: it is the last look
+  // before someone else reads the conversation.
   expect(screen.queryByRole("button", { name: "Drop" })).not.toBeInTheDocument();
+  const recipients = await screen.findByRole("region", { name: "Send it to" });
+  await userEvent.click(
+    within(recipients).getByRole("button", { name: "Send session" }),
+  );
+
+  expect(
+    await screen.findByRole("heading", { name: "Before sending to Reviewer" }),
+  ).toBeVisible();
+  await userEvent.click(
+    within(screen.getByRole("dialog")).getByRole("button", { name: "Drop" }),
+  );
+  expect(screen.queryByRole("button", { name: "Drop" })).not.toBeInTheDocument();
+
+  await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Send" }));
+  await waitFor(() =>
+    expect(
+      server.state.sessionMembers.some((item) => item.user_id === "user-2"),
+    ).toBe(true),
+  );
 });
 
 async function openProposal() {
@@ -580,9 +601,12 @@ it("sends a session to a workspace member instead of minting a link", async () =
   expect(within(recipients).getByText("Reviewer")).toBeVisible();
   expect(within(recipients).queryByText("Member")).not.toBeInTheDocument();
 
-  await userEvent.click(
-    within(recipients).getByRole("button", { name: "Send session" }),
-  );
+  await userEvent.click(within(recipients).getByRole("button", { name: "Send session" }));
+  // Sending opens the last look rather than firing straight away.
+  expect(
+    await screen.findByRole("heading", { name: "Before sending to Reviewer" }),
+  ).toBeVisible();
+  await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Send" }));
 
   await waitFor(() =>
     expect(
@@ -591,5 +615,4 @@ it("sends a session to a workspace member instead of minting a link", async () =
   );
   // They hold it as an editor: the point is to continue it together.
   expect(await screen.findByText("Editor")).toBeVisible();
-  expect(await screen.findByText("Reviewer")).toBeVisible();
 });
