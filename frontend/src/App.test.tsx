@@ -441,38 +441,6 @@ it("titles a session from its first user turn, not its id", async () => {
   expect(screen.queryByText("session-1")).not.toBeInTheDocument();
 });
 
-it("keeps a published bundle in the URL so a reload still has it", async () => {
-  const server = createServer();
-  const auth = new AuthSession(async (request) => {
-    if (request.url.endsWith("/auth/refresh"))
-      return Response.json({}, { status: 401 });
-    if (request.url.endsWith("/auth/local"))
-      return Response.json({
-        access_token: "local-access",
-        token_type: "bearer",
-        user: member,
-      });
-    return server.network(request);
-  }, "https://sot.test/api/v1");
-  const router = { current: "" };
-  render(
-    <MemoryRouter>
-      <LocationProbe onChange={(value) => (router.current = value)} />
-      <App auth={auth} apiBase="https://sot.test/api/v1" />
-    </MemoryRouter>,
-  );
-  await userEvent.click(
-    await screen.findByRole("button", { name: "Continue without Google" }),
-  );
-  await openDocument();
-  await userEvent.click(await screen.findByRole("link", { name: "Sessions" }));
-  await userEvent.click(await screen.findByRole("button", { name: "New session" }));
-  await userEvent.click(await screen.findByRole("button", { name: "Publish bundle" }));
-  expect(await screen.findByRole("heading", { name: "Who holds this session" }))
-    .toBeVisible();
-  expect(router.current).toContain("bundle=bundle-1");
-});
-
 it("switches branches from the session side panel", async () => {
   const server = createServer();
   server.state.extraBranches = [
@@ -524,19 +492,19 @@ it("shows the whole path to the document with reasons, not hidden actions", asyn
   await userEvent.click(await screen.findByRole("link", { name: "Sessions" }));
   await userEvent.click(await screen.findByRole("button", { name: "New session" }));
 
-  // Before anything is published, every step is still on screen and says why.
-  const publish = await screen.findByRole("button", { name: "Publish bundle" });
   // Document updates are the agent's to write, so the path says so here.
   expect(
-    screen.getByText("The agent writes document updates. Ask for one in the session."),
+    await screen.findByText(
+      "The agent writes document updates. Ask for one in the session.",
+    ),
   ).toBeVisible();
-  await waitFor(() => expect(publish).toBeEnabled());
-
-  await userEvent.click(publish);
-  await waitFor(() =>
-    expect(screen.getByRole("button", { name: "Publish bundle" })).toBeDisabled(),
-  );
-  expect(screen.getByText("Already published.")).toBeVisible();
+  // Handing the session over is the one thing a person does here. Publishing
+  // evidence is not on the screen at all: a proposal freezes the conversation
+  // it was written from.
+  expect(
+    await screen.findByRole("heading", { name: "Who holds this session" }),
+  ).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Publish bundle" })).toBeNull();
 });
 
 it("says a viewer may not act instead of hiding the actions", async () => {
@@ -546,9 +514,9 @@ it("says a viewer may not act instead of hiding the actions", async () => {
   await openDocument();
   await userEvent.click(await screen.findByRole("link", { name: "Sessions" }));
   await userEvent.click(await screen.findByRole("button", { name: "New session" }));
-  expect(await screen.findByRole("button", { name: "Publish bundle" })).toBeDisabled();
   expect(
-    screen.getAllByText("You have read-only access to this workspace.").length,
+    (await screen.findAllByText("You have read-only access to this workspace."))
+      .length,
   ).toBeGreaterThan(0);
 });
 

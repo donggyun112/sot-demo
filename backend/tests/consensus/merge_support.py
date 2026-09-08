@@ -13,7 +13,7 @@ from sot.consensus.application import (
     MergeProposal,
     ProposalSources,
 )
-from sot.consensus.domain import ApprovalDecision, DocumentEdit, ProposalCitation
+from sot.consensus.domain import ApprovalDecision, DocumentEdit
 from sot.document.application import DocumentAccess, PublishDocumentRevision
 from sot.document.contracts import DocumentView, RevisionView
 from sot.document.domain import Document, Revision, VersionConflict
@@ -25,13 +25,14 @@ from sot.workspace.domain import WorkspaceForbidden
 from tests.consensus.test_application import (
     ALICE,
     BOB,
-    BUNDLE,
+    BRANCH,
     CAROL,
     DOCUMENT,
     NOW,
     SESSION,
     WORKSPACE,
     Capabilities,
+    FakeEvidence,
     FixedClock,
     MemoryTransaction,
     Store,
@@ -187,8 +188,14 @@ class MergeHarness:
         self.publisher = PublishDocumentRevision(
             documents, self.authorizer, FixedClock()
         )
+        self.evidence = FakeEvidence()
         sources = ProposalSources(
-            self.access, self.documents, self.access, self.access, self.access
+            self.access,
+            self.documents,
+            self.access,
+            self.access,
+            self.access,
+            self.evidence,
         )
         self.create = CreateProposal(
             self.store,
@@ -216,11 +223,7 @@ class MergeHarness:
             SESSION,
             document_id=DOCUMENT,
             edits=(DocumentEdit("", "Proposed main"),),
-            bundle_ids=(BUNDLE,),
-            citations=(
-                ProposalCitation(BUNDLE, 1, "main"),
-                ProposalCitation(BUNDLE, 0, "Proposed"),
-            ),
+            branch_id=BRANCH,
         )
         if approve:
             for actor_id in (ALICE, BOB):

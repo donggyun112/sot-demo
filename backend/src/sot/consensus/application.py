@@ -23,6 +23,8 @@ from sot.session.contracts import (
     BranchMutationResult,
     BranchVersionGuard,
     BundleReader,
+    EvidenceFreezer,
+    FrozenEvidence,
     SessionApproverReader,
     SessionAuthorizer,
     SessionPermission,
@@ -32,7 +34,6 @@ from sot.shared.clock import Clock
 from sot.shared.errors import Forbidden, InvalidInput, NotFound
 from sot.shared.ids import (
     BranchId,
-    BundleId,
     DocumentId,
     ProposalId,
     SessionId,
@@ -70,6 +71,7 @@ class ProposalSources:
     bundles: BundleReader
     approvers: SessionApproverReader
     members: WorkspaceMemberReader
+    evidence: EvidenceFreezer
 
     async def prepare(
         self,
@@ -80,8 +82,6 @@ class ProposalSources:
         session: SessionView,
         document_id: DocumentId,
         creator_id: UserId,
-        bundle_ids: tuple[BundleId, ...],
-        citations: tuple[ProposalCitation, ...],
         additional_approver_ids: frozenset[UserId],
     ) -> tuple[UUID, str, frozenset[UserId]]:
         """Use the caller's already-authorized immutable source within its tx."""
@@ -110,28 +110,43 @@ class ProposalSources:
         )
         for user_id in sorted(required, key=str):
             await self.members.require_member(tx, workspace_id, user_id)
-        item_counts: dict[BundleId, int] = {}
-        for bundle_id in bundle_ids:
-            snapshot = await self.bundles.require_snapshot(
-                tx,
-                actor=actor,
-                workspace_id=workspace_id,
-                bundle_id=bundle_id,
-            )
-            item_counts[bundle_id] = len(snapshot.items)
-        if any(
-            citation.bundle_id not in item_counts
-            or citation.bundle_item_position >= item_counts[citation.bundle_id]
-            for citation in citations
-        ):
-            raise InvalidInput(
-                "proposal_citation_invalid", "Citation item does not exist in bundle"
-            )
         return (
             document.current_revision.id,
             document.current_revision.content,
             frozenset(required),
         )
+
+
+def _edit_title(edits: tuple[DocumentEdit, ...]) -> str:
+    """Name the evidence after what the update says, not after a record type."""
+    for edit in edits:
+        first = edit.replace.strip().split("\n")[0].lstrip("# ").strip()
+        if first:
+            return first[:200]
+    return "Update"
+
+
+def _grounds(
+    frozen: FrozenEvidence, edits: tuple[DocumentEdit, ...]
+) -> tuple[ProposalCitation, ...]:
+    """Anchor each edit to the conversation it came out of.
+
+    The anchor is the first line the edit ADDS, which is text the proposal
+    actually wrote rather than something invented for it. The item is the last
+    one in the conversation: the turn the agent was writing from when it made
+    the edit. Nothing is cited when there is nothing to cite.
+    """
+    if not frozen.items:
+        return ()
+    position = len(frozen.items) - 1
+    anchors = []
+    for edit in edits:
+        first = edit.replace.strip().split("\n")[0].strip()
+        if first and first not in anchors:
+            anchors.append(first)
+    return tuple(
+        ProposalCitation(frozen.bundle_id, position, anchor) for anchor in anchors
+    )
 
 
 class CreateProposal:
@@ -159,8 +174,7 @@ class CreateProposal:
         *,
         document_id: DocumentId,
         edits: tuple[DocumentEdit, ...],
-        citations: tuple[ProposalCitation, ...],
-        bundle_ids: tuple[BundleId, ...] = (),
+        branch_id: BranchId,
         additional_approver_ids: frozenset[UserId] = frozenset(),
     ) -> ProposalView:
         async with self._uow_factory().transaction() as tx:
@@ -172,8 +186,7 @@ class CreateProposal:
                     source_session_id=source_session_id,
                     document_id=document_id,
                     edits=edits,
-                    bundle_ids=bundle_ids,
-                    citations=citations,
+                    branch_id=branch_id,
                     additional_approver_ids=additional_approver_ids,
                 )
             )
@@ -187,8 +200,7 @@ class CreateProposal:
         source_session_id: SessionId,
         document_id: DocumentId,
         edits: tuple[DocumentEdit, ...],
-        bundle_ids: tuple[BundleId, ...],
-        citations: tuple[ProposalCitation, ...],
+        branch_id: BranchId,
         additional_approver_ids: frozenset[UserId],
     ) -> Proposal:
         session = await self._sources.sessions.require(
@@ -198,6 +210,17 @@ class CreateProposal:
             session_id=source_session_id,
             permission=SessionPermission.CREATE_PROPOSAL,
         )
+        # The grounds for an edit are the conversation that produced it, so
+        # they are frozen here rather than asked for as a separate step.
+        frozen = await self._sources.evidence.freeze(
+            tx,
+            actor=actor,
+            workspace_id=workspace_id,
+            branch_id=branch_id,
+            title=_edit_title(edits),
+        )
+        bundle_ids = (frozen.bundle_id,) if frozen.items else ()
+        citations = _grounds(frozen, edits)
         base_revision, base_content, required = await self._sources.prepare(
             tx,
             actor=actor,
@@ -205,8 +228,6 @@ class CreateProposal:
             session=session,
             document_id=document_id,
             creator_id=actor.user_id,
-            bundle_ids=bundle_ids,
-            citations=citations,
             additional_approver_ids=additional_approver_ids,
         )
         proposal = Proposal.create(
@@ -263,8 +284,7 @@ class CreateProposal:
                 source_session_id=context.session_id,
                 document_id=context.document_id,
                 edits=edits,
-                bundle_ids=(),
-                citations=(),
+                branch_id=branch_id,
                 additional_approver_ids=frozenset(),
             )
             return BranchMutationResult(proposal.id, branch_version)
@@ -291,8 +311,7 @@ class ReviseProposal:
         *,
         expected_version: int,
         edits: tuple[DocumentEdit, ...],
-        bundle_ids: tuple[BundleId, ...],
-        citations: tuple[ProposalCitation, ...],
+        branch_id: BranchId,
         additional_approver_ids: frozenset[UserId] | None = None,
     ) -> ProposalView:
         async with self._uow_factory().transaction() as tx:
@@ -325,6 +344,15 @@ class ReviseProposal:
                         "Only creator can change additional approvers",
                     )
                 extras = additional_approver_ids
+            frozen = await self._sources.evidence.freeze(
+                tx,
+                actor=actor,
+                workspace_id=workspace_id,
+                branch_id=branch_id,
+                title=_edit_title(edits),
+            )
+            bundle_ids = (frozen.bundle_id,) if frozen.items else ()
+            citations = _grounds(frozen, edits)
             base_revision, base_content, required = await self._sources.prepare(
                 tx,
                 actor=actor,
@@ -332,8 +360,6 @@ class ReviseProposal:
                 session=session,
                 document_id=proposal.document_id,
                 creator_id=proposal.created_by,
-                bundle_ids=bundle_ids,
-                citations=citations,
                 additional_approver_ids=extras,
             )
             revised = proposal.revise(

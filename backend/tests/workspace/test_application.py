@@ -121,9 +121,7 @@ class MemoryStore:
     def now(self) -> datetime:
         return self.now_value
 
-    async def find_by_email(
-        self, tx: TransactionContext, email: str
-    ) -> UserId | None:
+    async def find_by_email(self, tx: TransactionContext, email: str) -> UserId | None:
         self.check(tx)
         return next((u for u, e in self.emails.items() if e == email), None)
 

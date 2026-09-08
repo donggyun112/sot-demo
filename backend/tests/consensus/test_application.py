@@ -20,7 +20,6 @@ from sot.consensus.domain import (
     ApprovalDecision,
     DocumentEdit,
     Proposal,
-    ProposalCitation,
     ProposalNotFound,
     ProposalStatus,
 )
@@ -36,6 +35,7 @@ from sot.session.contracts import (
     BranchContext,
     BundleItem,
     BundleSnapshot,
+    FrozenEvidence,
     SessionPermission,
     SessionStatus,
     SessionView,
@@ -66,6 +66,32 @@ SESSION = SessionId(uuid4())
 BRANCH = BranchId(uuid4())
 BUNDLE = BundleId(uuid4())
 BASE_REVISION = RevisionId(uuid4())
+
+
+class FakeEvidence:
+    """Answers EvidenceFreezer for tests that do not exercise curation.
+
+    A proposal freezes the conversation it was written from; these tests are
+    about the proposal, so the frozen result is a stable stand-in they can
+    assert against.
+    """
+
+    def __init__(self, items: tuple[BundleItem, ...] = ()) -> None:
+        self.items = items
+        self.bundle_id = BundleId(uuid4())
+        self.calls: list[BranchId] = []
+
+    async def freeze(
+        self,
+        tx: TransactionContext,
+        *,
+        actor: Actor,
+        workspace_id: WorkspaceId,
+        branch_id: BranchId,
+        title: str,
+    ) -> FrozenEvidence:
+        self.calls.append(branch_id)
+        return FrozenEvidence(self.bundle_id, self.items)
 
 
 @dataclass
@@ -303,6 +329,7 @@ class Harness:
     revise: ReviseProposal
     decide: DecideProposal
     read: ReadProposal
+    evidence: FakeEvidence
 
     async def initial(self, *, extras: frozenset[UserId] = frozenset()) -> ProposalId:
         result = await self.create.execute(
@@ -311,8 +338,7 @@ class Harness:
             SESSION,
             document_id=DOCUMENT,
             edits=(DocumentEdit("", "Proposed main"),),
-            bundle_ids=(BUNDLE,),
-            citations=(ProposalCitation(BUNDLE, 0, "main"),),
+            branch_id=BRANCH,
             additional_approver_ids=extras,
         )
         return result.id
@@ -322,7 +348,8 @@ class Harness:
 def env() -> Harness:
     store = Store()
     access = Capabilities(store)
-    sources = ProposalSources(access, access, access, access, access)
+    evidence = FakeEvidence()
+    sources = ProposalSources(access, access, access, access, access, evidence)
     return Harness(
         store,
         access,
@@ -330,6 +357,7 @@ def env() -> Harness:
         ReviseProposal(store, sources, lambda: store, FixedClock()),
         DecideProposal(store, access, lambda: store, FixedClock()),
         ReadProposal(store, access, access, lambda: store),
+        evidence,
     )
 
 
@@ -341,7 +369,7 @@ async def test_creation_freezes_required_union_bundles_and_authorized_source(
     saved = env.store.proposals[proposal_id]
     assert saved.required_approvers == frozenset({ALICE, BOB, CAROL})
     assert saved.current_version.additional_approver_ids == frozenset({CAROL})
-    assert saved.current_version.bundle_ids == (BUNDLE,)
+    assert saved.current_version.bundle_ids == ()
     assert saved.current_version.base_revision_id == BASE_REVISION
     assert (saved.workspace_id, saved.source_session_id, saved.document_id) == (
         WORKSPACE,
@@ -380,21 +408,8 @@ async def test_create_rejects_uneditable_or_wrong_scope_source(
             session,
             document_id=document,
             edits=(DocumentEdit("", "Bad"),),
-            bundle_ids=(),
-            citations=(),
+            branch_id=BRANCH,
         )
-    assert env.store.proposals == {}
-
-
-@pytest.mark.asyncio
-async def test_invalid_bundle_or_inactive_approver_rolls_back(env: Harness) -> None:
-    env.access.members.remove(BOB)
-    with pytest.raises(NotFound):
-        await env.initial()
-    env.access.members.add(BOB)
-    env.access.bundle_ids.clear()
-    with pytest.raises(NotFound):
-        await env.initial()
     assert env.store.proposals == {}
 
 
@@ -419,8 +434,7 @@ async def test_revision_resnapshots_mandatory_preserves_explicit_and_resets_appr
         proposal_id,
         expected_version=1,
         edits=(DocumentEdit("", "Revised main"),),
-        bundle_ids=(),
-        citations=(),
+        branch_id=BRANCH,
     )
     assert result.version == 2
     assert result.status is ProposalStatus.OPEN
@@ -446,8 +460,7 @@ async def test_only_creator_changes_explicit_extras_and_cannot_remove_mandatory(
             proposal_id,
             expected_version=1,
             edits=(DocumentEdit("", "Changed"),),
-            bundle_ids=(),
-            citations=(),
+            branch_id=BRANCH,
             additional_approver_ids=frozenset(),
         )
     result = await env.revise.execute(
@@ -456,8 +469,7 @@ async def test_only_creator_changes_explicit_extras_and_cannot_remove_mandatory(
         proposal_id,
         expected_version=1,
         edits=(DocumentEdit("", "Changed"),),
-        bundle_ids=(),
-        citations=(),
+        branch_id=BRANCH,
         additional_approver_ids=frozenset(),
     )
     assert result.current_version.required_approver_ids == frozenset({ALICE, BOB})
@@ -568,8 +580,7 @@ async def test_concurrent_revisions_only_one_expected_version_wins(
                 proposal_id,
                 expected_version=1,
                 edits=(DocumentEdit("", "Revision"),),
-                bundle_ids=(),
-                citations=(),
+                branch_id=BRANCH,
             )
             for actor in (ALICE, BOB)
         ),
@@ -648,8 +659,7 @@ async def test_wrong_workspace_hides_proposal_from_all_commands(env: Harness) ->
             proposal_id,
             expected_version=1,
             edits=(DocumentEdit("", "Bad"),),
-            bundle_ids=(),
-            citations=(),
+            branch_id=BRANCH,
         )
     with pytest.raises(NotFound):
         await env.decide.execute(
@@ -686,8 +696,7 @@ async def test_racing_revision_invalidates_old_version_decision(env: Harness) ->
             proposal_id,
             expected_version=1,
             edits=(DocumentEdit("", "Next"),),
-            bundle_ids=(),
-            citations=(),
+            branch_id=BRANCH,
         ),
         env.decide.execute(
             Actor(BOB),
@@ -746,8 +755,7 @@ async def test_failed_decision_and_revision_leave_saved_version_unchanged(
             proposal_id,
             expected_version=1,
             edits=(DocumentEdit("", "Failed"),),
-            bundle_ids=(),
-            citations=(),
+            branch_id=BRANCH,
         )
     assert env.store.proposals[proposal_id] == original
 
@@ -763,8 +771,7 @@ async def test_prior_explicit_approver_loses_access_after_removal_in_revision(
         proposal_id,
         expected_version=1,
         edits=(DocumentEdit("", "Next"),),
-        bundle_ids=(),
-        citations=(),
+        branch_id=BRANCH,
         additional_approver_ids=frozenset(),
     )
     with pytest.raises(NotFound):
@@ -812,8 +819,7 @@ async def test_hidden_and_absent_proposals_have_identical_safe_errors(
                     target,
                     expected_version=999,
                     edits=(DocumentEdit("", "Must not be saved"),),
-                    bundle_ids=(BUNDLE,),
-                    citations=(),
+                    branch_id=BRANCH,
                 )
             else:
                 await env.decide.execute(
@@ -847,8 +853,7 @@ async def test_known_source_viewer_permission_error_remains_forbidden(
             proposal_id,
             expected_version=1,
             edits=(DocumentEdit("", "Cannot edit"),),
-            bundle_ids=(),
-            citations=(),
+            branch_id=BRANCH,
         )
     assert (caught.value.code, caught.value.message) == (
         "session_forbidden",
@@ -884,8 +889,7 @@ async def test_workspace_forbidden_is_not_normalized_to_proposal_not_found(
                 proposal_id,
                 expected_version=1,
                 edits=(DocumentEdit("", "Denied"),),
-                bundle_ids=(),
-                citations=(),
+                branch_id=BRANCH,
             )
         else:
             await env.decide.execute(
@@ -947,8 +951,7 @@ async def test_revision_reuses_authorized_source_and_recomputes_approvers(
                 proposal_id,
                 expected_version=1,
                 edits=(DocumentEdit("", "Must roll back"),),
-                bundle_ids=(),
-                citations=(),
+                branch_id=BRANCH,
             )
         assert env.store.proposals[proposal_id] == original
     else:
@@ -958,130 +961,13 @@ async def test_revision_reuses_authorized_source_and_recomputes_approvers(
             proposal_id,
             expected_version=1,
             edits=(DocumentEdit("", "Authorized revision"),),
-            bundle_ids=(),
-            citations=(),
+            branch_id=BRANCH,
         )
         assert revised.version == 2
         assert revised.current_version.required_approver_ids == frozenset(
             {ALICE, BOB, DAN}
         )
     assert calls == 1
-
-
-@pytest.mark.asyncio
-async def test_create_freezes_explicit_citations_in_supplied_order(
-    env: Harness,
-) -> None:
-    result = await env.create.execute(
-        Actor(ALICE),
-        WORKSPACE,
-        SESSION,
-        document_id=DOCUMENT,
-        edits=(DocumentEdit("", "Proposed main"),),
-        bundle_ids=(BUNDLE,),
-        citations=(
-            ProposalCitation(BUNDLE, 1, "main"),
-            ProposalCitation(BUNDLE, 0, "Proposed"),
-        ),
-    )
-    saved = env.store.proposals[result.id].current_version
-    assert tuple(
-        (c.bundle_id, c.bundle_item_position, c.claim_anchor) for c in saved.citations
-    ) == ((BUNDLE, 1, "main"), (BUNDLE, 0, "Proposed"))
-    assert env.access.bundle_reads == 1
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("operation", ["create", "revise"])
-@pytest.mark.parametrize("invalid", ["out_of_range", "unlisted", "anchor", "duplicate"])
-async def test_invalid_citation_leaves_saved_versions_unchanged(
-    env: Harness, operation: str, invalid: str
-) -> None:
-    proposal_id = await env.initial()
-    original = dict(env.store.proposals)
-    citation = ProposalCitation(BUNDLE, 0, "main")
-    if invalid == "out_of_range":
-        citation = ProposalCitation(BUNDLE, 2, "main")
-    elif invalid == "unlisted":
-        citation = ProposalCitation(BundleId(uuid4()), 0, "main")
-    elif invalid == "anchor":
-        citation = ProposalCitation(BUNDLE, 0, "missing")
-    citations = (citation, citation) if invalid == "duplicate" else (citation,)
-    with pytest.raises(InvalidInput) as caught:
-        if operation == "create":
-            await env.create.execute(
-                Actor(ALICE),
-                WORKSPACE,
-                SESSION,
-                document_id=DOCUMENT,
-                edits=(DocumentEdit("", "Proposed main"),),
-                bundle_ids=(BUNDLE,),
-                citations=citations,
-            )
-        else:
-            await env.revise.execute(
-                Actor(ALICE),
-                WORKSPACE,
-                proposal_id,
-                expected_version=1,
-                edits=(DocumentEdit("", "Proposed main"),),
-                bundle_ids=(BUNDLE,),
-                citations=citations,
-            )
-    assert caught.value.code == "proposal_citation_invalid"
-    assert env.store.proposals == original
-
-
-@pytest.mark.asyncio
-async def test_revision_explicitly_replaces_citations_without_carrying_old_set(
-    env: Harness,
-) -> None:
-    proposal_id = await env.initial()
-    original = env.store.proposals[proposal_id].current_version
-    revised = await env.revise.execute(
-        Actor(ALICE),
-        WORKSPACE,
-        proposal_id,
-        expected_version=1,
-        edits=(DocumentEdit("", "Another main"),),
-        bundle_ids=(BUNDLE,),
-        citations=(ProposalCitation(BUNDLE, 1, "Another"),),
-    )
-    assert revised.current_version.citations == (
-        ProposalCitation(BUNDLE, 1, "Another"),
-    )
-    cleared = await env.revise.execute(
-        Actor(ALICE),
-        WORKSPACE,
-        proposal_id,
-        expected_version=2,
-        edits=(DocumentEdit("", "Another main"),),
-        bundle_ids=(BUNDLE,),
-        citations=(),
-    )
-    assert cleared.current_version.citations == ()
-    assert env.store.proposals[proposal_id].versions[0] == original
-    assert original.citations == (ProposalCitation(BUNDLE, 0, "main"),)
-
-
-@pytest.mark.asyncio
-async def test_revision_revalidates_access_to_previously_cited_bundle(
-    env: Harness,
-) -> None:
-    proposal_id = await env.initial()
-    original = env.store.proposals[proposal_id]
-    env.access.bundle_ids.clear()
-    with pytest.raises(NotFound):
-        await env.revise.execute(
-            Actor(ALICE),
-            WORKSPACE,
-            proposal_id,
-            expected_version=1,
-            edits=(DocumentEdit("", "Proposed main"),),
-            bundle_ids=(BUNDLE,),
-            citations=(ProposalCitation(BUNDLE, 0, "main"),),
-        )
-    assert env.store.proposals[proposal_id] == original
 
 
 @pytest.mark.asyncio
@@ -1112,7 +998,12 @@ async def test_revision_normalizes_absent_and_private_proposals_with_real_author
         )
     members = WorkspaceAccess(workspaces)
     sources = ProposalSources(
-        SessionAccess(sessions, members), env.access, env.access, env.access, members
+        SessionAccess(sessions, members),
+        env.access,
+        env.access,
+        env.access,
+        members,
+        FakeEvidence(),
     )
     revise = ReviseProposal(env.store, sources, lambda: env.store, FixedClock())
     outcomes = []
@@ -1124,8 +1015,7 @@ async def test_revision_normalizes_absent_and_private_proposals_with_real_author
                 candidate,
                 expected_version=1,
                 edits=(DocumentEdit("", "private revision"),),
-                bundle_ids=(),
-                citations=(),
+                branch_id=BRANCH,
             )
         outcomes.append((type(caught.value), caught.value.code))
     expected = (
@@ -1135,3 +1025,53 @@ async def test_revision_normalizes_absent_and_private_proposals_with_real_author
     )
     assert outcomes == [expected, expected]
     assert env.store.proposals[proposal_id].version == 1
+
+
+@pytest.mark.asyncio
+async def test_a_proposal_cites_the_conversation_it_was_written_from(
+    env: Harness,
+) -> None:
+    """Nobody publishes evidence: the update records what produced it."""
+    evidence = env.evidence
+    evidence.items = (
+        BundleItem((uuid4(),), "user", "what should the limit be?", "copied"),
+        BundleItem((uuid4(),), "assistant", "5-10 per second is usual", "copied"),
+    )
+    result = await env.create.execute(
+        Actor(ALICE),
+        WORKSPACE,
+        SESSION,
+        document_id=DOCUMENT,
+        edits=(
+            DocumentEdit("", "# Rate limit\n\nTen per second."),
+            DocumentEdit("Main", "새 본문"),
+        ),
+        branch_id=BRANCH,
+    )
+    version = env.store.proposals[result.id].current_version
+    # Frozen from the branch it was written in, without being asked for.
+    assert evidence.calls == [BRANCH]
+    assert version.bundle_ids == (evidence.bundle_id,)
+    # Anchored on the first line each edit ADDS — text the proposal wrote —
+    # against the turn the agent was writing from.
+    assert [(c.claim_anchor, c.bundle_item_position) for c in version.citations] == [
+        ("# Rate limit", 1),
+        ("새 본문", 1),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_nothing_is_cited_when_the_conversation_is_empty(
+    env: Harness,
+) -> None:
+    result = await env.create.execute(
+        Actor(ALICE),
+        WORKSPACE,
+        SESSION,
+        document_id=DOCUMENT,
+        edits=(DocumentEdit("", "Proposed main"),),
+        branch_id=BRANCH,
+    )
+    version = env.store.proposals[result.id].current_version
+    assert version.bundle_ids == ()
+    assert version.citations == ()

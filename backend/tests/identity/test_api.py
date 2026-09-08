@@ -39,9 +39,7 @@ async def test_local_skip_issues_cookie_and_me() -> None:
 
 @pytest.mark.asyncio
 async def test_production_with_google_rejects_local_skip() -> None:
-    app = make_app(
-        Settings(environment="production", google_client_id="google-client")
-    )
+    app = make_app(Settings(environment="production", google_client_id="google-client"))
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app), base_url="https://test"
     ) as client:

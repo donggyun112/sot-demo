@@ -355,13 +355,6 @@ export function createServer() {
     }
     if (path.endsWith("/bundle-preview"))
       return Response.json(bundleItems);
-    if (path.endsWith("/bundles")) {
-      state.branchVersion++;
-      return Response.json({
-        resource_id: "bundle-1",
-        branch_version: state.branchVersion,
-      });
-    }
     if (path.endsWith("/sessions/session-1/members")) {
       if (request.method === "POST") {
         const body = (await request.json()) as { user_id: string; role: string };

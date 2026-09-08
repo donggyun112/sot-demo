@@ -18,7 +18,6 @@ from sot.session.application import (
     ListSessionBranches,
     ListSessionMembers,
     PreviewBundle,
-    PublishBundle,
 )
 from sot.session.contracts import (
     BranchMutationResult,
@@ -91,12 +90,6 @@ class CurationRequest(BaseModel):
 
     def to_operation(self) -> CurationOperation:
         return self.operation.to_operation()
-
-
-class PublishBundleRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    expected_version: Annotated[int, Field(ge=0, strict=True)]
-    title: str
 
 
 class CreatedSessionResponse(BaseModel):
@@ -210,7 +203,6 @@ def build_session_router(
     create_branch: CreateBranch,
     apply_curation: ApplyCuration,
     preview_bundle: PreviewBundle,
-    publish_bundle: PublishBundle,
     list_sessions: ListDocumentSessions,
     list_branches: ListSessionBranches,
     list_turns: ListBranchTurns,
@@ -375,23 +367,6 @@ def build_session_router(
             BundleItemResponse.from_item(item)
             for item in await preview_bundle.execute(
                 current, WorkspaceId(workspace_id), BranchId(branch_id)
-            )
-        )
-
-    @router.post("/branches/{branch_id}/bundles", status_code=201)
-    async def publish(
-        workspace_id: UUID,
-        branch_id: UUID,
-        body: PublishBundleRequest,
-        current: Annotated[Actor, Depends(actor)],
-    ) -> BranchMutationResponse:
-        return BranchMutationResponse.from_result(
-            await publish_bundle.execute(
-                current,
-                WorkspaceId(workspace_id),
-                BranchId(branch_id),
-                expected_version=body.expected_version,
-                title=body.title,
             )
         )
 

@@ -18,9 +18,7 @@ class DocumentNotFound(NotFound):
 
 class VersionConflict(Conflict):
     def __init__(self) -> None:
-        super().__init__(
-            "version_conflict", "The resource changed after it was loaded"
-        )
+        super().__init__("version_conflict", "The resource changed after it was loaded")
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,7 +67,9 @@ class Document:
         if not self.title or len(self.title) > 200:
             raise InvalidInput("document_title_invalid", "Document title is invalid")
         if self.version < 0:
-            raise InvalidInput("document_version_invalid", "Document version is invalid")
+            raise InvalidInput(
+                "document_version_invalid", "Document version is invalid"
+            )
 
     @classmethod
     def create(

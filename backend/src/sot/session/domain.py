@@ -256,8 +256,12 @@ class CurationProjection:
 
     def _origin_rank(self, item: BundleItem) -> int:
         """Where an item belongs in the conversation, by its earliest source."""
-        order = {source: i for i, one in enumerate(self.origin) for source in one.source_ids}
-        return min((order[source] for source in item.source_ids if source in order), default=0)
+        order = {
+            source: i for i, one in enumerate(self.origin) for source in one.source_ids
+        }
+        return min(
+            (order[source] for source in item.source_ids if source in order), default=0
+        )
 
     def _restore(self, turn_id: UUID) -> None:
         if any(turn_id in item.source_ids for item in self.items):
@@ -273,11 +277,7 @@ class CurationProjection:
             )
         rank = self._origin_rank(original)
         at = next(
-            (
-                i
-                for i, item in enumerate(self.items)
-                if self._origin_rank(item) > rank
-            ),
+            (i for i, item in enumerate(self.items) if self._origin_rank(item) > rank),
             len(self.items),
         )
         self.items = self.items[:at] + (original,) + self.items[at:]

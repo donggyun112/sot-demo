@@ -162,15 +162,13 @@ test("private draft, hand-off to a teammate and explicit consensus merge", async
     expect((await sendResponse).status()).toBe(201);
     await expect(alice.getByText("Editor")).toBeVisible();
 
-    // The curated conversation is frozen as the evidence the proposal cites.
+    // The curated conversation is what a proposal will freeze as its grounds.
+    // Nobody publishes it: there is no button for that, and never was a reason
+    // to make a person do it.
     const preview = alice.getByRole("region", { name: "Bundle preview" });
     await expect(preview).toContainText(summary);
     await expect(preview).not.toContainText(privatePrompt);
-    const publishedResponse = alice.waitForResponse((res) => res.request().method() === "POST" && res.url().endsWith("/bundles"));
-    await alice.getByRole("button", { name: "Publish bundle" }).click();
-    const bundle = await (await publishedResponse).json();
-    // The published bundle lives in the URL, so a reload still has it.
-    await expect(alice).toHaveURL(new RegExp(`bundle=${bundle.resource_id}`));
+    await expect(alice.getByRole("button", { name: "Publish bundle" })).toHaveCount(0);
 
     await bob.goto(`/w/${aw}/sessions/${created.session_id}`);
     await expect(bob.getByLabel("Agent message")).toBeVisible();
@@ -184,18 +182,17 @@ test("private draft, hand-off to a teammate and explicit consensus merge", async
     expect(await (await get(bobContext, `/workspaces/${bw}/documents`, bobLogin)).json()).not.toEqual([]);
     expect((await get(publicContext, `${branchPath}/turns`)).status()).toBe(401);
 
-    // Back on the source Session, the immutable Bundle selection is retained.
-    await alice.goto(`/w/${aw}/sessions/${created.session_id}?bundle=${bundle.resource_id}`);
+    await alice.goto(`/w/${aw}/sessions/${created.session_id}`);
     // The agent writes document updates, so the proposal arrives as EDITS
     // through the same endpoint sot_update calls — never typed by a person.
+    // It names the branch it was written in; the grounds follow from that.
     const content = "Each user's work runs in a separate process.";
     const created_proposal = await aliceContext.request.post(`${api}${documentPath}/proposals`, {
       headers: { Authorization: `Bearer ${aliceLogin.access_token}` },
       data: {
         source_session_id: created.session_id,
+        branch_id: created.branch_id,
         edits: [{ find: "", replace: content }],
-        bundle_ids: [bundle.resource_id],
-        citations: [{ bundle_id: bundle.resource_id, bundle_item_position: 0, claim_anchor: content }],
         additional_approver_ids: [bobLogin.user.id],
       },
     });
@@ -204,7 +201,10 @@ test("private draft, hand-off to a teammate and explicit consensus merge", async
     expect(proposal.source_session_id).toBe(created.session_id);
     expect(proposal.current_version.required_approver_ids.sort()).toEqual([aliceLogin.user.id, bobLogin.user.id].sort());
     expect(proposal.current_version.edits).toEqual([{ find: "", replace: content }]);
-    expect(proposal.current_version.citations).toEqual([{ bundle_id: bundle.resource_id, bundle_item_position: 0, claim_anchor: content }]);
+    // The grounds were frozen from the curated conversation, not supplied:
+    // one citation per edit, anchored on the line it adds.
+    expect(proposal.current_version.citations.map((c: { claim_anchor: string }) => c.claim_anchor)).toEqual([content]);
+    expect(proposal.current_version.bundle_ids).toHaveLength(1);
     await alice.goto(`/w/${aw}/proposals/${proposal.id}`);
     await expect(alice.getByRole("heading", { name: "Proposal" })).toBeVisible();
 

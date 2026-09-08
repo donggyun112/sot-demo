@@ -19,31 +19,18 @@ from sot.consensus.domain import (
     PROPOSAL_CONTENT_LIMIT,
     ApprovalDecision,
     DocumentEdit,
-    ProposalCitation,
     ProposalStatus,
 )
 from sot.document.contracts import RevisionResult
 from sot.identity.contracts import Actor
 from sot.shared.ids import (
-    BundleId,
+    BranchId,
     DocumentId,
     ProposalId,
     SessionId,
     UserId,
     WorkspaceId,
 )
-
-
-class CitationRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    bundle_id: UUID
-    bundle_item_position: Annotated[StrictInt, Field(ge=0)]
-    claim_anchor: Annotated[StrictStr, Field(min_length=1)]
-
-    def to_citation(self) -> ProposalCitation:
-        return ProposalCitation(
-            BundleId(self.bundle_id), self.bundle_item_position, self.claim_anchor
-        )
 
 
 class DocumentEditRequest(BaseModel):
@@ -60,18 +47,18 @@ class DocumentEditRequest(BaseModel):
 class CreateProposalRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     source_session_id: UUID
+    # The branch the update was written in. Its conversation IS the grounds,
+    # frozen when the proposal is made, so nothing is passed in here.
+    branch_id: UUID
     edits: Annotated[list[DocumentEditRequest], Field(min_length=1)]
-    bundle_ids: list[UUID] = Field(default_factory=list)
-    citations: list[CitationRequest]
     additional_approver_ids: list[UUID] = Field(default_factory=list)
 
 
 class ReviseProposalRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     expected_version: Annotated[StrictInt, Field(ge=1)]
+    branch_id: UUID
     edits: Annotated[list[DocumentEditRequest], Field(min_length=1)]
-    bundle_ids: list[UUID]
-    citations: list[CitationRequest]
     additional_approver_ids: list[UUID] | None = None
 
 
@@ -302,8 +289,7 @@ def build_consensus_router(
                 SessionId(body.source_session_id),
                 document_id=DocumentId(document_id),
                 edits=tuple(edit.to_edit() for edit in body.edits),
-                bundle_ids=tuple(BundleId(value) for value in body.bundle_ids),
-                citations=tuple(value.to_citation() for value in body.citations),
+                branch_id=BranchId(body.branch_id),
                 additional_approver_ids=frozenset(
                     UserId(value) for value in body.additional_approver_ids
                 ),
@@ -334,8 +320,7 @@ def build_consensus_router(
                 ProposalId(proposal_id),
                 expected_version=body.expected_version,
                 edits=tuple(edit.to_edit() for edit in body.edits),
-                bundle_ids=tuple(BundleId(value) for value in body.bundle_ids),
-                citations=tuple(value.to_citation() for value in body.citations),
+                branch_id=BranchId(body.branch_id),
                 additional_approver_ids=frozenset(
                     UserId(value) for value in body.additional_approver_ids
                 )

@@ -7,7 +7,8 @@ import pytest
 
 from sot.identity.contracts import Actor
 from sot.session import application, contracts, domain
-from sot.shared.ids import BundleId, UserId, WorkspaceId
+from sot.session.contracts import FrozenEvidence
+from sot.shared.ids import BranchId, BundleId, UserId, WorkspaceId
 from sot.workspace.contracts import WorkspaceMembership, WorkspaceRole
 from sot.workspace.domain import WorkspaceNotFound
 from tests.session.test_application import NOW, FixedClock, access, creator
@@ -30,15 +31,44 @@ def test_published_bundle_is_immutable_and_survives_later_curation() -> None:
         bundle.title = "mutation"  # type: ignore[misc]
 
 
-def publisher(store: CuratedMemory) -> application.PublishBundle:
-    return application.PublishBundle(
-        store,
-        store,
-        store,
-        application.BranchAccess(store, access(store), store),
-        lambda: store,
-        FixedClock(),
-    )
+class _Publisher:
+    """Freeze evidence the way proposing an update does, for these tests.
+
+    Publishing is no longer something a person asks for: a proposal records
+    the conversation it was written from. This wrapper opens the transaction
+    the real caller already owns.
+    """
+
+    def __init__(self, store: CuratedMemory) -> None:
+        self._store = store
+        self._freezer = application.FreezeEvidence(
+            store,
+            store,
+            application.BranchAccess(store, access(store), store),
+            FixedClock(),
+        )
+
+    async def execute(
+        self,
+        actor: Actor,
+        workspace_id: WorkspaceId,
+        branch_id: BranchId,
+        *,
+        expected_version: int | None = None,
+        title: str = "Public",
+    ) -> FrozenEvidence:
+        async with self._store.transaction() as tx:
+            return await self._freezer.freeze(
+                tx,
+                actor=actor,
+                workspace_id=workspace_id,
+                branch_id=branch_id,
+                title=title,
+            )
+
+
+def publisher(store: CuratedMemory) -> _Publisher:
+    return _Publisher(store)
 
 
 @pytest.mark.asyncio
@@ -62,7 +92,7 @@ async def test_shareable_bundle_requires_owner_of_its_actual_session(
             branch_b.workspace_id, branch_b.session_id, actor.user_id, role
         )
     )
-    bundle_id = BundleId(result.resource_id)
+    bundle_id = result.bundle_id
     access_bundle = application.BundleAccess(store, access(store), store)
     reader: contracts.ShareableBundleReader = access_bundle
     async with store.transaction() as tx:
@@ -83,7 +113,6 @@ async def test_shareable_bundle_requires_owner_of_its_actual_session(
                 tx, actor=actor, workspace_id=branch_b.workspace_id, bundle_id=bundle_id
             )
     assert "bundle_content" not in store.reads
-    assert store.branches[branch_b.workspace_id, branch_b.id].version == 2
 
 
 @pytest.mark.asyncio
@@ -101,7 +130,7 @@ async def test_shareable_bundle_returns_safe_snapshot_in_caller_transaction() ->
             tx,
             actor=owner,
             workspace_id=branch.workspace_id,
-            bundle_id=BundleId(result.resource_id),
+            bundle_id=result.bundle_id,
         )
     assert store.transactions == before + 1
     assert shareable.published_by == owner.user_id
@@ -128,13 +157,12 @@ async def test_publish_materializes_projection_then_later_preview_changes_only()
     result = await publisher(store).execute(
         actor, branch.workspace_id, branch.id, expected_version=2, title="Public"
     )
-    assert result.branch_version == 3
     assert store.transactions == before + 1
     await curation(store).execute(
         actor,
         branch.workspace_id,
         branch.id,
-        expected_version=3,
+        expected_version=2,
         operation=domain.EditTurn(branch.turns[1].id, "later"),
     )
     preview = await application.PreviewBundle(
@@ -148,7 +176,7 @@ async def test_publish_materializes_projection_then_later_preview_changes_only()
             tx,
             actor=actor,
             workspace_id=branch.workspace_id,
-            bundle_id=BundleId(result.resource_id),
+            bundle_id=result.bundle_id,
         )
     assert store.transactions == before + 1
     assert [item.content for item in snapshot.items] == ["Q", "public"]
@@ -162,13 +190,10 @@ async def test_publish_materializes_projection_then_later_preview_changes_only()
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "failure", ["stale", "race", "write", "editor", "closed", "ceiling"]
-)
+@pytest.mark.parametrize("failure", ["write", "editor", "closed", "ceiling"])
 async def test_publish_failure_leaves_no_bundle_or_version_change(failure: str) -> None:
     store, actor, branch = await prepared()
     store.fail_write = failure == "write"
-    store.conflict = failure == "race"
     if failure == "editor":
         store.members[branch.workspace_id, branch.session_id, actor.user_id] = (
             domain.SessionMember(
@@ -203,7 +228,6 @@ async def test_publish_failure_leaves_no_bundle_or_version_change(failure: str) 
             title="Public",
         )
     assert store.bundles == {}
-    assert store.branches[branch.workspace_id, branch.id].version == 1
 
 
 @pytest.mark.asyncio
@@ -228,9 +252,7 @@ async def test_bundle_reader_hides_existence_from_uninvited_member(
                 tx,
                 actor=outsider,
                 workspace_id=branch.workspace_id,
-                bundle_id=BundleId(result.resource_id)
-                if existing
-                else BundleId(uuid4()),
+                bundle_id=result.bundle_id if existing else BundleId(uuid4()),
             )
     assert "bundle_content" not in store.reads
     assert "session_content" not in store.reads
@@ -251,7 +273,7 @@ async def test_bundle_and_preview_are_workspace_scoped() -> None:
                 tx,
                 actor=actor,
                 workspace_id=other,
-                bundle_id=BundleId(result.resource_id),
+                bundle_id=result.bundle_id,
             )
     assert store.reads == ["workspace"]
     store.workspace_members[other, actor.user_id] = WorkspaceMembership(
@@ -263,7 +285,7 @@ async def test_bundle_and_preview_are_workspace_scoped() -> None:
                 tx,
                 actor=actor,
                 workspace_id=other,
-                bundle_id=BundleId(result.resource_id),
+                bundle_id=result.bundle_id,
             )
     with pytest.raises(domain.SessionNotFound):
         await application.PreviewBundle(
