@@ -108,6 +108,24 @@ export function createServer() {
     dropped: [] as Schema["TurnResponse"][],
     extraBranches: [] as Schema["BranchResponse"][],
     createdDocument: null as Schema["DocumentSummaryResponse"] | null,
+    documentTitle: null as string | null,
+    /* Two revisions, so history is a list and not a single row. */
+    revisions: [
+      {
+        id: "rev-2",
+        number: 2,
+        proposal_id: "proposal-1",
+        created_by: member.id,
+        created_at: "2026-09-07T00:00:00Z",
+      },
+      {
+        id: "rev-1",
+        number: 1,
+        proposal_id: null,
+        created_by: member.id,
+        created_at: "2026-09-06T00:00:00Z",
+      },
+    ] as Schema["RevisionSummaryResponse"][],
     emptyDocuments: false,
     workspaces: [
       { id: "w1", name: "Source" },
@@ -122,9 +140,11 @@ export function createServer() {
     const document: Schema["DocumentSummaryResponse"] = {
       id: "doc-1",
       workspace_id,
-      title: workspace_id === "w2" ? "Destination document" : "요청 제한 토큰",
-      current_revision_id: "rev-1",
-      version: 1,
+      title:
+        state.documentTitle ??
+        (workspace_id === "w2" ? "Destination document" : "요청 제한 토큰"),
+      current_revision_id: "rev-2",
+      version: 2,
     };
     if (path.endsWith("/auth/refresh") || path.endsWith("/auth/google"))
       return Response.json({
@@ -242,14 +262,35 @@ export function createServer() {
           citations: [],
         },
       } satisfies Schema["DocumentResponse"]);
+    if (path.endsWith("/documents/doc-1/revisions"))
+      return Response.json(state.revisions);
+    if (path.includes("/documents/doc-1/revisions/")) {
+      const number = Number(path.split("/").pop());
+      return Response.json({
+        id: `rev-${number}`,
+        workspace_id,
+        document_id: "doc-1",
+        number,
+        content: number === 1 ? "처음 쓴 합의" : "초기 합의",
+        proposal_id: number === 1 ? null : "proposal-1",
+        created_by: member.id,
+        created_at: session.created_at,
+        citations: [],
+      } satisfies Schema["RevisionResponse"]);
+    }
+    if (path.endsWith("/documents/doc-1") && request.method === "PATCH") {
+      const body = (await request.json()) as { title: string };
+      state.documentTitle = body.title;
+      return Response.json({ ...document, title: body.title });
+    }
     if (path.endsWith("/documents/doc-1"))
       return Response.json({
         document,
         current_revision: {
-          id: "rev-1",
+          id: "rev-2",
           workspace_id,
           document_id: document.id,
-          number: 1,
+          number: 2,
           content: workspace_id === "w2" ? "목적지 합의" : "초기 합의",
           proposal_id: null,
           created_by: member.id,
@@ -273,6 +314,32 @@ export function createServer() {
             item.created_by === state.user.id,
         ),
       );
+    }
+    if (path.endsWith("/sessions/session-1/forks")) {
+      state.sessions = [
+        ...state.sessions,
+        {
+          ...session,
+          id: "session-2",
+          workspace_id,
+          created_by: state.user.id,
+          forked_from_session_id: "session-1",
+          forked_from_branch_id: branch.id,
+        },
+      ];
+      return Response.json(
+        { session_id: "session-2", branch_id: "branch-fork" },
+        { status: 201 },
+      );
+    }
+    if (path.endsWith("/sessions/session-2")) {
+      const forked = state.sessions.find((item) => item.id === "session-2");
+      return forked
+        ? Response.json(forked)
+        : Response.json(
+            { error: { code: "not_found", message: "Session not found" } },
+            { status: 404 },
+          );
     }
     if (path.endsWith("/sessions/session-1")) {
       const found = state.sessions.find(

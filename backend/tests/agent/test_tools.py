@@ -6,7 +6,7 @@ from typing import cast
 from uuid import uuid4
 
 import pytest
-from pydantic_ai import RunContext
+from pydantic_ai import ModelRetry, RunContext
 from pydantic_ai.messages import (
     ModelMessage,
     ModelRequest,
@@ -25,6 +25,7 @@ from sot.consensus.contracts import DocumentEdit
 from sot.identity.contracts import Actor
 from sot.session.contracts import BranchMutationResult, TurnId
 from sot.session.domain import VersionConflict
+from sot.shared.errors import InvalidInput
 from sot.shared.ids import BranchId, UserId, WorkspaceId
 
 
@@ -173,6 +174,25 @@ async def test_failed_tool_command_does_not_advance_lineage() -> None:
             tool_context(deps), [{"find": "", "replace": "loser proposal"}]
         )
 
+    assert deps.lineage.expected_version == 4
+
+
+@pytest.mark.asyncio
+async def test_an_update_the_model_wrote_wrong_comes_back_as_a_retry() -> None:
+    """An anchor that misses, or an update too long to review, is the model's
+    to fix. Killing the run instead would leave the person with nothing."""
+    creator = RecordingProposalCreator(
+        BranchMutationResult(uuid4(), 5),
+        failure=InvalidInput(
+            "proposal_content_too_many_lines", "Proposal content is 2000 lines"
+        ),
+    )
+    deps = agent_deps(proposal_creator=creator)
+
+    with pytest.raises(ModelRetry) as retried:
+        await sot_update(tool_context(deps), [{"find": "", "replace": "a\nb"}])
+
+    assert "2000 lines" in str(retried.value)
     assert deps.lineage.expected_version == 4
 
 

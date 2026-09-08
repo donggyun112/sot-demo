@@ -184,6 +184,10 @@ class SessionView:
     created_by: UserId
     created_at: datetime
     status: SessionStatus
+    # Set when this session was forked out of a conversation someone else's
+    # session was holding, so a reader can follow it back.
+    forked_from_session_id: SessionId | None = None
+    forked_from_branch_id: BranchId | None = None
 
 
 class SessionAuthorizer(Protocol):

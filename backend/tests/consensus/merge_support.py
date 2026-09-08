@@ -15,7 +15,7 @@ from sot.consensus.application import (
 )
 from sot.consensus.domain import ApprovalDecision, DocumentEdit
 from sot.document.application import DocumentAccess, PublishDocumentRevision
-from sot.document.contracts import DocumentView, RevisionView
+from sot.document.contracts import DocumentView, RevisionSummary, RevisionView
 from sot.document.domain import Document, Revision, VersionConflict
 from sot.identity.contracts import Actor
 from sot.shared.ids import DocumentId, ProposalId, WorkspaceId
@@ -132,6 +132,22 @@ class MergeDocuments:
         context.revisions.append(revision)
         if self.store.failure == "revision":
             raise RuntimeError("revision storage failed")
+
+    async def save_title(
+        self,
+        tx: TransactionContext,
+        workspace_id: WorkspaceId,
+        document: Document,
+    ) -> None:
+        raise AssertionError("Merge must never rename a Document")
+
+    async def list_revisions(
+        self,
+        tx: TransactionContext,
+        workspace_id: WorkspaceId,
+        document_id: DocumentId,
+    ) -> tuple[RevisionSummary, ...]:
+        raise AssertionError("Merge must never read the history")
 
     async def get(
         self, tx: TransactionContext, workspace_id: WorkspaceId, document_id: DocumentId

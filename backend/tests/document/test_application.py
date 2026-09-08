@@ -13,13 +13,16 @@ from sot.document.application import (
     DocumentAccess,
     GetDocument,
     GetRevision,
+    ListRevisions,
     PublishDocumentRevision,
+    RenameDocument,
 )
 from sot.document.contracts import (
     DocumentSummary,
     DocumentView,
     RevisionCitationView,
     RevisionResult,
+    RevisionSummary,
     RevisionView,
 )
 from sot.document.domain import Document, DocumentNotFound, Revision
@@ -129,6 +132,42 @@ class MemoryDocuments:
         assert key in self.documents
         self.documents[key] = document
         self.revisions[key].append(revision)
+
+    async def save_title(
+        self,
+        tx: TransactionContext,
+        workspace_id: WorkspaceId,
+        document: Document,
+    ) -> None:
+        self.check(tx)
+        assert self.authorized
+        self.events.append("save_title")
+        key = workspace_id, document.id
+        assert key in self.documents
+        self.documents[key] = document
+
+    async def list_revisions(
+        self,
+        tx: TransactionContext,
+        workspace_id: WorkspaceId,
+        document_id: DocumentId,
+    ) -> tuple[RevisionSummary, ...]:
+        self.check(tx)
+        assert self.authorized
+        self.events.append("query_revisions")
+        self.lookups.append((workspace_id, document_id))
+        return tuple(
+            RevisionSummary(
+                revision.id,
+                revision.number,
+                revision.proposal_id,
+                revision.created_by,
+                revision.created_at,
+            )
+            for revision in reversed(
+                self.revisions.get((workspace_id, document_id), [])
+            )
+        )
 
     async def get(
         self,
@@ -302,4 +341,85 @@ async def test_revision_read_authorizes_before_scoped_historical_lookup() -> Non
     store.denied = True
     with pytest.raises(WorkspaceForbidden):
         await getter.execute(actor, workspace_id, created.document.id, 1)
+    assert store.events == ["authorize"]
+
+
+@pytest.mark.asyncio
+async def test_a_document_can_be_renamed_without_touching_its_history() -> None:
+    """A name is picked before anyone knows what the document will say."""
+    store = MemoryDocuments()
+    actor, workspace_id = Actor(UserId(uuid4())), WorkspaceId(uuid4())
+    created = await CreateDocument(store, store, lambda: store, FixedClock()).execute(
+        actor, workspace_id, title="Untitled", content="first"
+    )
+    rename = RenameDocument(store, store, lambda: store)
+
+    renamed = await rename.execute(
+        actor, workspace_id, created.document.id, title="  Rate limits  "
+    )
+
+    assert renamed.title == "Rate limits"
+    assert renamed.version == created.document.version
+    assert renamed.current_revision_id == created.revision.id
+    assert store.permissions[-1] is Permission.DOCUMENT_CREATE
+    assert len(store.revisions[workspace_id, created.document.id]) == 1
+
+
+@pytest.mark.asyncio
+async def test_renaming_another_workspaces_document_finds_nothing() -> None:
+    store = MemoryDocuments()
+    actor = Actor(UserId(uuid4()))
+    source, routed = WorkspaceId(uuid4()), WorkspaceId(uuid4())
+    created = await CreateDocument(store, store, lambda: store, FixedClock()).execute(
+        actor, source, title="Policy", content="first"
+    )
+
+    with pytest.raises(DocumentNotFound):
+        await RenameDocument(store, store, lambda: store).execute(
+            actor, routed, created.document.id, title="Theirs"
+        )
+
+    assert store.documents[source, created.document.id].title == "Policy"
+
+
+@pytest.mark.asyncio
+async def test_history_authorizes_before_reading_and_runs_newest_first() -> None:
+    store = MemoryDocuments()
+    actor, workspace_id = Actor(UserId(uuid4())), WorkspaceId(uuid4())
+    created = await CreateDocument(store, store, lambda: store, FixedClock()).execute(
+        actor, workspace_id, title="Policy", content="first"
+    )
+    document = store.documents[workspace_id, created.document.id]
+    async with store.transaction() as tx:
+        await PublishDocumentRevision(store, store, FixedClock()).publish(
+            tx,
+            actor=actor,
+            workspace_id=workspace_id,
+            document_id=document.id,
+            expected_version=1,
+            proposal_id=ProposalId(uuid4()),
+            content="second",
+            citations=(),
+        )
+
+    history = await ListRevisions(store, store, lambda: store).execute(
+        actor, workspace_id, document.id
+    )
+
+    assert [item.number for item in history] == [2, 1]
+    assert history[0].proposal_id is not None and history[1].proposal_id is None
+    assert store.permissions[-1] is Permission.DOCUMENT_READ
+    assert store.events[-2:] == ["authorize", "query_revisions"]
+
+
+@pytest.mark.asyncio
+async def test_history_denial_never_reads_the_revisions() -> None:
+    store = MemoryDocuments(denied=True)
+    actor, workspace_id = Actor(UserId(uuid4())), WorkspaceId(uuid4())
+
+    with pytest.raises(WorkspaceForbidden):
+        await ListRevisions(store, store, lambda: store).execute(
+            actor, workspace_id, DocumentId(uuid4())
+        )
+
     assert store.events == ["authorize"]

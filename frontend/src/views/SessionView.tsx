@@ -54,6 +54,24 @@ export function SessionView() {
   );
   const documentId = session.data?.document_id;
   const shared = !documentId;
+  /*
+    A session you hold as a viewer is one you can follow and not answer. The
+    way out is not to ask its owner for write access: it is to take the
+    conversation into a session of your own, which is what "talking in
+    someone's session" meant all along.
+  */
+  const held = api.useQuery(
+    "get",
+    "/api/v1/workspaces/{workspace_id}/sessions/{session_id}/members",
+    { params: { path: { workspace_id: workspaceId, session_id: sessionId } } },
+  );
+  const mine = (held.data ?? []).find((item) => item.user_id === user?.id);
+  const readOnly = mine?.role === "viewer";
+  const fork = api.useMutation(
+    "post",
+    "/api/v1/workspaces/{workspace_id}/sessions/{session_id}/forks",
+  );
+  const origin = session.data?.forked_from_session_id;
   const turnList = turns.data ?? [];
   const panel = params.get("panel");
   const title = titleFromTurns(
@@ -125,6 +143,60 @@ export function SessionView() {
           <p className={styles.banner}>
             {shared ? t("sessions.bannerShared") : t("sessions.bannerOriginal")}
           </p>
+          {origin && (
+            <p className={styles.banner}>
+              {t("sessions.forkedFrom")}{" "}
+              <Link
+                className={styles.ghost}
+                to={`/w/${workspaceId}/sessions/${origin}`}
+              >
+                {t("sessions.forkOpen")}
+              </Link>
+            </p>
+          )}
+          {readOnly && branch && (
+            <div className={styles.banner}>
+              <button
+                type="button"
+                className={styles.primary}
+                disabled={fork.isPending || !can(member, "session.create")}
+                title={
+                  can(member, "session.create")
+                    ? t("sessions.forkHint")
+                    : t("sessions.needParticipate")
+                }
+                onClick={() =>
+                  fork.mutate(
+                    {
+                      params: {
+                        path: {
+                          workspace_id: workspaceId,
+                          session_id: sessionId,
+                        },
+                      },
+                      body: { branch_id: branch.id },
+                    },
+                    {
+                      onSuccess: (created) => {
+                        void queryClient.invalidateQueries();
+                        void navigate(
+                          `/w/${workspaceId}/sessions/${created.session_id}`,
+                        );
+                      },
+                    },
+                  )
+                }
+              >
+                {fork.isPending ? t("common.working") : t("sessions.fork")}
+              </button>
+              <p className={styles.note}>{t("sessions.forkHint")}</p>
+              {fork.isError && (
+                <p className={styles.alert} role="alert">
+                  {t("common.error")}
+                </p>
+              )}
+            </div>
+          )}
           {branches.isLoading && (
             <p className={styles.banner}>{t("common.loading")}</p>
           )}
@@ -155,6 +227,7 @@ export function SessionView() {
           branch={branch}
           onBranch={(id) => setParam("branch", id)}
           turns={turnList}
+          readOnly={readOnly}
           onProposed={(id) => void navigate(`/w/${workspaceId}/proposals/${id}`)}
         />
       </div>
@@ -357,6 +430,7 @@ function SessionSide({
   branch,
   onBranch,
   turns,
+  readOnly,
   onProposed,
 }: {
   open: boolean;
@@ -368,6 +442,8 @@ function SessionSide({
   branch: { id: string; version: number } | undefined;
   onBranch: (id: string) => void;
   turns: Turn[];
+  /** True when you hold this session to read: it is not yours to hand on. */
+  readOnly: boolean;
   onProposed: (id: string) => void;
 }) {
   const { t } = useTranslation();
@@ -422,7 +498,7 @@ function SessionSide({
     },
     { enabled: Boolean(documentId) },
   );
-  const participate = can(member, "session.participate");
+  const participate = can(member, "session.participate") && !readOnly;
   const previewItems = preview.data ?? [];
   const [bumped, setBumped] = useState<{ id: string; version: number } | null>(null);
   const version = Math.max(
@@ -611,6 +687,7 @@ function SessionSide({
           made "nobody" a selectable option and let you pick yourself, which
           only ever ended in a conflict.
         */}
+        {!readOnly && (
         <Section title={t("send.title2")} count={candidates.length}>
           {!participate ? (
             <p className={styles.note}>{t("sessions.needParticipate")}</p>
@@ -636,6 +713,7 @@ function SessionSide({
             </p>
           )}
         </Section>
+        )}
 
         {/*
           The agent writes document updates, not the person: ask it in the

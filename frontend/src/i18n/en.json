@@ -89,7 +89,17 @@
     "noPending": "No pending changes.",
     "pendingCount_one": "{{count}} pending",
     "pendingCount_other": "{{count}} pending",
-    "startSessionHint": "Draft a change with the agent, then propose it."
+    "startSessionHint": "Draft a change with the agent, then propose it.",
+    "rename": "Rename",
+    "renameLabel": "Document title",
+    "renameSave": "Save",
+    "history": "History",
+    "historyOf": "Revision {{number}}",
+    "historyBy": "by {{name}}",
+    "historyProposal": "From a proposal",
+    "historyInitial": "First revision",
+    "reading": "Reading revision {{number}}. This is not the current text.",
+    "backToCurrent": "Back to current"
   },
   "sessions": {
     "title": "Sessions",
@@ -99,8 +109,8 @@
     "original": "Original",
     "noCite": "Not linked to a document.",
     "side": "Session",
-    "preview": "Bundle preview",
-    "previewEmpty": "Nothing is curated into the bundle yet.",
+    "preview": "Grounds this session carries",
+    "previewEmpty": "Every turn here becomes the grounds for an update proposed from it.",
     "shared": "Shared",
     "curation": "Curation",
     "drop": "Drop",
@@ -125,7 +135,11 @@
     "needParticipate": "You have read-only access to this workspace.",
     "needDocument": "This session is not attached to a document.",
     "restore": "Restore",
-    "agentUpdates": "The agent writes document updates. Ask for one in the session."
+    "agentUpdates": "The agent writes document updates. Ask for one in the session.",
+    "fork": "Continue in a session of your own",
+    "forkHint": "Copies this conversation so far. Nothing you write reaches theirs.",
+    "forkedFrom": "Forked from a session",
+    "forkOpen": "Open the session it came from"
   },
   "common": {
     "loading": "Loading…",

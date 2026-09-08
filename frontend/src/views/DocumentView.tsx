@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
@@ -40,7 +41,37 @@ export function DocumentView() {
     "post",
     "/api/v1/workspaces/{workspace_id}/documents/{document_id}/sessions",
   );
-  const revision = document.data?.current_revision;
+  const rename = api.useMutation(
+    "patch",
+    "/api/v1/workspaces/{workspace_id}/documents/{document_id}",
+  );
+  const history = api.useQuery(
+    "get",
+    "/api/v1/workspaces/{workspace_id}/documents/{document_id}/revisions",
+    { params: { path: { workspace_id: workspaceId, document_id: documentId } } },
+  );
+  /*
+    Reading an old revision is reading, not editing: the number lives in the
+    URL so a link to "what it said then" is a link someone else can open.
+  */
+  const reading = Number(params.get("revision")) || null;
+  const past = api.useQuery(
+    "get",
+    "/api/v1/workspaces/{workspace_id}/documents/{document_id}/revisions/{number}",
+    {
+      params: {
+        path: {
+          workspace_id: workspaceId,
+          document_id: documentId,
+          number: reading ?? 1,
+        },
+      },
+    },
+    { enabled: reading !== null },
+  );
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const current = document.data?.current_revision;
+  const revision = reading !== null ? (past.data ?? current) : current;
   const headings = headingsFrom(revision?.content ?? "");
   const selected = params.get("block") ?? headings[0]?.id;
   const heading = headings.find((item) => item.id === selected) ?? headings[0];
@@ -130,7 +161,10 @@ export function DocumentView() {
             <article className={styles.doc}>
               <div className={styles.card}>
                 <div className={styles.cardHead}>
-                  <span className={styles.chip} data-tone="ok">
+                  <span
+                    className={styles.chip}
+                    data-tone={reading === null ? "ok" : "accent"}
+                  >
                     {t("document.canonical")}
                   </span>
                   {t("docs.revision", { number: revision.number })}
@@ -140,7 +174,91 @@ export function DocumentView() {
                     </span>
                   )}
                 </div>
-                <h1>{document.data?.document.title || t("docs.untitled")}</h1>
+                {/* Reading an old revision has to say so, or the page lies. */}
+                {reading !== null && reading !== current?.number && (
+                  <p className={styles.banner} role="status">
+                    {t("document.reading", { number: reading })}{" "}
+                    <button
+                      type="button"
+                      className={styles.ghost}
+                      onClick={() => setParam("revision", null)}
+                    >
+                      {t("document.backToCurrent")}
+                    </button>
+                  </p>
+                )}
+                {renaming === null ? (
+                  <div className={styles.titleRow}>
+                    <h1>{document.data?.document.title || t("docs.untitled")}</h1>
+                    {can(member, "document.create") && (
+                      <button
+                        type="button"
+                        className={styles.ghost}
+                        onClick={() =>
+                          setRenaming(document.data?.document.title ?? "")
+                        }
+                      >
+                        {t("document.rename")}
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <form
+                    className={styles.titleRow}
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      const title = renaming.trim();
+                      if (!title) return;
+                      rename.mutate(
+                        {
+                          params: {
+                            path: {
+                              workspace_id: workspaceId,
+                              document_id: documentId,
+                            },
+                          },
+                          body: { title },
+                        },
+                        {
+                          onSuccess: () => {
+                            setRenaming(null);
+                            void queryClient.invalidateQueries();
+                          },
+                        },
+                      );
+                    }}
+                  >
+                    <input
+                      className={styles.input}
+                      aria-label={t("document.renameLabel")}
+                      value={renaming}
+                      autoFocus
+                      maxLength={200}
+                      onChange={(event) => setRenaming(event.target.value)}
+                    />
+                    <button
+                      type="submit"
+                      className={styles.primary}
+                      disabled={rename.isPending || !renaming.trim()}
+                    >
+                      {rename.isPending
+                        ? t("common.working")
+                        : t("document.renameSave")}
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.ghost}
+                      onClick={() => setRenaming(null)}
+                    >
+                      {t("common.cancel")}
+                    </button>
+                  </form>
+                )}
+                {rename.isError && (
+                  <p className={styles.alert} role="alert">
+                    {t("common.error")}
+                  </p>
+                )}
                 <MarkdownBody text={revision.content} />
               </div>
             </article>
@@ -212,6 +330,48 @@ export function DocumentView() {
                     {t("common.error")}
                   </p>
                 )}
+              </Section>
+
+              {/*
+                A canonical document is a series of decisions, so its history
+                is part of reading it: what changed, when, and which proposal
+                carried it. Selecting one reads it in place.
+              */}
+              <Section title={t("document.history")} count={history.data?.length}>
+                {history.data?.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={styles.row}
+                    data-selected={item.number === reading ? "true" : undefined}
+                    onClick={() =>
+                      setParam(
+                        "revision",
+                        item.number === reading ||
+                          item.number === current?.number
+                          ? null
+                          : String(item.number),
+                      )
+                    }
+                  >
+                    <div>
+                      <div className={styles.rowTitle}>
+                        {t("document.historyOf", { number: item.number })}
+                      </div>
+                      <div className={styles.meta}>
+                        {at(item.created_at)} ·{" "}
+                        {t("document.historyBy", {
+                          name: nameOf(item.created_by),
+                        })}
+                      </div>
+                    </div>
+                    <span className={styles.chip}>
+                      {item.proposal_id
+                        ? t("document.historyProposal")
+                        : t("document.historyInitial")}
+                    </span>
+                  </button>
+                ))}
               </Section>
 
               <Section

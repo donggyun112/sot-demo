@@ -29,23 +29,12 @@ async def test_migrations_are_ordered_once_and_not_run_by_app_startup(
 ) -> None:
     await run_migrations(database_url, MIGRATIONS)
     await run_migrations(database_url, MIGRATIONS)
-    assert await applied_versions(database_url) == (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11)
+    expected = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)
+    assert await applied_versions(database_url) == expected
 
     app = build_app(Settings(database_url=database_url, models=("test",)))
     async with app.router.lifespan_context(app):
-        assert await applied_versions(database_url) == (
-            1,
-            2,
-            3,
-            4,
-            5,
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-        )
+        assert await applied_versions(database_url) == expected
 
 
 @pytest.mark.asyncio

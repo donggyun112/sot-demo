@@ -7,6 +7,7 @@ from sot.document.contracts import (
     RevisionCitationInput,
     RevisionCitationView,
     RevisionResult,
+    RevisionSummary,
     RevisionView,
 )
 from sot.document.domain import Document, DocumentNotFound, Revision
@@ -178,6 +179,67 @@ class ListDocuments:
             return await self._query.list_documents(tx, workspace_id)
 
 
+class RenameDocument:
+    """Rename a document after it exists.
+
+    A name is chosen before anyone knows what the document will say, so it
+    has to stay changeable. It writes no revision: nothing an approver signed
+    off on depends on the title.
+    """
+
+    def __init__(
+        self,
+        repository: DocumentRepository,
+        authorizer: WorkspaceAuthorizer,
+        uow_factory: UnitOfWorkFactory,
+    ) -> None:
+        self._repository = repository
+        self._authorizer = authorizer
+        self._uow_factory = uow_factory
+
+    async def execute(
+        self,
+        actor: Actor,
+        workspace_id: WorkspaceId,
+        document_id: DocumentId,
+        *,
+        title: str,
+    ) -> DocumentSummary:
+        async with self._uow_factory().transaction() as tx:
+            await self._authorizer.require(
+                tx, actor, workspace_id, Permission.DOCUMENT_CREATE
+            )
+            document = await self._repository.load(tx, workspace_id, document_id)
+            if document is None or document.workspace_id != workspace_id:
+                raise DocumentNotFound()
+            document.rename(title)
+            await self._repository.save_title(tx, workspace_id, document)
+            return _summary(document)
+
+
+class ListRevisions:
+    """The document's history: what changed it, when, and by whom."""
+
+    def __init__(
+        self,
+        query: DocumentQuery,
+        authorizer: WorkspaceAuthorizer,
+        uow_factory: UnitOfWorkFactory,
+    ) -> None:
+        self._query = query
+        self._authorizer = authorizer
+        self._uow_factory = uow_factory
+
+    async def execute(
+        self, actor: Actor, workspace_id: WorkspaceId, document_id: DocumentId
+    ) -> tuple[RevisionSummary, ...]:
+        async with self._uow_factory().transaction() as tx:
+            await self._authorizer.require(
+                tx, actor, workspace_id, Permission.DOCUMENT_READ
+            )
+            return await self._query.list_revisions(tx, workspace_id, document_id)
+
+
 class GetRevision:
     def __init__(
         self,
@@ -268,5 +330,7 @@ __all__ = [
     "GetDocument",
     "GetRevision",
     "ListDocuments",
+    "ListRevisions",
     "PublishDocumentRevision",
+    "RenameDocument",
 ]

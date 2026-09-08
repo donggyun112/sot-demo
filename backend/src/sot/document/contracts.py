@@ -40,6 +40,17 @@ class RevisionView:
 
 
 @dataclass(frozen=True, slots=True)
+class RevisionSummary:
+    """One entry in a document's history. Bodies stay out of the list."""
+
+    id: RevisionId
+    number: int
+    proposal_id: ProposalId | None
+    created_by: UserId
+    created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
 class DocumentView:
     document: DocumentSummary
     current_revision: RevisionView
@@ -85,5 +96,6 @@ __all__ = [
     "RevisionCitationInput",
     "RevisionCitationView",
     "RevisionResult",
+    "RevisionSummary",
     "RevisionView",
 ]

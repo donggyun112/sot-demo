@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from sot.document.contracts import DocumentSummary, DocumentView, RevisionView
+from sot.document.contracts import (
+    DocumentSummary,
+    DocumentView,
+    RevisionSummary,
+    RevisionView,
+)
 from sot.document.domain import Document, Revision
 from sot.shared.ids import DocumentId, WorkspaceId
 from sot.shared.unit_of_work import TransactionContext
@@ -36,6 +41,15 @@ class DocumentRepository(Protocol):
         """Conditionally advance from expected_version or raise VersionConflict."""
         ...
 
+    async def save_title(
+        self,
+        tx: TransactionContext,
+        workspace_id: WorkspaceId,
+        document: Document,
+    ) -> None:
+        """Store the document's title. Leaves the revision history alone."""
+        ...
+
 
 class DocumentQuery(Protocol):
     async def get(
@@ -52,6 +66,15 @@ class DocumentQuery(Protocol):
         document_id: DocumentId,
         number: int,
     ) -> RevisionView | None: ...
+
+    async def list_revisions(
+        self,
+        tx: TransactionContext,
+        workspace_id: WorkspaceId,
+        document_id: DocumentId,
+    ) -> tuple[RevisionSummary, ...]:
+        """Newest first. Empty for a document the workspace does not have."""
+        ...
 
 
 class DocumentPublicationQuery(Protocol):

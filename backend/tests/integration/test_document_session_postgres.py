@@ -725,6 +725,66 @@ async def test_composed_document_session_routes_contracts_rbac_and_versions(
         assert preview.status_code == 200 and [
             i["content"] for i in preview.json()
         ] == ["Q", "edited"]
+        # A title is a label: renaming it writes no revision.
+        renamed = await client.patch(
+            doc_url, json={"title": "  Rate limits  "}, headers=headers
+        )
+        assert renamed.status_code == 200
+        assert renamed.json()["title"] == "Rate limits"
+        assert renamed.json()["version"] == 1
+        assert (await client.get(doc_url, headers=headers)).json()["document"][
+            "title"
+        ] == "Rate limits"
+        history = await client.get(doc_url + "/revisions", headers=headers)
+        assert history.status_code == 200
+        assert [item["number"] for item in history.json()] == [1]
+        assert "content" not in history.json()[0]
+        # Renaming is the same right as creating, so the other owner has it —
+        # and it is scoped to the workspace the document is actually in.
+        assert (
+            await client.patch(doc_url, json={"title": "Theirs"}, headers=other_headers)
+        ).status_code == 200
+        assert (
+            await client.patch(doc_url, json={"title": "Rate limits"}, headers=headers)
+        ).status_code == 200
+        assert (
+            await client.patch(
+                doc_url.replace(w, other_w), json={"title": "x"}, headers=headers
+            )
+        ).status_code == 404
+
+        # The session was handed over read-only, so the way its holder answers
+        # is a session of their own.
+        forked = await client.post(
+            session_url + "/forks",
+            json={"branch_id": branch_id},
+            headers=other_headers,
+        )
+        assert forked.status_code == 201, forked.text
+        assert forked.json()["session_id"] != session_id
+        fork_session = root + "/sessions/" + forked.json()["session_id"]
+        fork_branch = root + "/branches/" + forked.json()["branch_id"]
+        read_fork = await client.get(fork_session, headers=other_headers)
+        assert read_fork.status_code == 200
+        assert read_fork.json()["forked_from_session_id"] == session_id
+        assert read_fork.json()["forked_from_branch_id"] == branch_id
+        assert read_fork.json()["document_id"] == str(document.document.id)
+        copied = await client.get(fork_branch + "/turns", headers=other_headers)
+        assert copied.status_code == 200
+        assert [item["content"] for item in copied.json()] == ["Q", "A"]
+        assert {item["id"] for item in copied.json()}.isdisjoint(
+            str(turn.id) for turn in appended.turns
+        )
+        # It is theirs alone: the session it came out of never learns about it.
+        assert (await client.get(fork_session, headers=headers)).status_code == 404
+        # And the source is untouched.
+        assert [
+            item["content"]
+            for item in (
+                await client.get(branch_url + "/turns", headers=headers)
+            ).json()
+        ] == ["Q", "A"]
+
         for path, invalid in (
             (doc_url + "/sessions", {"document_id": None}),
             (session_url + "/branches", {"workspace_id": other_w}),

@@ -304,7 +304,8 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /** Rename */
+        patch: operations["rename_workspace_document"];
         trace?: never;
     };
     "/api/v1/workspaces/{workspace_id}/documents/{document_id}/proposals": {
@@ -319,6 +320,23 @@ export interface paths {
         put?: never;
         /** Create Proposal */
         post: operations["create_proposal_api_v1_workspaces__workspace_id__documents__document_id__proposals_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/documents/{document_id}/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Revisions */
+        get: operations["list_document_revisions"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -511,6 +529,23 @@ export interface paths {
         put?: never;
         /** Branch */
         post: operations["branch_api_v1_workspaces__workspace_id__sessions__session_id__branches_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/sessions/{session_id}/forks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Fork */
+        post: operations["fork_api_v1_workspaces__workspace_id__sessions__session_id__forks_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -841,6 +876,14 @@ export interface components {
         };
         /** EmptySessionRequest */
         EmptySessionRequest: Record<string, never>;
+        /** ForkSessionRequest */
+        ForkSessionRequest: {
+            /**
+             * Branch Id
+             * Format: uuid
+             */
+            branch_id: string;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -1102,6 +1145,11 @@ export interface components {
             /** Code */
             code: string;
         };
+        /** RenameDocumentRequest */
+        RenameDocumentRequest: {
+            /** Title */
+            title: string;
+        };
         /** RestoreTurnRequest */
         RestoreTurnRequest: {
             /**
@@ -1177,6 +1225,28 @@ export interface components {
              */
             workspace_id: string;
         };
+        /** RevisionSummaryResponse */
+        RevisionSummaryResponse: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Created By
+             * Format: uuid
+             */
+            created_by: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Number */
+            number: number;
+            /** Proposal Id */
+            proposal_id: string | null;
+        };
         /** SendSessionRequest */
         SendSessionRequest: {
             /**
@@ -1224,6 +1294,10 @@ export interface components {
             created_by: string;
             /** Document Id */
             document_id: string | null;
+            /** Forked From Branch Id */
+            forked_from_branch_id?: string | null;
+            /** Forked From Session Id */
+            forked_from_session_id?: string | null;
             /**
              * Id
              * Format: uuid
@@ -1913,6 +1987,42 @@ export interface operations {
             };
         };
     };
+    rename_workspace_document: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RenameDocumentRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentSummaryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_document_proposals: {
         parameters: {
             query?: never;
@@ -1968,6 +2078,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProposalResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_document_revisions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevisionSummaryResponse"][];
                 };
             };
             /** @description Validation Error */
@@ -2502,6 +2644,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BranchResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    fork_api_v1_workspaces__workspace_id__sessions__session_id__forks_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ForkSessionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedSessionResponse"];
                 };
             };
             /** @description Validation Error */

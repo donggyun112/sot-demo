@@ -584,3 +584,92 @@ it("sends a session to a workspace member instead of minting a link", async () =
   // They hold it as an editor: the point is to continue it together.
   expect(await screen.findByText("Editor")).toBeVisible();
 });
+
+
+it("renames a document without writing a revision", async () => {
+  // A name is picked before anyone knows what the document will say, so it
+  // has to stay changeable — and changing it is not a change to the text.
+  const server = createServer();
+  // Naming the canonical document is the same right as creating one.
+  server.state.permissions = [...server.state.permissions, "document.create"];
+  await signIn(server);
+  await openDocument();
+  await userEvent.click(await screen.findByRole("button", { name: "Rename" }));
+  const field = await screen.findByLabelText("Document title");
+  await userEvent.clear(field);
+  await userEvent.type(field, "레이트리밋 정책");
+  await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+  expect(
+    await screen.findByRole("heading", { name: "레이트리밋 정책", level: 1 }),
+  ).toBeVisible();
+  const patch = server.requests.find((item) => item.method === "PATCH");
+  expect(patch).toBeDefined();
+  expect(await patch!.json()).toEqual({ title: "레이트리밋 정책" });
+  // The history is untouched: renaming is not a revision.
+  expect(server.state.revisions).toHaveLength(2);
+});
+
+it("reads an earlier revision and says it is not the current text", async () => {
+  const server = createServer();
+  await signIn(server);
+  await openDocument();
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Evidence" }),
+  );
+  const history = await screen.findByRole("region", { name: "History" });
+  await userEvent.click(
+    within(history).getByRole("button", { name: /Revision 1/ }),
+  );
+
+  expect(await screen.findByText(/처음 쓴 합의/)).toBeVisible();
+  expect(
+    screen.getByText(/Reading revision 1\. This is not the current text\./),
+  ).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: "Back to current" }));
+  expect(await screen.findByText(/초기 합의/)).toBeVisible();
+});
+
+it("a viewer forks the conversation instead of asking for write access", async () => {
+  const server = createServer();
+  // Sent this session read-only: they can follow it and not answer in it.
+  server.state.sessionMembers = [
+    {
+      workspace_id: "w1",
+      session_id: "session-1",
+      user_id: member.id,
+      role: "viewer",
+    },
+  ];
+  await signIn(server);
+  await openDocument();
+  await userEvent.click(await screen.findByRole("link", { name: "Sessions" }));
+  await userEvent.click(await screen.findByRole("button", { name: "New session" }));
+
+  const fork = await screen.findByRole("button", {
+    name: "Continue in a session of your own",
+  });
+  await userEvent.click(fork);
+
+  // They land in their own session, which says where it came from.
+  expect(
+    await screen.findByText("Forked from a session"),
+  ).toBeVisible();
+  expect(
+    screen.getByRole("link", { name: "Open the session it came from" }),
+  ).toBeVisible();
+  const forked = server.requests.find((item) => item.url.endsWith("/forks"));
+  expect(forked).toBeDefined();
+  expect(await forked!.json()).toEqual({ branch_id: "branch-1" });
+});
+
+it("offers no fork in a session you can already write in", async () => {
+  await signIn();
+  await openDocument();
+  await userEvent.click(await screen.findByRole("link", { name: "Sessions" }));
+  await userEvent.click(await screen.findByRole("button", { name: "New session" }));
+  expect(await screen.findByLabelText("Agent message")).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "Continue in a session of your own" }),
+  ).toBeNull();
+});

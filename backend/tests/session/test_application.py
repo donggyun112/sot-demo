@@ -19,6 +19,7 @@ from sot.session.application import (
     CloseSession,
     CreateBranch,
     CreateSession,
+    ForkSession,
     GetSession,
     InviteSessionMember,
     RequiredApprovers,
@@ -34,6 +35,7 @@ from sot.session.domain import (
     SessionMember,
     SessionMemberAlreadyExists,
     SessionNotFound,
+    SessionOrigin,
     SessionPermission,
     SessionRole,
     SessionStatus,
@@ -610,3 +612,126 @@ async def test_branch_creation_and_required_approvers_are_session_scoped() -> No
     assert approvers == {actor.user_id, editor}
     assert context.document_id == document_id
     assert context.turns == ()
+
+
+def forker(store: Memory) -> ForkSession:
+    return ForkSession(
+        store,
+        store,
+        BranchAccess(store, access(store), store),
+        lambda: store,
+        FixedClock(),
+    )
+
+
+async def conversation(
+    store: Memory, actor: Actor, workspace_id: WorkspaceId, document_id: DocumentId
+) -> contracts.CreatedSessionResult:
+    created = await creator(store).execute(actor, workspace_id, document_id)
+    await AppendCompletedTurns(
+        store, BranchAccess(store, access(store), store), lambda: store, FixedClock()
+    ).execute(
+        actor,
+        workspace_id,
+        created.branch_id,
+        expected_version=0,
+        messages=(NewTurn("user", "why five?"), NewTurn("assistant", "because ten")),
+    )
+    return created
+
+
+@pytest.mark.asyncio
+async def test_a_reader_forks_the_conversation_into_a_session_they_own() -> None:
+    """A session sent read-only is a dead end until you can take it somewhere."""
+    store, owner, workspace_id, document_id = setup()
+    source = await conversation(store, owner, workspace_id, document_id)
+    reader = Actor(UserId(uuid4()))
+    store.workspace_members[workspace_id, reader.user_id] = WorkspaceMembership(
+        workspace_id, reader.user_id, WorkspaceRole.MEMBER
+    )
+    async with store.transaction() as tx:
+        await store.add_member(
+            tx,
+            workspace_id,
+            SessionMember(
+                workspace_id, source.session_id, reader.user_id, SessionRole.VIEWER
+            ),
+        )
+
+    forked = await forker(store).execute(
+        reader, workspace_id, source.session_id, branch_id=source.branch_id
+    )
+
+    assert forked.session_id != source.session_id
+    session = store.sessions[workspace_id, forked.session_id]
+    assert session.created_by == reader.user_id
+    assert session.document_id == document_id
+    assert session.origin == SessionOrigin(source.session_id, source.branch_id)
+    # The forker owns their copy: reading someone else's is what they had.
+    assert (
+        store.members[workspace_id, forked.session_id, reader.user_id].role
+        is SessionRole.OWNER
+    )
+    # The transcript comes across word for word, in order, with new identity.
+    original = store.branches[workspace_id, source.branch_id]
+    copy = store.branches[workspace_id, forked.branch_id]
+    assert [(t.ordinal, t.role, t.content) for t in copy.turns] == [
+        (t.ordinal, t.role, t.content) for t in original.turns
+    ]
+    assert {t.id for t in copy.turns}.isdisjoint({t.id for t in original.turns})
+    assert all(turn.branch_id == forked.branch_id for turn in copy.turns)
+    # Nothing the forker does lands in the session they read.
+    assert original.session_id == source.session_id
+    assert len(store.branches[workspace_id, source.branch_id].turns) == 2
+
+
+@pytest.mark.asyncio
+async def test_forking_a_session_you_cannot_read_finds_nothing() -> None:
+    store, owner, workspace_id, document_id = setup()
+    source = await conversation(store, owner, workspace_id, document_id)
+    stranger = Actor(UserId(uuid4()))
+    store.workspace_members[workspace_id, stranger.user_id] = WorkspaceMembership(
+        workspace_id, stranger.user_id, WorkspaceRole.MEMBER
+    )
+
+    with pytest.raises(SessionNotFound):
+        await forker(store).execute(
+            stranger, workspace_id, source.session_id, branch_id=source.branch_id
+        )
+
+    assert len(store.sessions) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_workspace_viewer_may_not_fork_because_they_may_not_start_one() -> None:
+    store, owner, workspace_id, document_id = setup()
+    source = await conversation(store, owner, workspace_id, document_id)
+    viewer = Actor(UserId(uuid4()))
+    store.workspace_members[workspace_id, viewer.user_id] = WorkspaceMembership(
+        workspace_id, viewer.user_id, WorkspaceRole.VIEWER
+    )
+    async with store.transaction() as tx:
+        await store.add_member(
+            tx,
+            workspace_id,
+            SessionMember(
+                workspace_id, source.session_id, viewer.user_id, SessionRole.VIEWER
+            ),
+        )
+
+    with pytest.raises(WorkspaceForbidden):
+        await forker(store).execute(
+            viewer, workspace_id, source.session_id, branch_id=source.branch_id
+        )
+
+
+@pytest.mark.asyncio
+async def test_forking_names_the_session_the_branch_actually_belongs_to() -> None:
+    store, actor, workspace_id, document_id = setup()
+    source = await conversation(store, actor, workspace_id, document_id)
+    other = await conversation(store, actor, workspace_id, document_id)
+
+    with pytest.raises(SessionNotFound):
+        await forker(store).execute(
+            actor, workspace_id, other.session_id, branch_id=source.branch_id
+        )

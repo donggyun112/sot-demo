@@ -14,7 +14,7 @@ async def test_document_routes_require_bearer_authentication() -> None:
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app), base_url="https://test"
     ) as client:
-        for path in (prefix, prefix + "/revisions/1"):
+        for path in (prefix, prefix + "/revisions", prefix + "/revisions/1"):
             result = await client.get(path, headers={"X-SOT-User": "alice"})
             assert result.status_code == 401
             assert result.json() == {
@@ -29,6 +29,10 @@ async def test_document_routes_require_bearer_authentication() -> None:
             json={"title": "Policy", "content": ""},
         )
         assert created.status_code == 401
+        renamed = await client.patch(
+            prefix, headers={"X-SOT-User": "alice"}, json={"title": "Renamed"}
+        )
+        assert renamed.status_code == 401
 
 
 def test_document_response_contracts_are_closed_explicit_models() -> None:
@@ -47,3 +51,17 @@ def test_document_response_contracts_are_closed_explicit_models() -> None:
             "$ref": f"#/components/schemas/{model}"
         }
         assert schema["components"]["schemas"][model]["additionalProperties"] is False
+    # Renaming answers with the summary alone: a title change writes no
+    # revision, so there is no new body to send back.
+    renamed = schema["paths"][prefix]["patch"]["responses"]["200"]
+    assert renamed["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/DocumentSummaryResponse"
+    }
+    history = schema["paths"][prefix + "/revisions"]["get"]["responses"]["200"]
+    assert history["content"]["application/json"]["schema"]["items"] == {
+        "$ref": "#/components/schemas/RevisionSummaryResponse"
+    }
+    # The history list carries no bodies: it is what changed, not the text.
+    summary = schema["components"]["schemas"]["RevisionSummaryResponse"]
+    assert summary["additionalProperties"] is False
+    assert "content" not in summary["properties"]

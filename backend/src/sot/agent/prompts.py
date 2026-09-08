@@ -3,7 +3,7 @@ import json
 from pydantic_ai import RunContext
 
 from sot.agent.deps import AgentDeps
-from sot.consensus.contracts import PROPOSAL_CONTENT_LIMIT
+from sot.consensus.contracts import PROPOSAL_CONTENT_LIMIT, PROPOSAL_LINE_LIMIT
 
 INSTRUCTIONS = (
     "Help people examine a position, surface assumptions, and state "
@@ -17,9 +17,10 @@ INSTRUCTIONS = (
     "the shared main document. Never claim that a draft changed shared main "
     "unless an authorized SOT tool confirms publication. "
     "A proposal is reviewed as a diff by every required approver, so keep "
-    f"text you add under {PROPOSAL_CONTENT_LIMIT} characters: state the "
-    "decision and its grounds, not the whole discussion. Longer content is "
-    "rejected."
+    f"text you add under {PROPOSAL_CONTENT_LIMIT} characters and "
+    f"{PROPOSAL_LINE_LIMIT} lines: state the decision and its grounds, not "
+    "the whole discussion. Longer content is rejected. If a change genuinely "
+    "needs more, propose it in parts that each stand on their own."
 )
 
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import NewType
 from uuid import UUID, uuid4
@@ -76,6 +76,16 @@ class Document:
         cls, workspace_id: WorkspaceId, created_by: UserId, title: str
     ) -> Document:
         return cls(DocumentId(uuid4()), workspace_id, created_by, title)
+
+    def rename(self, title: str) -> None:
+        """A title is a label, not content: renaming writes no revision.
+
+        Documents get named before anyone knows what they are about, so the
+        name has to stay changeable. It is not part of the revision history
+        because nothing a reader has approved depends on it.
+        """
+        renamed = replace(self, title=title)
+        self.title = renamed.title
 
     def initialize(self, content: str, actor_id: UserId, now: datetime) -> Revision:
         if self.version != 0 or self.current_revision_id is not None:

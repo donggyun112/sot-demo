@@ -20,6 +20,10 @@ from sot.shared.ids import (
 # grow one without bound. Every create/revise path builds a ProposalVersion,
 # so this is the only place the cap has to be enforced.
 PROPOSAL_CONTENT_LIMIT = 4000
+# Characters alone do not bound a diff: a list, a table or a block of code is
+# short per line and still scrolls off the screen. Nobody reads a two-thousand
+# line update, so the cap that matters to a reviewer is lines.
+PROPOSAL_LINE_LIMIT = 200
 
 
 class ProposalStatus(StrEnum):
@@ -132,6 +136,13 @@ class ProposalVersion:
                 "proposal_content_too_long",
                 f"Proposal content is {len(self.added)} characters; "
                 f"keep it within {PROPOSAL_CONTENT_LIMIT} so approvers can review it",
+            )
+        lines = self.added.count("\n") + 1
+        if lines > PROPOSAL_LINE_LIMIT:
+            raise InvalidInput(
+                "proposal_content_too_many_lines",
+                f"Proposal content is {lines} lines; keep it within "
+                f"{PROPOSAL_LINE_LIMIT} so approvers can review it in one sitting",
             )
         if len(set(self.bundle_ids)) != len(self.bundle_ids):
             raise InvalidInput("proposal_bundles_invalid", "Duplicate proposal bundles")

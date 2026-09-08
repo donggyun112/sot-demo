@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from enum import StrEnum
 from typing import Literal
@@ -93,6 +93,14 @@ class SessionMember:
     role: SessionRole
 
 
+@dataclass(frozen=True, slots=True)
+class SessionOrigin:
+    """The conversation a session was forked from, at the branch it read."""
+
+    session_id: SessionId
+    branch_id: BranchId
+
+
 @dataclass(slots=True)
 class Session:
     id: SessionId
@@ -101,6 +109,7 @@ class Session:
     created_by: UserId
     created_at: datetime
     status: SessionStatus = SessionStatus.OPEN
+    origin: SessionOrigin | None = None
 
     @classmethod
     def create(
@@ -113,6 +122,32 @@ class Session:
         if document_id is None:
             raise InvalidInput("session_document_required", "A document is required")
         return cls(SessionId(uuid4()), workspace_id, document_id, created_by, now)
+
+    @classmethod
+    def fork(
+        cls,
+        source: Session,
+        branch_id: BranchId,
+        created_by: UserId,
+        now: datetime,
+    ) -> Session:
+        """Start a session of your own from a conversation you can read.
+
+        Being sent a session read-only leaves you following an argument with
+        nowhere to take it. A fork is where you take it: the same document,
+        the transcript as it stands, and a record of where it came from.
+        """
+        source.require_open()
+        if source.document_id is None:
+            raise InvalidInput("session_document_required", "A document is required")
+        return cls(
+            SessionId(uuid4()),
+            source.workspace_id,
+            source.document_id,
+            created_by,
+            now,
+            origin=SessionOrigin(source.id, branch_id),
+        )
 
     def require_open(self) -> None:
         if self.status is not SessionStatus.OPEN:
@@ -172,6 +207,33 @@ class Branch:
         now: datetime,
     ) -> Branch:
         return cls(BranchId(uuid4()), workspace_id, session_id, created_by, now)
+
+    @classmethod
+    def copy_of(
+        cls,
+        source: Branch,
+        session_id: SessionId,
+        created_by: UserId,
+        now: datetime,
+    ) -> Branch:
+        """The same conversation, in a branch the copier owns.
+
+        Turns keep the words, the order and the moment they were said: a fork
+        is a copy of a record, not a re-enactment of it. Only their identity
+        is new, because they now belong to a different branch.
+        """
+        branch_id = BranchId(uuid4())
+        return cls(
+            branch_id,
+            source.workspace_id,
+            session_id,
+            created_by,
+            now,
+            source.version,
+            tuple(
+                replace(turn, id=uuid4(), branch_id=branch_id) for turn in source.turns
+            ),
+        )
 
     def append_completed(
         self, *, expected_version: int, messages: tuple[NewTurn, ...], now: datetime

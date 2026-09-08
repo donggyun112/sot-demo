@@ -165,7 +165,7 @@ test("private draft, hand-off to a teammate and explicit consensus merge", async
     // The curated conversation is what a proposal will freeze as its grounds.
     // Nobody publishes it: there is no button for that, and never was a reason
     // to make a person do it.
-    const preview = alice.getByRole("region", { name: "Bundle preview" });
+    const preview = alice.getByRole("region", { name: "Grounds this session carries" });
     await expect(preview).toContainText(summary);
     await expect(preview).not.toContainText(privatePrompt);
     await expect(alice.getByRole("button", { name: "Publish bundle" })).toHaveCount(0);
@@ -229,7 +229,8 @@ test("private draft, hand-off to a teammate and explicit consensus merge", async
     await expect(alice.getByText("Merged", { exact: true })).toBeVisible();
 
     await alice.goto(`/w/${aw}/documents/${documents[0].id}`);
-    await expect(alice.getByText(`Revision ${original.current_revision.number + 1}`)).toBeVisible();
+    // The history lists revision numbers too, so say which one is the document.
+    await expect(alice.getByRole("article").getByText(`Revision ${original.current_revision.number + 1}`)).toBeVisible();
     // The edit was an append, so the document it was written against is
     // still there: merging edits, not overwriting.
     await expect(alice.getByRole("article")).toContainText(content);

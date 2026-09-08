@@ -40,7 +40,9 @@ from sot.document.application import (
     GetDocument,
     GetRevision,
     ListDocuments,
+    ListRevisions,
     PublishDocumentRevision,
+    RenameDocument,
 )
 from sot.document.postgres import PostgresDocumentRepository
 from sot.identity.api import build_auth_router, resolve_actor, resolve_development_actor
@@ -62,6 +64,7 @@ from sot.session.application import (
     BundleAccess,
     CreateBranch,
     CreateSession,
+    ForkSession,
     FreezeEvidence,
     GetSession,
     InviteSessionMember,
@@ -239,12 +242,15 @@ def build_app(
             GetDocument(document_access, uow_factory),
             GetRevision(documents, access, uow_factory),
             ListDocuments(documents, access, uow_factory),
+            ListRevisions(documents, access, uow_factory),
+            RenameDocument(documents, access, uow_factory),
             actor,
         )
     )
     application.include_router(
         build_session_router(
             CreateSession(sessions, access, document_access, uow_factory, clock),
+            ForkSession(sessions, access, branch_access, uow_factory, clock),
             GetSession(session_access, uow_factory),
             CreateBranch(sessions, session_access, uow_factory, clock),
             curation,

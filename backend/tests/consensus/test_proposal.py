@@ -7,6 +7,7 @@ import pytest
 
 from sot.consensus.domain import (
     PROPOSAL_CONTENT_LIMIT,
+    PROPOSAL_LINE_LIMIT,
     ApprovalDecision,
     DocumentEdit,
     Proposal,
@@ -200,6 +201,72 @@ def test_content_over_the_review_limit_is_rejected_on_every_path() -> None:
             now=NOW,
         )
     assert revised.value.code == "proposal_content_too_long"
+
+
+def test_a_wall_of_short_lines_is_rejected_even_under_the_character_limit() -> None:
+    """A list or a table is short per line and still unreadable as a diff."""
+    many_lines = "\n".join("- item" for _ in range(PROPOSAL_LINE_LIMIT + 1))
+    assert len(many_lines) < PROPOSAL_CONTENT_LIMIT
+    with pytest.raises(InvalidInput) as created:
+        Proposal.create(
+            workspace_id=WorkspaceId(uuid4()),
+            document_id=DocumentId(uuid4()),
+            source_session_id=SessionId(uuid4()),
+            created_by=ALICE,
+            base_revision_id=uuid4(),
+            edits=(DocumentEdit("", many_lines),),
+            required_approver_ids=frozenset({ALICE}),
+            bundle_ids=(),
+            citations=(),
+            now=NOW,
+        )
+    assert created.value.code == "proposal_content_too_many_lines"
+    with pytest.raises(InvalidInput) as revised:
+        proposal().revise(
+            actor_id=ALICE,
+            expected_version=1,
+            base_revision_id=uuid4(),
+            edits=(DocumentEdit("", many_lines),),
+            required_approver_ids=frozenset({ALICE, BOB}),
+            bundle_ids=(),
+            citations=(),
+            now=NOW,
+        )
+    assert revised.value.code == "proposal_content_too_many_lines"
+    # Split across edits it is the same wall of text, so the cap is on the
+    # whole version rather than on one edit.
+    half = "\n".join("- item" for _ in range(PROPOSAL_LINE_LIMIT // 2 + 1))
+    with pytest.raises(InvalidInput) as split:
+        Proposal.create(
+            workspace_id=WorkspaceId(uuid4()),
+            document_id=DocumentId(uuid4()),
+            source_session_id=SessionId(uuid4()),
+            created_by=ALICE,
+            base_revision_id=uuid4(),
+            edits=(DocumentEdit("", half), DocumentEdit("a", half)),
+            required_approver_ids=frozenset({ALICE}),
+            bundle_ids=(),
+            citations=(),
+            now=NOW,
+        )
+    assert split.value.code == "proposal_content_too_many_lines"
+
+
+def test_content_at_the_line_limit_is_accepted() -> None:
+    at_limit = "\n".join("- item" for _ in range(PROPOSAL_LINE_LIMIT))
+    created = Proposal.create(
+        workspace_id=WorkspaceId(uuid4()),
+        document_id=DocumentId(uuid4()),
+        source_session_id=SessionId(uuid4()),
+        created_by=ALICE,
+        base_revision_id=uuid4(),
+        edits=(DocumentEdit("", at_limit),),
+        required_approver_ids=frozenset({ALICE}),
+        bundle_ids=(),
+        citations=(),
+        now=NOW,
+    )
+    assert created.current_version.edits == (DocumentEdit("", at_limit),)
 
 
 def test_content_at_the_review_limit_is_accepted() -> None:

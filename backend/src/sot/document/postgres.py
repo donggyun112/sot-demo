@@ -7,6 +7,7 @@ from sot.document.contracts import (
     DocumentSummary,
     DocumentView,
     RevisionCitationView,
+    RevisionSummary,
     RevisionView,
 )
 from sot.document.domain import Document, Revision, RevisionId, VersionConflict
@@ -122,6 +123,44 @@ class PostgresDocumentRepository:
         if await cursor.fetchone() is None:
             raise VersionConflict()
         await self._insert_revision(tx, workspace_id, revision)
+
+    async def save_title(
+        self,
+        tx: TransactionContext,
+        workspace_id: WorkspaceId,
+        document: Document,
+    ) -> None:
+        # No version condition: a title is a label, and the last person to
+        # name it wins. The revision history is what carries concurrency.
+        await connection(tx).execute(
+            "UPDATE sot.sot_document SET title=%s WHERE workspace_id=%s AND id=%s",
+            (document.title, workspace_id, document.id),
+        )
+
+    async def list_revisions(
+        self,
+        tx: TransactionContext,
+        workspace_id: WorkspaceId,
+        document_id: DocumentId,
+    ) -> tuple[RevisionSummary, ...]:
+        rows = await (
+            await connection(tx).execute(
+                "SELECT id,number,proposal_id,created_by,created_at "
+                "FROM sot.sot_document_revision "
+                "WHERE workspace_id=%s AND document_id=%s ORDER BY number DESC",
+                (workspace_id, document_id),
+            )
+        ).fetchall()
+        return tuple(
+            RevisionSummary(
+                RevisionId(r[0]),
+                r[1],
+                ProposalId(r[2]) if r[2] else None,
+                UserId(r[3]),
+                r[4],
+            )
+            for r in rows
+        )
 
     @staticmethod
     def _validate(

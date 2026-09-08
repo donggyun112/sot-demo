@@ -1,10 +1,11 @@
 from typing import Literal, TypedDict
 
-from pydantic_ai import RunContext
+from pydantic_ai import ModelRetry, RunContext
 
 from sot.agent.deps import AgentDeps
 from sot.consensus.contracts import DocumentEdit
 from sot.session.contracts import TurnId
+from sot.shared.errors import InvalidInput
 
 
 class SessionCiteResult(TypedDict):
@@ -51,13 +52,20 @@ async def sot_update(
     decision changes.
     """
     deps = ctx.deps
-    result = await deps.proposal_creator.create_from_agent(
-        actor=deps.actor,
-        workspace_id=deps.workspace_id,
-        branch_id=deps.branch_id,
-        expected_branch_version=deps.lineage.expected_version,
-        edits=tuple(DocumentEdit(e["find"], e["replace"]) for e in edits),
-    )
+    try:
+        result = await deps.proposal_creator.create_from_agent(
+            actor=deps.actor,
+            workspace_id=deps.workspace_id,
+            branch_id=deps.branch_id,
+            expected_branch_version=deps.lineage.expected_version,
+            edits=tuple(DocumentEdit(e["find"], e["replace"]) for e in edits),
+        )
+    except InvalidInput as rejected:
+        # An anchor that matches nothing, an anchor that matches twice, an
+        # update too long to review: all of them are this call being wrong,
+        # and all of them the model can fix by writing a smaller, better
+        # aimed edit. Anything else (a conflict, a permission) is not.
+        raise ModelRetry(rejected.message) from rejected
     deps.lineage.advance_to(result.branch_version)
     return {
         "proposalId": str(result.resource_id),

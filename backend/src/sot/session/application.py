@@ -99,6 +99,8 @@ class SessionAccess:
             session.created_by,
             session.created_at,
             session.status,
+            session.origin.session_id if session.origin else None,
+            session.origin.branch_id if session.origin else None,
         )
 
 
@@ -176,6 +178,76 @@ class CreateSession:
             now = self._clock.now()
             session = Session.create(workspace_id, document_id, actor.user_id, now)
             branch = Branch.create(workspace_id, session.id, actor.user_id, now)
+            await self._repository.create_session(tx, workspace_id, session)
+            await self._repository.add_member(
+                tx,
+                workspace_id,
+                SessionMember(
+                    workspace_id, session.id, actor.user_id, SessionRole.OWNER
+                ),
+            )
+            await self._repository.create_branch(tx, workspace_id, branch)
+            return CreatedSessionResult(session.id, branch.id)
+
+
+class ForkSession:
+    """Continue a conversation you can read, in a session of your own.
+
+    Being sent a session as a viewer leaves you following an argument with
+    nowhere to take it: you cannot type in someone else's session, and asking
+    them to promote you turns a thought into a negotiation. Forking copies
+    the transcript as it stands into a session you own, which is what
+    "talking in someone's session" always actually meant.
+    """
+
+    def __init__(
+        self,
+        repository: SessionRepository,
+        authorizer: WorkspaceAuthorizer,
+        branches: BranchContextReader,
+        uow_factory: UnitOfWorkFactory,
+        clock: Clock,
+    ) -> None:
+        self._repository = repository
+        self._authorizer = authorizer
+        self._branches = branches
+        self._uow_factory = uow_factory
+        self._clock = clock
+
+    async def execute(
+        self,
+        actor: Actor,
+        workspace_id: WorkspaceId,
+        session_id: SessionId,
+        *,
+        branch_id: BranchId,
+    ) -> CreatedSessionResult:
+        async with self._uow_factory().transaction() as tx:
+            await self._authorizer.require(
+                tx, actor, workspace_id, Permission.SESSION_CREATE
+            )
+            # Reading the branch is the whole permission check: it proves the
+            # branch is in this session and that the actor may read it.
+            context = await self._branches.read(
+                tx,
+                actor=actor,
+                workspace_id=workspace_id,
+                branch_id=branch_id,
+                permission=SessionPermission.READ,
+            )
+            if context.session_id != session_id:
+                raise SessionNotFound()
+            source_session = await self._repository.load_session(
+                tx, workspace_id, session_id
+            )
+            source_branch = await self._repository.load_branch(
+                tx, workspace_id, branch_id
+            )
+            if source_session is None or source_branch is None:
+                raise SessionNotFound()
+            now = self._clock.now()
+            session = Session.fork(source_session, branch_id, actor.user_id, now)
+            branch = Branch.copy_of(source_branch, session.id, actor.user_id, now)
             await self._repository.create_session(tx, workspace_id, session)
             await self._repository.add_member(
                 tx,

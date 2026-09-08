@@ -88,7 +88,17 @@
     "pending": "대기 중인 변경",
     "noPending": "대기 중인 변경이 없습니다.",
     "pendingCount_other": "대기 {{count}}건",
-    "startSessionHint": "AI와 함께 초안을 작성한 뒤 제안으로 올립니다."
+    "startSessionHint": "AI와 함께 초안을 작성한 뒤 제안으로 올립니다.",
+    "rename": "제목 변경",
+    "renameLabel": "문서 제목",
+    "renameSave": "저장",
+    "history": "변경 이력",
+    "historyOf": "리비전 {{number}}",
+    "historyBy": "{{name}}",
+    "historyProposal": "제안에서 반영",
+    "historyInitial": "첫 리비전",
+    "reading": "리비전 {{number}}을 보고 있습니다. 현재 본문이 아닙니다.",
+    "backToCurrent": "현재 본문으로"
   },
   "sessions": {
     "title": "세션",
@@ -98,8 +108,8 @@
     "original": "원본",
     "noCite": "연결된 문서가 없습니다.",
     "side": "세션",
-    "preview": "게시할 근거",
-    "previewEmpty": "아직 선별한 대화가 없습니다.",
+    "preview": "이 세션이 남기는 근거",
+    "previewEmpty": "여기 있는 대화가 이 세션에서 만들어진 업데이트의 근거가 됩니다.",
     "shared": "공유됨",
     "curation": "대화 선별",
     "drop": "제외",
@@ -123,7 +133,11 @@
     "needParticipate": "이 워크스페이스에서는 읽기만 가능합니다.",
     "needDocument": "이 세션은 문서에 연결되어 있지 않습니다.",
     "restore": "되돌리기",
-    "agentUpdates": "문서 업데이트는 에이전트가 만듭니다. 세션에서 반영을 요청하세요."
+    "agentUpdates": "문서 업데이트는 에이전트가 만듭니다. 세션에서 반영을 요청하세요.",
+    "fork": "내 세션으로 이어서 대화",
+    "forkHint": "여기까지의 대화를 복사합니다. 내가 쓰는 내용은 원본에 남지 않습니다.",
+    "forkedFrom": "다른 세션에서 이어온 대화",
+    "forkOpen": "원본 세션 열기"
   },
   "common": {
     "loading": "불러오는 중…",

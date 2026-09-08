@@ -6,6 +6,7 @@ from typing import Protocol
 
 from sot.consensus.domain import (
     PROPOSAL_CONTENT_LIMIT,
+    PROPOSAL_LINE_LIMIT,
     Approval,
     ApprovalDecision,
     DocumentEdit,
@@ -81,6 +82,7 @@ class ProposalCreator(Protocol):
 
 __all__ = [
     "PROPOSAL_CONTENT_LIMIT",
+    "PROPOSAL_LINE_LIMIT",
     "Approval",
     "ApprovalDecision",
     "DocumentEdit",

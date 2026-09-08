@@ -11,8 +11,15 @@ from sot.document.application import (
     GetDocument,
     GetRevision,
     ListDocuments,
+    ListRevisions,
+    RenameDocument,
 )
-from sot.document.contracts import DocumentSummary, DocumentView, RevisionView
+from sot.document.contracts import (
+    DocumentSummary,
+    DocumentView,
+    RevisionSummary,
+    RevisionView,
+)
 from sot.identity.contracts import Actor
 from sot.shared.ids import DocumentId, WorkspaceId
 
@@ -77,12 +84,39 @@ class RevisionResponse(BaseModel):
         )
 
 
+DocumentTitle = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)
+]
+
+
 class CreateDocumentRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    title: Annotated[
-        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)
-    ]
+    title: DocumentTitle
     content: str = ""
+
+
+class RenameDocumentRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    title: DocumentTitle
+
+
+class RevisionSummaryResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: UUID
+    number: int
+    proposal_id: UUID | None
+    created_by: UUID
+    created_at: datetime
+
+    @classmethod
+    def from_summary(cls, value: RevisionSummary) -> "RevisionSummaryResponse":
+        return cls(
+            id=value.id,
+            number=value.number,
+            proposal_id=value.proposal_id,
+            created_by=value.created_by,
+            created_at=value.created_at,
+        )
 
 
 class DocumentResponse(BaseModel):
@@ -103,6 +137,8 @@ def build_document_router(
     get_document: GetDocument,
     get_revision: GetRevision,
     list_documents: ListDocuments,
+    list_revisions: ListRevisions,
+    rename_document: RenameDocument,
     actor: Callable[[Request], Awaitable[Actor]],
 ) -> APIRouter:
     router = APIRouter(prefix="/api/v1/workspaces/{workspace_id}/documents")
@@ -141,6 +177,35 @@ def build_document_router(
     ) -> DocumentResponse:
         return DocumentResponse.from_view(
             await get_document.execute(
+                current, WorkspaceId(workspace_id), DocumentId(document_id)
+            )
+        )
+
+    @router.patch("/{document_id}", operation_id="rename_workspace_document")
+    async def rename(
+        workspace_id: UUID,
+        document_id: UUID,
+        body: RenameDocumentRequest,
+        current: Annotated[Actor, Depends(actor)],
+    ) -> DocumentSummaryResponse:
+        return DocumentSummaryResponse.from_summary(
+            await rename_document.execute(
+                current,
+                WorkspaceId(workspace_id),
+                DocumentId(document_id),
+                title=body.title,
+            )
+        )
+
+    @router.get("/{document_id}/revisions", operation_id="list_document_revisions")
+    async def revisions(
+        workspace_id: UUID,
+        document_id: UUID,
+        current: Annotated[Actor, Depends(actor)],
+    ) -> tuple[RevisionSummaryResponse, ...]:
+        return tuple(
+            RevisionSummaryResponse.from_summary(item)
+            for item in await list_revisions.execute(
                 current, WorkspaceId(workspace_id), DocumentId(document_id)
             )
         )

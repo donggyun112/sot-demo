@@ -11,6 +11,7 @@ from sot.session.application import (
     ApplyCuration,
     CreateBranch,
     CreateSession,
+    ForkSession,
     GetSession,
     InviteSessionMember,
     ListBranchTurns,
@@ -92,6 +93,12 @@ class CurationRequest(BaseModel):
         return self.operation.to_operation()
 
 
+class ForkSessionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    # A fork copies one branch: the conversation the forker was reading.
+    branch_id: UUID
+
+
 class CreatedSessionResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
     session_id: UUID
@@ -110,6 +117,8 @@ class SessionResponse(BaseModel):
     created_by: UUID
     created_at: datetime
     status: SessionStatus
+    forked_from_session_id: UUID | None = None
+    forked_from_branch_id: UUID | None = None
 
     @classmethod
     def from_session(cls, value: SessionView) -> "SessionResponse":
@@ -120,6 +129,8 @@ class SessionResponse(BaseModel):
             created_by=value.created_by,
             created_at=value.created_at,
             status=value.status,
+            forked_from_session_id=value.forked_from_session_id,
+            forked_from_branch_id=value.forked_from_branch_id,
         )
 
 
@@ -199,6 +210,7 @@ class SessionMemberResponse(BaseModel):
 
 def build_session_router(
     create_session: CreateSession,
+    fork_session: ForkSession,
     get_session: GetSession,
     create_branch: CreateBranch,
     apply_curation: ApplyCuration,
@@ -271,6 +283,22 @@ def build_session_router(
         return CreatedSessionResponse.from_result(
             await create_session.execute(
                 current, WorkspaceId(workspace_id), DocumentId(document_id)
+            )
+        )
+
+    @router.post("/sessions/{session_id}/forks", status_code=201)
+    async def fork(
+        workspace_id: UUID,
+        session_id: UUID,
+        body: ForkSessionRequest,
+        current: Annotated[Actor, Depends(actor)],
+    ) -> CreatedSessionResponse:
+        return CreatedSessionResponse.from_result(
+            await fork_session.execute(
+                current,
+                WorkspaceId(workspace_id),
+                SessionId(session_id),
+                branch_id=BranchId(body.branch_id),
             )
         )
 
