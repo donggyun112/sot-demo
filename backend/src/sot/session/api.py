@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue
 from sot.identity.contracts import Actor
 from sot.session.application import (
     ApplyCuration,
+    AttachToBranch,
     CreateBranch,
     CreateSession,
     ForkSession,
@@ -27,6 +28,8 @@ from sot.session.contracts import (
     SessionView,
 )
 from sot.session.domain import (
+    ATTACHMENT_LIMIT,
+    Attachment,
     Branch,
     BundleItem,
     CurationOperation,
@@ -99,6 +102,13 @@ class CurationRequest(BaseModel):
 
     def to_operation(self) -> CurationOperation:
         return self.operation.to_operation()
+
+
+class AttachmentRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expected_version: Annotated[int, Field(ge=0, strict=True)]
+    filename: Annotated[str, Field(min_length=1, max_length=200)]
+    content: Annotated[str, Field(min_length=1, max_length=ATTACHMENT_LIMIT)]
 
 
 class ForkSessionRequest(BaseModel):
@@ -243,6 +253,7 @@ def build_session_router(
     list_sessions: ListDocumentSessions,
     list_branches: ListSessionBranches,
     list_turns: ListBranchTurns,
+    attach_to_branch: AttachToBranch,
     read_cited: ReadCitedConversation,
     invite_member: InviteSessionMember,
     list_members: ListSessionMembers,
@@ -276,6 +287,24 @@ def build_session_router(
             for item in await list_branches.execute(
                 current, WorkspaceId(workspace_id), SessionId(session_id)
             )
+        )
+
+    @router.post("/branches/{branch_id}/attachments", status_code=201)
+    async def attach(
+        workspace_id: UUID,
+        branch_id: UUID,
+        body: AttachmentRequest,
+        current: Annotated[Actor, Depends(actor)],
+    ) -> BranchMutationResponse:
+        result = await attach_to_branch.execute(
+            current,
+            WorkspaceId(workspace_id),
+            BranchId(branch_id),
+            expected_version=body.expected_version,
+            attachment=Attachment(body.filename, body.content),
+        )
+        return BranchMutationResponse(
+            resource_id=result.turns[-1].id, branch_version=result.branch_version
         )
 
     @router.get("/branches/{branch_id}/turns", operation_id="list_branch_turns")

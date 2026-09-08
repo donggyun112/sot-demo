@@ -11,7 +11,7 @@ import { MemoryRouter, useLocation } from "react-router";
 import { afterEach, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { AuthSession } from "./auth";
-import { createServer, member, proposal, session } from "./test/server";
+import { branch, createServer, member, proposal, session } from "./test/server";
 import { PROPOSAL_CONTENT_LIMIT } from "./app/limits";
 
 afterEach(() => {
@@ -816,4 +816,62 @@ it("keeps what a tool was called with and what it returned, after a reload", asy
   expect(screen.getAllByText("sot_update")).toHaveLength(1);
   expect(within(fold!).getByText(/감사·모니터링/)).toBeVisible();
   expect(within(fold!).getByText(/proposal-1/)).toBeVisible();
+});
+
+
+it("starts a document from the file it already exists as", async () => {
+  // Otherwise a design document that exists has to be dictated to the agent
+  // a few hundred characters at a time.
+  const server = createServer();
+  server.state.permissions = [...server.state.permissions, "document.create"];
+  await signIn(server);
+  expect(await screen.findByRole("heading", { name: "Documents" })).toBeVisible();
+
+  const file = new File(
+    ["# 요청 제한 정책\n\n계정당 초당 10회로 한다."],
+    "rate-limits.md",
+    { type: "text/markdown" },
+  );
+  await userEvent.upload(
+    screen.getByLabelText("Upload a Markdown file"),
+    file,
+  );
+
+  const posted = server.requests.find(
+    (item) => item.method === "POST" && item.url.endsWith("/documents"),
+  );
+  expect(posted).toBeDefined();
+  // Named by its own first heading, and the body is the file verbatim.
+  expect(await posted!.json()).toEqual({
+    title: "요청 제한 정책",
+    content: "# 요청 제한 정책\n\n계정당 초당 10회로 한다.",
+  });
+});
+
+it("brings a file into the conversation as something that was said", async () => {
+  const server = createServer();
+  server.state.sessions = [session];
+  await signIn(server);
+  await openDocument();
+  await userEvent.click(await screen.findByRole("link", { name: "Sessions" }));
+  await userEvent.click(await screen.findByRole("button", { name: "New session" }));
+
+  await userEvent.upload(
+    await screen.findByLabelText("Attach a file"),
+    new File(["## 만료\n90일마다 회전한다."], "rotation.md", {
+      type: "text/markdown",
+    }),
+  );
+
+  const posted = server.requests.find((item) =>
+    item.url.endsWith("/attachments"),
+  );
+  expect(posted).toBeDefined();
+  expect(await posted!.json()).toEqual({
+    expected_version: branch.version,
+    filename: "rotation.md",
+    content: "## 만료\n90일마다 회전한다.",
+  });
+  // It reads as a turn: named, then quoted, in the transcript.
+  expect(await screen.findByText("rotation.md")).toBeVisible();
 });

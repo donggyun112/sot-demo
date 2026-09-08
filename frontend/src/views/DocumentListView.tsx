@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router";
 import { can, useSot, useWorkspaceUi } from "../app/sot";
 import { TopBar } from "../components/AppShell";
+import { headingsFrom } from "./outline";
 import styles from "./product.module.css";
 
 export function DocumentListView() {
@@ -20,19 +21,38 @@ export function DocumentListView() {
     create.error instanceof Error ? create.error.message : t("common.error");
   const rows = documents.data ?? [];
   const isEmpty = documents.isSuccess && rows.length === 0;
+  const open = (created: { document: { id: string } }) => {
+    void queryClient.invalidateQueries();
+    void navigate(`/w/${workspaceId}/documents/${created.document.id}`);
+  };
   const createDocument = () =>
     create.mutate(
       {
         params: { path: { workspace_id: workspaceId } },
         body: { title: t("docs.untitled"), content: "" },
       },
+      { onSuccess: open },
+    );
+  /*
+    A document that already exists as a file starts as that file. Its first
+    revision is the document being born, not an update to it, so this asks
+    nobody to approve it — and everything after it still goes through the
+    agent and its approvers.
+  */
+  const uploadDocument = async (file: File) => {
+    const content = await file.text();
+    const heading = headingsFrom(content).find((one) => one.title);
+    create.mutate(
       {
-        onSuccess: (created) => {
-          void queryClient.invalidateQueries();
-          void navigate(`/w/${workspaceId}/documents/${created.document.id}`);
+        params: { path: { workspace_id: workspaceId } },
+        body: {
+          title: heading?.title ?? file.name.replace(/\.mdx?$/i, ""),
+          content,
         },
       },
+      { onSuccess: open },
     );
+  };
   return (
     <div className={styles.page}>
       <TopBar title={t("docs.title")} />
@@ -58,6 +78,20 @@ export function DocumentListView() {
               >
                 {t("docs.create")}
               </button>
+              <label className={styles.ghost}>
+                {create.isPending ? t("common.working") : t("docs.upload")}
+                <input
+                  className={styles.fileInput}
+                  type="file"
+                  accept=".md,.markdown,.mdx,text/markdown,text/plain"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    /* Clear it, or picking the same file twice does nothing. */
+                    event.target.value = "";
+                    if (file) void uploadDocument(file);
+                  }}
+                />
+              </label>
             </div>
           )}
           {create.isError && (

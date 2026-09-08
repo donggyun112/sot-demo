@@ -73,7 +73,8 @@
     "open": "Open",
     "create": "New document",
     "untitled": "Untitled",
-    "revision": "Revision {{number}}"
+    "revision": "Revision {{number}}",
+    "upload": "Upload a Markdown file"
   },
   "document": {
     "evidence": "Evidence",
@@ -203,7 +204,8 @@
     "disconnected": "The response stream dropped. Your input and the partial reply are still on screen. ({{detail}})",
     "stopped": "Stopped. The partial reply is still on screen.",
     "requestFailed": "Request failed",
-    "thinking": "Reasoning"
+    "thinking": "Reasoning",
+    "attach": "Attach a file"
   },
   "send": {
     "title": "Who holds this session",

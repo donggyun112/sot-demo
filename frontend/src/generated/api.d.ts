@@ -221,6 +221,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/branches/{branch_id}/attachments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Attach */
+        post: operations["attach_api_v1_workspaces__workspace_id__branches__branch_id__attachments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/branches/{branch_id}/bundle-preview": {
         parameters: {
             query?: never;
@@ -676,6 +693,15 @@ export interface components {
             proposal_id: string;
             /** Version */
             version: number;
+        };
+        /** AttachmentRequest */
+        AttachmentRequest: {
+            /** Content */
+            content: string;
+            /** Expected Version */
+            expected_version: number;
+            /** Filename */
+            filename: string;
         };
         /** AuthResponse */
         AuthResponse: {
@@ -1856,6 +1882,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    attach_api_v1_workspaces__workspace_id__branches__branch_id__attachments_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                branch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AttachmentRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BranchMutationResponse"];
                 };
             };
             /** @description Validation Error */

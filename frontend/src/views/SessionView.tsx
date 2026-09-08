@@ -71,6 +71,15 @@ export function SessionView() {
     "post",
     "/api/v1/workspaces/{workspace_id}/sessions/{session_id}/forks",
   );
+  /*
+    A file someone puts in front of the agent is something they said, so it
+    is appended as a turn: it shows in the transcript, the agent reads it as
+    history, and a passage written out of it cites it.
+  */
+  const attach = api.useMutation(
+    "post",
+    "/api/v1/workspaces/{workspace_id}/branches/{branch_id}/attachments",
+  );
   const origin = session.data?.forked_from_session_id;
   const turnList = turns.data ?? [];
   const panel = params.get("panel");
@@ -216,6 +225,26 @@ export function SessionView() {
               youLabel={user?.display_name ?? t("people.you")}
               nameOf={nameOf}
               highlightCall={params.get("call") ?? undefined}
+              onAttach={
+                can(member, "session.participate") && !readOnly
+                  ? async (file) => {
+                      await attach.mutateAsync({
+                        params: {
+                          path: {
+                            workspace_id: workspaceId,
+                            branch_id: branch.id,
+                          },
+                        },
+                        body: {
+                          expected_version: branch.version,
+                          filename: file.name,
+                          content: await file.text(),
+                        },
+                      });
+                      await queryClient.invalidateQueries();
+                    }
+                  : undefined
+              }
             />
           )}
         </div>

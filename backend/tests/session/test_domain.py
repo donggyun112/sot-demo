@@ -4,6 +4,8 @@ from uuid import uuid4
 import pytest
 
 from sot.session.domain import (
+    ATTACHMENT_LIMIT,
+    Attachment,
     Branch,
     NewTurn,
     Session,
@@ -120,3 +122,38 @@ def test_normal_session_requires_and_retains_document() -> None:
     assert session.document_id == document_id
     with pytest.raises(InvalidInput):
         Session.create(workspace_id, None, user_id, NOW)  # type: ignore[arg-type]
+
+
+def test_a_file_brought_into_a_session_is_named_then_quoted() -> None:
+    """It becomes a turn, so a reader sees where the text came from and the
+    agent reads it as part of the conversation rather than as a side channel."""
+    turn = Attachment("design.md", "# 설계\n\n토큰은 회전한다.").as_turn()
+
+    assert turn.role == "user"
+    assert turn.content == "design.md\n\n# 설계\n\n토큰은 회전한다."
+
+
+def test_a_file_that_would_swamp_the_conversation_is_refused() -> None:
+    # Every run re-reads the history, so an unbounded paste is a bill and an
+    # unreadable session at once.
+    with pytest.raises(InvalidInput) as refused:
+        Attachment("big.md", "x" * (ATTACHMENT_LIMIT + 1))
+    assert refused.value.code == "attachment_too_long"
+    assert Attachment("big.md", "x" * ATTACHMENT_LIMIT).content
+
+
+@pytest.mark.parametrize(
+    ("filename", "content"),
+    [
+        ("", "text"),
+        ("   ", "text"),
+        ("../secrets.md", "text"),
+        ("dir/design.md", "text"),
+        ("design.md", "   "),
+    ],
+)
+def test_a_file_with_no_name_or_no_content_is_refused(
+    filename: str, content: str
+) -> None:
+    with pytest.raises(InvalidInput):
+        Attachment(filename, content)

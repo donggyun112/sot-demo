@@ -440,6 +440,29 @@ export function createServer() {
           created_at: session.created_at,
         },
       ]);
+    if (path.endsWith("/attachments") && request.method === "POST") {
+      const body = (await request.json()) as {
+        filename: string;
+        content: string;
+        expected_version: number;
+      };
+      state.branchVersion++;
+      const appended = {
+        id: `turn-attached`,
+        workspace_id,
+        branch_id: branch.id,
+        ordinal: state.turns.length + 1,
+        role: "user" as const,
+        content: `${body.filename}\n\n${body.content}`,
+        created_at: session.created_at,
+        created_by: member.id,
+      };
+      state.turns = [...state.turns, appended];
+      return Response.json(
+        { resource_id: appended.id, branch_version: state.branchVersion },
+        { status: 201 },
+      );
+    }
     if (path.endsWith("/branches/branch-1/turns"))
       return Response.json(
         state.turns.map((turn) => ({ ...turn, workspace_id })),

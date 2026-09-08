@@ -61,6 +61,7 @@ from sot.session.api import build_session_router
 from sot.session.application import (
     AppendCompletedTurns,
     ApplyCuration,
+    AttachToBranch,
     BranchAccess,
     BundleAccess,
     CreateBranch,
@@ -264,6 +265,9 @@ def build_app(
             ),
             ListSessionBranches(sessions, session_access, uow_factory),
             ListBranchTurns(branch_access, uow_factory, ToolRecords()),
+            AttachToBranch(
+                AppendCompletedTurns(sessions, branch_access, uow_factory, clock)
+            ),
             ReadCitedConversation(bundles, uow_factory),
             InviteSessionMember(sessions, session_access, access, uow_factory),
             ListSessionMembers(sessions, session_access, uow_factory),

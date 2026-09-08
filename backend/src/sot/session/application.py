@@ -12,6 +12,7 @@ from sot.session.contracts import (
     BundleSnapshot,
     CitedConversation,
     CitedConversationReader,
+    CompletedTurnsAppender,
     CreatedSessionResult,
     FrozenEvidence,
     SessionAuthorizer,
@@ -21,6 +22,7 @@ from sot.session.contracts import (
     TranscriptTurn,
 )
 from sot.session.domain import (
+    Attachment,
     Branch,
     Bundle,
     BundleItem,
@@ -598,6 +600,37 @@ class AppendCompletedTurns:
                 tx, workspace_id, branch_id, result.turns
             )
             return result
+
+
+class AttachToBranch:
+    """Bring a file into the conversation.
+
+    It is appended as a turn, which is the only thing that is already all
+    four of: visible in the transcript, part of the agent's history, part of
+    the evidence a passage written from it cites, and owned by the person who
+    brought it. Anything beside the conversation would have to earn each of
+    those separately.
+    """
+
+    def __init__(self, appender: CompletedTurnsAppender) -> None:
+        self._appender = appender
+
+    async def execute(
+        self,
+        actor: Actor,
+        workspace_id: WorkspaceId,
+        branch_id: BranchId,
+        *,
+        expected_version: int,
+        attachment: Attachment,
+    ) -> CompletedTurnsResult:
+        return await self._appender.execute(
+            actor,
+            workspace_id,
+            branch_id,
+            expected_version=expected_version,
+            messages=(attachment.as_turn(),),
+        )
 
 
 class RequiredApprovers:

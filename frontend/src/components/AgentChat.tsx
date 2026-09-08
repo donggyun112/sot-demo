@@ -25,6 +25,8 @@ interface AgentChatProps {
   nameOf?: (userId: string) => string;
   /** A tool call to open and mark, for someone arriving from the document. */
   highlightCall?: string;
+  /** Brings a file into the conversation. Absent when nobody may write here. */
+  onAttach?: (file: File) => Promise<void>;
 }
 type AgentMessage = PydanticAIAgent["messages"][number];
 /**
@@ -459,6 +461,23 @@ export function AgentChat(props: AgentChatProps) {
               />
             </label>
             <div className={styles.actions}>
+              {props.onAttach && (
+                <label className={styles.attach} data-disabled={running || undefined}>
+                  {t("agent.attach")}
+                  <input
+                    className={styles.fileInput}
+                    type="file"
+                    accept=".md,.markdown,.mdx,text/markdown,text/plain"
+                    disabled={running || needsRefetch}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      /* Cleared, or the same file twice does nothing. */
+                      event.target.value = "";
+                      if (file) void props.onAttach?.(file);
+                    }}
+                  />
+                </label>
+              )}
               {needsRefetch && (
                 <button
                   className={styles.retry}

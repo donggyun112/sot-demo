@@ -73,7 +73,8 @@
     "open": "열기",
     "create": "새 문서",
     "untitled": "제목 없음",
-    "revision": "리비전 {{number}}"
+    "revision": "리비전 {{number}}",
+    "upload": "마크다운 파일 올리기"
   },
   "document": {
     "evidence": "근거",
@@ -201,7 +202,8 @@
     "disconnected": "응답 연결이 끊겼습니다. 입력과 받는 중이던 응답은 화면에 남아 있습니다. ({{detail}})",
     "stopped": "중지했습니다. 받는 중이던 응답은 화면에 남아 있습니다.",
     "requestFailed": "요청 실패",
-    "thinking": "생각 과정"
+    "thinking": "생각 과정",
+    "attach": "파일 첨부"
   },
   "send": {
     "title": "이 세션을 가진 사람",

@@ -158,6 +158,42 @@ class Session:
         self.status = SessionStatus.CLOSED
 
 
+# A conversation is read by people and re-read by the agent every run, so a
+# file brought into one is bounded. Well past a long design document, and far
+# short of anything that would make the session unreadable.
+ATTACHMENT_LIMIT = 100_000
+
+
+@dataclass(frozen=True, slots=True)
+class Attachment:
+    """A file someone brought into the conversation.
+
+    It becomes a turn rather than a thing beside the conversation: what a
+    person puts in front of the agent IS something they said, so it belongs
+    in the transcript, in the agent's history, and in the evidence a passage
+    written from it cites. Nothing else already does all four.
+    """
+
+    filename: str
+    content: str
+
+    def __post_init__(self) -> None:
+        if not self.filename.strip() or "/" in self.filename or "\\" in self.filename:
+            raise InvalidInput("attachment_name_invalid", "File name is invalid")
+        if not self.content.strip():
+            raise InvalidInput("attachment_empty", "File is empty")
+        if len(self.content) > ATTACHMENT_LIMIT:
+            raise InvalidInput(
+                "attachment_too_long",
+                f"File is {len(self.content)} characters; keep it within "
+                f"{ATTACHMENT_LIMIT} so the conversation stays readable",
+            )
+
+    def as_turn(self) -> NewTurn:
+        """Named, then quoted verbatim. A reader sees where it came from."""
+        return NewTurn("user", f"{self.filename.strip()}\n\n{self.content}")
+
+
 TurnRole = Literal["user", "assistant", "tool"]
 
 

@@ -64,6 +64,35 @@
         "title": "ApprovalResponse",
         "type": "object"
       },
+      "AttachmentRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "maxLength": 100000,
+            "minLength": 1,
+            "title": "Content",
+            "type": "string"
+          },
+          "expected_version": {
+            "minimum": 0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "filename": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Filename",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_version",
+          "filename",
+          "content"
+        ],
+        "title": "AttachmentRequest",
+        "type": "object"
+      },
       "AuthResponse": {
         "additionalProperties": false,
         "properties": {
@@ -2266,6 +2295,71 @@
           }
         ],
         "summary": "Run Agent"
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/branches/{branch_id}/attachments": {
+      "post": {
+        "operationId": "attach_api_v1_workspaces__workspace_id__branches__branch_id__attachments_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "branch_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Branch Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttachmentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BranchMutationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Attach"
       }
     },
     "/api/v1/workspaces/{workspace_id}/branches/{branch_id}/bundle-preview": {
