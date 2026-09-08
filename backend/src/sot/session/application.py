@@ -41,6 +41,7 @@ from sot.session.domain import (
     SessionRole,
     VersionConflict,
     is_allowed,
+    read_transcript,
 )
 from sot.session.ports import (
     BundleRepository,
@@ -106,6 +107,7 @@ class SessionAccess:
             session.status,
             session.origin.session_id if session.origin else None,
             session.origin.branch_id if session.origin else None,
+            session.imported_from,
         )
 
 
@@ -183,6 +185,76 @@ class CreateSession:
             now = self._clock.now()
             session = Session.create(workspace_id, document_id, actor.user_id, now)
             branch = Branch.create(workspace_id, session.id, actor.user_id, now)
+            await self._repository.create_session(tx, workspace_id, session)
+            await self._repository.add_member(
+                tx,
+                workspace_id,
+                SessionMember(
+                    workspace_id, session.id, actor.user_id, SessionRole.OWNER
+                ),
+            )
+            await self._repository.create_branch(tx, workspace_id, branch)
+            return CreatedSessionResult(session.id, branch.id)
+
+
+class ImportSession:
+    """Bring in a conversation that happened somewhere else.
+
+    The argument behind a decision has usually already been had, in whatever
+    tool it was had in. Retyping it so the agent can read it is how it gets
+    lost, and pasting it as one message makes it one thing somebody said
+    rather than the exchange it was — so a file of it becomes a session,
+    turn by turn, with every turn citable on its own.
+
+    It is marked as imported, because SOT did not run it. Every other turn
+    here is an exchange this system witnessed; these are a claim about one it
+    did not, and a reader who cannot tell them apart cannot trust either.
+    """
+
+    def __init__(
+        self,
+        repository: SessionRepository,
+        authorizer: WorkspaceAuthorizer,
+        documents: DocumentReader,
+        uow_factory: UnitOfWorkFactory,
+        clock: Clock,
+    ) -> None:
+        self._repository = repository
+        self._authorizer = authorizer
+        self._documents = documents
+        self._uow_factory = uow_factory
+        self._clock = clock
+
+    async def execute(
+        self,
+        actor: Actor,
+        workspace_id: WorkspaceId,
+        document_id: DocumentId,
+        *,
+        filename: str,
+        content: str,
+    ) -> CreatedSessionResult:
+        turns = read_transcript(content)
+        if not turns:
+            raise InvalidInput("transcript_empty", "The file holds no conversation")
+        async with self._uow_factory().transaction() as tx:
+            await self._authorizer.require(
+                tx, actor, workspace_id, Permission.SESSION_CREATE
+            )
+            await self._documents.require_document(
+                tx, actor=actor, workspace_id=workspace_id, document_id=document_id
+            )
+            now = self._clock.now()
+            session = Session.imported(
+                workspace_id, document_id, actor.user_id, now, filename=filename
+            )
+            branch = Branch.create(workspace_id, session.id, actor.user_id, now)
+            branch.append_completed(
+                author=actor.user_id,
+                expected_version=branch.version,
+                messages=turns,
+                now=now,
+            )
             await self._repository.create_session(tx, workspace_id, session)
             await self._repository.add_member(
                 tx,

@@ -35,7 +35,31 @@ export function SessionListView() {
     "post",
     "/api/v1/workspaces/{workspace_id}/documents/{document_id}/sessions",
   );
+  /*
+    The argument behind a decision has usually already been had, somewhere
+    else. Retyping it so the agent can read it is how it gets lost, so the
+    file of it becomes a session: turn by turn, each one citable on its own.
+  */
+  const importSession = api.useMutation(
+    "post",
+    "/api/v1/workspaces/{workspace_id}/documents/{document_id}/imported-sessions",
+  );
+  const open = (created: { session_id: string }) => {
+    void queryClient.invalidateQueries();
+    void navigate(`/w/${workspaceId}/sessions/${created.session_id}`);
+  };
+  const importFile = async (file: File) => {
+    importSession.mutate(
+      {
+        params: { path: { workspace_id: workspaceId, document_id: documentId } },
+        body: { filename: file.name, content: await file.text() },
+      },
+      { onSuccess: open },
+    );
+  };
+  const failure = [create.error, importSession.error].find(Boolean);
   const rows = sessions.data ?? [];
+  const busy = create.isPending || importSession.isPending;
   return (
     <div className={styles.page}>
       <TopBar
@@ -59,7 +83,7 @@ export function SessionListView() {
               <button
                 className={styles.primary}
                 type="button"
-                disabled={create.isPending}
+                disabled={busy}
                 onClick={() =>
                   create.mutate(
                     {
@@ -68,26 +92,35 @@ export function SessionListView() {
                       },
                       body: {},
                     },
-                    {
-                      onSuccess: (created) => {
-                        void queryClient.invalidateQueries();
-                        void navigate(
-                          `/w/${workspaceId}/sessions/${created.session_id}`,
-                        );
-                      },
-                    },
+                    { onSuccess: open },
                   )
                 }
               >
                 {t("sessions.new")}
               </button>
+              <label className={styles.ghost}>
+                {importSession.isPending
+                  ? t("common.working")
+                  : t("sessions.import")}
+                <input
+                  className={styles.fileInput}
+                  type="file"
+                  accept=".md,.markdown,.mdx,.txt,text/markdown,text/plain"
+                  disabled={busy}
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    /* Cleared, or the same file twice does nothing. */
+                    event.target.value = "";
+                    if (file) void importFile(file);
+                  }}
+                />
+              </label>
             </div>
           )}
-          {create.isError && (
+          <p className={styles.meta}>{t("sessions.importHint")}</p>
+          {failure && (
             <p className={styles.alert} role="alert">
-              {create.error instanceof Error
-                ? create.error.message
-                : t("common.error")}
+              {failure instanceof Error ? failure.message : t("common.error")}
             </p>
           )}
 
@@ -108,8 +141,14 @@ export function SessionListView() {
               to={`/w/${workspaceId}/sessions/${item.id}`}
             >
               <div>
-                <div className={styles.rowTitle}>{at(item.created_at)}</div>
-                <div className={styles.meta}>{nameOf(item.created_by)}</div>
+                <div className={styles.rowTitle}>
+                  {item.imported_from ?? at(item.created_at)}
+                </div>
+                <div className={styles.meta}>
+                  {item.imported_from
+                    ? `${t("sessions.imported")} · ${nameOf(item.created_by)}`
+                    : nameOf(item.created_by)}
+                </div>
               </div>
               <span className={styles.chip}>{label(item)}</span>
             </Link>

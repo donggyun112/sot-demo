@@ -148,7 +148,11 @@
     "fork": "Continue in a session of your own",
     "forkHint": "Copies this conversation so far. Nothing you write reaches theirs.",
     "forkedFrom": "Forked from a session",
-    "forkOpen": "Open the session it came from"
+    "forkOpen": "Open the session it came from",
+    "import": "Import a conversation",
+    "importHint": "A conversation from another tool becomes a session, turn by turn. It is marked as imported: SOT did not run it.",
+    "imported": "Imported",
+    "importedBanner": "Imported from {{name}}. SOT did not run this exchange."
   },
   "common": {
     "loading": "Loading…",

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, replace
 from datetime import datetime
 from enum import StrEnum
@@ -110,6 +111,10 @@ class Session:
     created_at: datetime
     status: SessionStatus = SessionStatus.OPEN
     origin: SessionOrigin | None = None
+    # The file a conversation was imported from. Present only for an import,
+    # and it is the whole claim being made: SOT did not run this exchange,
+    # somebody brought it. A reader has to be able to tell those apart.
+    imported_from: str | None = None
 
     @classmethod
     def create(
@@ -122,6 +127,31 @@ class Session:
         if document_id is None:
             raise InvalidInput("session_document_required", "A document is required")
         return cls(SessionId(uuid4()), workspace_id, document_id, created_by, now)
+
+    @classmethod
+    def imported(
+        cls,
+        workspace_id: WorkspaceId,
+        document_id: DocumentId,
+        created_by: UserId,
+        now: datetime,
+        *,
+        filename: str,
+    ) -> Session:
+        """A conversation that happened somewhere else, brought in whole.
+
+        The reasoning behind a decision is usually already had, in whatever
+        tool it was had in, and retyping it to get it in front of the agent
+        is how it gets lost. So it is imported — and marked, because SOT did
+        not run it: the record says whose file it came from, not that this
+        exchange was witnessed here.
+        """
+        name = filename.strip()
+        if not name or "/" in name or "\\" in name:
+            raise InvalidInput("attachment_name_invalid", "File name is invalid")
+        session = cls.create(workspace_id, document_id, created_by, now)
+        session.imported_from = name
+        return session
 
     @classmethod
     def fork(
@@ -212,6 +242,93 @@ class NewTurn:
     def __post_init__(self) -> None:
         if self.role not in TURN_ROLES:
             raise InvalidInput("turn_role_invalid", "Turn role is invalid")
+
+
+# A conversation is read by people and re-read by the agent every run, so an
+# imported one is bounded the way an attachment is.
+TRANSCRIPT_LIMIT = 400_000
+
+# The line that says who speaks next, in the forms the tools actually emit:
+# a heading, a bold label, or a bare label.
+_USER_LABELS = frozenset(
+    {"user", "you", "you said", "human", "me", "prompt", "질문", "사용자", "나", "유저"}
+)
+_ASSISTANT_LABELS = frozenset(
+    {
+        "assistant",
+        "ai",
+        "bot",
+        "chatgpt",
+        "chatgpt said",
+        "claude",
+        "gpt",
+        "model",
+        "response",
+        "답변",
+        "어시스턴트",
+        "응답",
+    }
+)
+_EMPHASIS = re.compile(r"\*\*|__|\*|`")
+
+
+def _speaker(line: str) -> str | None:
+    """Whose turn this line announces, or None if it announces nothing.
+
+    The label is the whole line, however it was dressed: `## User`,
+    `**Assistant:**`, `You said:`. Anything longer than a label is somebody
+    talking, which is why the length is capped before the lookup.
+    """
+    label = line.strip().lstrip("#").strip()
+    label = _EMPHASIS.sub("", label).strip().removesuffix(":").strip()
+    if not label or len(label) > 32:
+        return None
+    folded = label.casefold()
+    if folded in _USER_LABELS:
+        return "user"
+    if folded in _ASSISTANT_LABELS:
+        return "assistant"
+    return None
+
+
+def read_transcript(content: str) -> tuple[NewTurn, ...]:
+    """The conversation in a file someone copied out of another tool.
+
+    Nothing about such a file is structured, so this recognises the handful of
+    ways those tools mark who is speaking and refuses to guess past that: a
+    file with no marker it knows is one thing the importer said, whole. Better
+    a conversation with one long turn than one invented out of paragraph
+    breaks.
+
+    Text before the first speaker line belongs to whoever spoke first — an
+    export that opens with a title and then "You said:" must not lose the
+    title, and one that opens mid-sentence is that person talking.
+    """
+    turns: list[NewTurn] = []
+    role: str | None = None
+    said: list[str] = []
+
+    def close() -> None:
+        text = "\n".join(said).strip()
+        said.clear()
+        if text:
+            turns.append(NewTurn(role or "user", text))
+
+    for line in content.splitlines():
+        next_role = _speaker(line)
+        if next_role is None:
+            said.append(line)
+            continue
+        if role is None:
+            # Whatever stood above the first speaker is that speaker's: an
+            # export opens with the conversation's own title, and a title is
+            # not a turn somebody took.
+            role = next_role
+            continue
+        close()
+        role = next_role
+    close()
+    return tuple(turns)
 
 
 @dataclass(frozen=True, slots=True)

@@ -670,6 +670,29 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "ImportSessionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "maxLength": 400000,
+            "minLength": 1,
+            "title": "Content",
+            "type": "string"
+          },
+          "filename": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Filename",
+            "type": "string"
+          }
+        },
+        "required": [
+          "filename",
+          "content"
+        ],
+        "title": "ImportSessionRequest",
+        "type": "object"
+      },
       "InvitationResponse": {
         "additionalProperties": false,
         "properties": {
@@ -1586,6 +1609,17 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "imported_from": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Imported From"
           },
           "status": {
             "$ref": "#/components/schemas/SessionStatus"
@@ -2897,6 +2931,71 @@
           }
         ],
         "summary": "Grounds"
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/documents/{document_id}/imported-sessions": {
+      "post": {
+        "operationId": "import_transcript_api_v1_workspaces__workspace_id__documents__document_id__imported_sessions_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Document Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedSessionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Import Transcript"
       }
     },
     "/api/v1/workspaces/{workspace_id}/documents/{document_id}/proposals": {

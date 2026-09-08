@@ -239,6 +239,9 @@ class SessionView:
     # session was holding, so a reader can follow it back.
     forked_from_session_id: SessionId | None = None
     forked_from_branch_id: BranchId | None = None
+    # The file this conversation was imported from. SOT did not run it, and a
+    # reader has to be able to tell that from an exchange it did.
+    imported_from: str | None = None
 
 
 class SessionAuthorizer(Protocol):

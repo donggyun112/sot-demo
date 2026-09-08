@@ -87,7 +87,8 @@ class PostgresSessionRepository:
         require_scope(workspace_id, session.workspace_id)
         await connection(tx).execute(
             "INSERT INTO sot.sot_session(id,workspace_id,document_id,created_by,created_at,status,"
-            "forked_from_session_id,forked_from_branch_id) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+            "forked_from_session_id,forked_from_branch_id,imported_from) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)",
             (
                 session.id,
                 workspace_id,
@@ -97,6 +98,7 @@ class PostgresSessionRepository:
                 session.status.value,
                 session.origin.session_id if session.origin else None,
                 session.origin.branch_id if session.origin else None,
+                session.imported_from,
             ),
         )
 
@@ -106,7 +108,7 @@ class PostgresSessionRepository:
         row = await (
             await connection(tx).execute(
                 "SELECT id,workspace_id,document_id,created_by,created_at,status,"
-                "forked_from_session_id,forked_from_branch_id "
+                "forked_from_session_id,forked_from_branch_id,imported_from "
                 "FROM sot.sot_session WHERE workspace_id=%s AND id=%s",
                 (workspace_id, session_id),
             )
@@ -120,6 +122,7 @@ class PostgresSessionRepository:
                 row[4],
                 SessionStatus(row[5]),
                 SessionOrigin(SessionId(row[6]), BranchId(row[7])) if row[6] else None,
+                row[8],
             )
             if row
             else None

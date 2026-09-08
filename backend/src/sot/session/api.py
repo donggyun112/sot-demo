@@ -14,6 +14,7 @@ from sot.session.application import (
     CreateSession,
     ForkSession,
     GetSession,
+    ImportSession,
     InviteSessionMember,
     ListBranchTurns,
     ListDocumentSessions,
@@ -29,6 +30,7 @@ from sot.session.contracts import (
 )
 from sot.session.domain import (
     ATTACHMENT_LIMIT,
+    TRANSCRIPT_LIMIT,
     Attachment,
     Branch,
     BundleItem,
@@ -118,6 +120,13 @@ class AttachmentRequest(BaseModel):
     files: Annotated[tuple[AttachedFile, ...], Field(min_length=1, max_length=10)]
 
 
+class ImportSessionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    # One file: the conversation as it was copied out of wherever it happened.
+    filename: Annotated[str, Field(min_length=1, max_length=200)]
+    content: Annotated[str, Field(min_length=1, max_length=TRANSCRIPT_LIMIT)]
+
+
 class ForkSessionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     # A fork copies one branch: the conversation the forker was reading.
@@ -144,6 +153,9 @@ class SessionResponse(BaseModel):
     status: SessionStatus
     forked_from_session_id: UUID | None = None
     forked_from_branch_id: UUID | None = None
+    # Set when this conversation was imported from a file. SOT did not run
+    # it, and a reader has to be able to tell that from one it did.
+    imported_from: str | None = None
 
     @classmethod
     def from_session(cls, value: SessionView) -> "SessionResponse":
@@ -156,6 +168,7 @@ class SessionResponse(BaseModel):
             status=value.status,
             forked_from_session_id=value.forked_from_session_id,
             forked_from_branch_id=value.forked_from_branch_id,
+            imported_from=value.imported_from,
         )
 
 
@@ -255,6 +268,7 @@ class SessionMemberResponse(BaseModel):
 
 def build_session_router(
     create_session: CreateSession,
+    import_session: ImportSession,
     fork_session: ForkSession,
     get_session: GetSession,
     create_branch: CreateBranch,
@@ -354,6 +368,23 @@ def build_session_router(
         return CreatedSessionResponse.from_result(
             await create_session.execute(
                 current, WorkspaceId(workspace_id), DocumentId(document_id)
+            )
+        )
+
+    @router.post("/documents/{document_id}/imported-sessions", status_code=201)
+    async def import_transcript(
+        workspace_id: UUID,
+        document_id: UUID,
+        body: ImportSessionRequest,
+        current: Annotated[Actor, Depends(actor)],
+    ) -> CreatedSessionResponse:
+        return CreatedSessionResponse.from_result(
+            await import_session.execute(
+                current,
+                WorkspaceId(workspace_id),
+                DocumentId(document_id),
+                filename=body.filename,
+                content=body.content,
             )
         )
 

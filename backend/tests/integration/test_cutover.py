@@ -174,4 +174,4 @@ async def test_cutover_preserves_legacy_rows_without_inventing_identity_or_tenan
         ).fetchone() == (0,)
         assert await (
             await connection.execute("SELECT max(version) FROM sot.schema_migration")
-        ).fetchone() == (17,)
+        ).fetchone() == (18,)

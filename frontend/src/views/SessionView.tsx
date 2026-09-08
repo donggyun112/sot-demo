@@ -152,6 +152,14 @@ export function SessionView() {
           <p className={styles.banner}>
             {shared ? t("sessions.bannerShared") : t("sessions.bannerOriginal")}
           </p>
+          {/* An import is a claim about an exchange this system did not
+              witness, and a reader who cannot tell it from one it did
+              cannot trust either. */}
+          {session.data?.imported_from && (
+            <p className={styles.banner} role="note">
+              {t("sessions.importedBanner", { name: session.data.imported_from })}
+            </p>
+          )}
           {origin && (
             <p className={styles.banner}>
               {t("sessions.forkedFrom")}{" "}
