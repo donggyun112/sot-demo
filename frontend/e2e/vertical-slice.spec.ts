@@ -1,5 +1,6 @@
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import type { components } from "../src/generated/api";
+import { openWorkspace } from "./workspace";
 
 const api = "http://127.0.0.1:18001/api/v1";
 type Login = components["schemas"]["AuthResponse"];
@@ -63,13 +64,6 @@ async function login(page: Page, actor: "alice" | "bob"): Promise<Login> {
 }
 
 /** Open a workspace through the header menu and return the id the URL settles on. */
-async function openWorkspace(page: Page, name: string) {
-  await page.getByRole("button", { name: "Workspaces" }).click();
-  await page.getByRole("menuitem", { name, exact: true }).click();
-  await page.waitForURL(/\/w\/[^/]+$/);
-  return new URL(page.url()).pathname.split("/")[2];
-}
-
 async function get(context: BrowserContext, path: string, auth?: Login) {
   return context.request.get(`${api}${path}`, {
     headers: auth ? { Authorization: `Bearer ${auth.access_token}` } : {},

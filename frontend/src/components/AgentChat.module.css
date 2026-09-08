@@ -78,14 +78,13 @@
 }
 
 .toolOut {
+  composes: typeMono from "../styles/parts.module.css";
   margin: 2px 0 0 18px;
   max-height: 50vh;
   overflow: auto;
   border-radius: var(--radius-sm);
   background: var(--surface-raised);
   padding: var(--space-xs);
-  font-family: var(--font-mono);
-  font-size: 12px;
   color: var(--ink-muted);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -98,6 +97,7 @@
 }
 
 .card {
+  composes: composer from "../styles/parts.module.css";
   position: relative;
   display: flex;
   flex-direction: column;
@@ -107,9 +107,6 @@
   min-height: 64px;
   max-height: 384px;
   padding-bottom: 36px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
@@ -306,25 +303,7 @@
 /* Bringing a file in sits with the other composer actions and reads as one of
    them, even though it is a label wrapping a hidden file input. */
 .attach {
-  display: inline-flex;
-  align-items: center;
-  height: 32px;
-  padding: 0 14px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface);
-  color: var(--ink);
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.attach:hover {
-  background: var(--surface-hover);
-}
-
-.attach[data-disabled] {
-  opacity: 0.45;
-  cursor: default;
+  composes: buttonSecondary from "../styles/parts.module.css";
 }
 
 /* Hidden to the eye, still operable: `hidden` or display:none would take the

@@ -46,16 +46,10 @@
 }
 
 .av {
+  composes: avatar from "../styles/parts.module.css";
   width: 20px;
   height: 20px;
-  border-radius: var(--radius-sm);
-  display: grid;
-  place-items: center;
-  font-size: 11px;
-  font-weight: 500;
   flex: 0 0 auto;
-  background: var(--surface-selected);
-  color: var(--ink);
   border: 1px solid var(--divider);
 }
 

@@ -85,14 +85,11 @@
 /* Rows -------------------------------------------------------------- */
 
 .row {
+  composes: row from "../styles/parts.module.css";
   display: grid;
   grid-template-columns: 1fr auto;
   gap: var(--space-md);
   align-items: center;
-  background: var(--surface);
-  border: 1px solid var(--divider);
-  border-radius: var(--radius-lg);
-  padding: 18px 20px;
   margin: 0;
   width: 100%;
   text-align: left;
@@ -135,17 +132,7 @@ button.row:hover {
 /* Chips -------------------------------------------------------------- */
 
 .chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-xs);
-  height: 22px;
-  padding: 0 var(--space-sm);
-  border-radius: var(--radius-pill);
-  background: var(--surface-raised);
-  border: 1px solid var(--divider);
-  color: var(--ink);
-  font-size: 12px;
-  line-height: 1.4;
+  composes: chip from "../styles/parts.module.css";
   white-space: nowrap;
 }
 
@@ -175,15 +162,16 @@ button.row:hover {
 
 /* Controls ----------------------------------------------------------- */
 
-.input,
-.select {
+.input {
+  composes: textInput from "../styles/parts.module.css";
   width: 100%;
-  height: 44px;
-  border: 1px solid var(--divider);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  color: var(--ink);
-  padding: 0 var(--space-md);
+  margin: var(--space-sm) 0 var(--space-md);
+  outline: none;
+}
+
+.select {
+  composes: textInput from "../styles/parts.module.css";
+  width: 100%;
   margin: var(--space-sm) 0 var(--space-md);
   outline: none;
 }
@@ -206,38 +194,12 @@ textarea.input {
   color: var(--ink-dim);
 }
 
-.primary,
-.ghost {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 36px;
-  padding: 0 18px;
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--divider);
-  background: var(--surface);
-  color: var(--ink);
-  font-size: 14px;
-  font-weight: 400;
-  line-height: 1.2;
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.ghost:hover {
-  background: var(--surface-hover);
-  border-color: var(--border);
-}
-
 .primary {
-  background: var(--brand);
-  color: var(--on-brand);
-  border-color: var(--brand);
+  composes: buttonPrimary from "../styles/parts.module.css";
 }
 
-.primary:hover {
-  background: var(--brand-hover);
-  border-color: var(--brand-hover);
+.ghost {
+  composes: buttonSecondary from "../styles/parts.module.css";
 }
 
 .primary:active,
@@ -245,15 +207,9 @@ textarea.input {
   transform: scale(0.96);
 }
 
-.primary:disabled,
-.ghost:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
 .label {
+  composes: typeCaption from "../styles/parts.module.css";
   display: block;
-  font-size: 12px;
   color: var(--ink-muted);
 }
 
@@ -567,10 +523,7 @@ textarea.input {
 }
 
 .sideCard {
-  border: 1px solid var(--divider);
-  border-radius: var(--radius-lg);
-  padding: var(--space-md);
-  background: var(--surface);
+  composes: card from "../styles/parts.module.css";
 }
 
 .sideCard a {

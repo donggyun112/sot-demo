@@ -27,10 +27,12 @@
   --danger: #d70015;
   --danger-tint: rgb(215 0 21 / 8%);
 
-  --radius-sm: 8px;
-  --radius-md: 11px;
-  --radius-lg: 18px;
-  --radius-xl: 24px;
+  /* DESIGN.md's rounded scale. The screens had a rounder one of their own,
+     which is why a button was a pill here and a rectangle there. */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
   --radius-pill: 9999px;
 
   /* Base unit 4px. Anything not a multiple of 4 is a bug. */

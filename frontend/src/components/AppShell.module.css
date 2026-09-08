@@ -75,15 +75,8 @@
 }
 
 .item {
-  display: flex;
-  align-items: center;
+  composes: navItem from "../styles/parts.module.css";
   gap: var(--space-sm);
-  height: 30px;
-  padding: 0 var(--space-sm);
-  border-radius: var(--radius-sm);
-  color: var(--ink-muted);
-  font-size: 14px;
-  text-decoration: none;
 }
 
 .item:hover {
@@ -92,11 +85,15 @@
 }
 
 /* Selection is neutral and survives hover. */
-.itemOn,
+.itemOn {
+  composes: navItemSelected from "../styles/parts.module.css";
+  font-weight: 500;
+}
+
+/* Selection survives hover. */
 .itemOn:hover {
   background: var(--surface-selected);
   color: var(--ink);
-  font-weight: 500;
 }
 
 .itemLabel {

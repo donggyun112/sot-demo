@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { openWorkspace } from "./workspace";
 
 const api = "http://127.0.0.1:18001/api/v1";
 
@@ -26,13 +27,6 @@ async function login(page: Page, actor: "alice" | "bob") {
     access_token: string;
     user: { id: string; email: string };
   };
-}
-
-async function openWorkspace(page: Page, name: string) {
-  await page.getByRole("button", { name: "Workspaces" }).click();
-  await page.getByRole("menuitem", { name, exact: true }).click();
-  await page.waitForURL(/\/w\/[^/]+$/);
-  return new URL(page.url()).pathname.split("/")[2];
 }
 
 test("an invitation is not membership until it is accepted", async ({ browser }) => {
