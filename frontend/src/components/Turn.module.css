@@ -34,7 +34,7 @@
   border-radius: 16px;
   padding: var(--space-xs) 14px;
   font-size: 14px;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 /* Speaker line: avatar leads, on whichever edge the turn is aligned to. */

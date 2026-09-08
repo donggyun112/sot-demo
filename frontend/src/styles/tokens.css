@@ -76,6 +76,14 @@ body {
   line-height: 1.5;
   letter-spacing: -0.022em;
   -webkit-font-smoothing: antialiased;
+  /*
+   * Korean has no spaces inside a word but plenty between them, and the
+   * default rule breaks CJK after any character: "설명할 수 있 / 는" splits a
+   * word in half. keep-all wraps on the spaces the writer put there.
+   */
+  word-break: keep-all;
+  /* Let the browser avoid a last line holding one word. */
+  text-wrap: pretty;
 }
 
 /* Five sizes, two weights. No 18, no 20, no 32, no 40. */
@@ -86,6 +94,8 @@ h1 {
   line-height: 1.08;
   letter-spacing: -0.025em;
   margin: 0;
+  /* A headline is read as a shape: even lines, not a full one and a stub. */
+  text-wrap: balance;
 }
 
 h2 {
@@ -95,6 +105,7 @@ h2 {
   line-height: 1.14;
   letter-spacing: -0.022em;
   margin: 0;
+  text-wrap: balance;
 }
 
 h3,
