@@ -429,7 +429,7 @@ async def test_completed_turns_curation_and_immutable_bundle_round_trip(
         s.owner,
         s.workspace_id,
         s.branch.id,
-        expected_version=5,
+        expected_version=4,
         operation=EditTurn(appended.turns[0].id, "later"),
     )
     async with s.uow().transaction() as tx:
@@ -725,12 +725,6 @@ async def test_composed_document_session_routes_contracts_rbac_and_versions(
         assert preview.status_code == 200 and [
             i["content"] for i in preview.json()
         ] == ["Q", "edited"]
-        published = await client.post(
-            branch_url + "/bundles",
-            json={"expected_version": 2, "title": "Public"},
-            headers=headers,
-        )
-        assert published.status_code == 201 and published.json()["branch_version"] == 3
         for path, invalid in (
             (doc_url + "/sessions", {"document_id": None}),
             (session_url + "/branches", {"workspace_id": other_w}),
@@ -740,10 +734,7 @@ async def test_composed_document_session_routes_contracts_rbac_and_versions(
                 {**body, "operation": {**edit_body, "unexpected": True}},
             ),
             (branch_url + "/curation-ops", {**body, "expected_version": -1}),
-            (
-                branch_url + "/bundles",
-                {"expected_version": 3, "title": "x", "actor": "other"},
-            ),
+            (branch_url + "/curation-ops", {**body, "actor": "other"}),
         ):
             invalid_response = await client.post(path, json=invalid, headers=headers)
             assert invalid_response.status_code == 422

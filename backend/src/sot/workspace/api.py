@@ -179,7 +179,9 @@ def build_workspace_router(
     ) -> tuple[WorkspaceMemberProfileResponse, ...]:
         return tuple(
             WorkspaceMemberProfileResponse.from_profile(profile)
-            for profile in await list_members.execute(current, WorkspaceId(workspace_id))
+            for profile in await list_members.execute(
+                current, WorkspaceId(workspace_id)
+            )
         )
 
     @router.get(

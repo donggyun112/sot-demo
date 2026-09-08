@@ -26,7 +26,6 @@ from sot.consensus.application import (
 from sot.consensus.domain import (
     ApprovalDecision,
     DocumentEdit,
-    ProposalCitation,
     ProposalStatus,
 )
 from sot.consensus.postgres import PostgresProposalRepository
@@ -37,12 +36,14 @@ from sot.document.application import (
 )
 from sot.identity.tokens import SOTAccessTokenCodec
 from sot.session.application import (
+    AppendCompletedTurns,
     BundleAccess,
+    FreezeEvidence,
     RequiredApprovers,
     SessionAccess,
     VersionGuard,
 )
-from sot.session.domain import Bundle, BundleItem
+from sot.session.domain import Bundle, BundleItem, NewTurn
 from sot.shared.ids import BundleId, ProposalId, UserId
 from sot.workspace.application import WorkspaceAccess
 from sot.workspace.domain import WorkspaceMembership, WorkspaceRole
@@ -74,11 +75,7 @@ class SharingConsensus:
             s.session.id,
             document_id=s.document_id,
             edits=(DocumentEdit("", "First claim. Second claim."),),
-            bundle_ids=(self.bundle.id,),
-            citations=(
-                ProposalCitation(self.bundle.id, 1, "Second claim"),
-                ProposalCitation(self.bundle.id, 0, "First claim"),
-            ),
+            branch_id=s.branch.id,
         )
         await self.decide.execute(
             s.owner,
@@ -98,7 +95,13 @@ async def consensus(state: Harness) -> SharingConsensus:
     bundles = BundleAccess(s.sessions, sessions, members)
     documents = DocumentAccess(s.documents, members)
     sources = ProposalSources(
-        sessions, documents, bundles, RequiredApprovers(s.sessions), members
+        sessions,
+        documents,
+        bundles,
+        RequiredApprovers(s.sessions),
+        members,
+        # The real thing: a proposal freezes the conversation it came out of.
+        FreezeEvidence(s.sessions, s.sessions, s.reader(), SystemClock()),
     )
     proposals = PostgresProposalRepository()
     bundle = Bundle.publish(
@@ -110,6 +113,18 @@ async def consensus(state: Harness) -> SharingConsensus:
         s.owner.user_id,
         NOW,
         title="Frozen title",
+    )
+    # A session with a conversation in it: an update proposed from this branch
+    # records those turns as the grounds it was written from.
+    await AppendCompletedTurns(s.sessions, s.reader(), s.uow, SystemClock()).execute(
+        s.owner,
+        s.workspace_id,
+        s.branch.id,
+        expected_version=0,
+        messages=(
+            NewTurn("user", "what should the limit be?"),
+            NewTurn("assistant", "five to ten per second is usual"),
+        ),
     )
     async with s.uow().transaction() as tx:
         await s.sessions.create_bundle(tx, s.workspace_id, bundle)
@@ -187,8 +202,7 @@ async def test_version_citations_roundtrip_and_decision_uniqueness(
         pid,
         expected_version=1,
         edits=(DocumentEdit("", "Third claim"),),
-        bundle_ids=(e.bundle.id,),
-        citations=(ProposalCitation(e.bundle.id, 0, "Third claim"),),
+        branch_id=s.branch.id,
     )
     await e.decide.execute(
         s.owner,
@@ -201,8 +215,7 @@ async def test_version_citations_roundtrip_and_decision_uniqueness(
         after = await e.proposals.find(tx, s.workspace_id, pid)
         assert after and after.versions[0] == before.versions[0]
         assert [c.claim_anchor for c in after.versions[0].citations] == [
-            "Second claim",
-            "First claim",
+            "First claim. Second claim."
         ]
         assert [c.claim_anchor for c in after.versions[1].citations] == ["Third claim"]
         assert [a.version for a in after.approvals] == [1, 2]
@@ -233,6 +246,9 @@ async def test_citation_constraints(consensus: SharingConsensus, mutation: str) 
     unselected = replace(e.bundle, id=BundleId(uuid4()))
     async with s.uow().transaction() as tx:
         await s.sessions.create_bundle(tx, s.workspace_id, unselected)
+        saved = await e.proposals.find(tx, s.workspace_id, pid)
+    assert saved is not None
+    cited = saved.versions[0].citations[0]
     expected: type[psycopg.IntegrityError] = (
         psycopg.errors.UniqueViolation
         if mutation == "duplicate"
@@ -251,20 +267,22 @@ async def test_citation_constraints(consensus: SharingConsensus, mutation: str) 
                     -1 if mutation == "negative_position" else 2,
                     " "
                     if mutation == "blank_anchor"
-                    else "First claim"
+                    else cited.claim_anchor
                     if mutation == "duplicate"
                     else "Second",
-                    unselected.id if mutation == "membership" else e.bundle.id,
+                    unselected.id if mutation == "membership" else cited.bundle_id,
                     -1
                     if mutation == "negative_item"
                     else 90
                     if mutation == "item"
+                    else cited.bundle_item_position
+                    if mutation == "duplicate"
                     else 0,
                 ),
             )
 
 
-async def test_http_proposal_required_citations_permissions_and_minimal_merge(
+async def test_http_proposal_refuses_supplied_evidence_and_merges_minimally(
     consensus: SharingConsensus, api: httpx.AsyncClient
 ) -> None:
     e, s = consensus, consensus.state
@@ -272,16 +290,16 @@ async def test_http_proposal_required_citations_permissions_and_minimal_merge(
     body = {
         "source_session_id": str(s.session.id),
         "edits": [{"find": "", "replace": "First claim"}],
-        "bundle_ids": [str(e.bundle.id)],
+        "branch_id": str(s.branch.id),
     }
+    # Grounds come from the conversation, so a caller cannot hand them in.
     assert (
         await api.post(
             prefix + f"/documents/{s.document_id}/proposals",
             headers=bearer(s.owner.user_id),
-            json=body,
+            json={**body, "bundle_ids": [str(e.bundle.id)]},
         )
     ).status_code == 422
-    body["citations"] = []
     created = await api.post(
         prefix + f"/documents/{s.document_id}/proposals",
         headers=bearer(s.owner.user_id),
@@ -293,7 +311,12 @@ async def test_http_proposal_required_citations_permissions_and_minimal_merge(
         await api.put(
             path,
             headers=bearer(s.owner.user_id),
-            json={"expected_version": 1, "edits": [{"find": "", "replace": "Revision"}], "bundle_ids": []},
+            json={
+                "expected_version": 1,
+                "edits": [{"find": "", "replace": "Revision"}],
+                "branch_id": str(s.branch.id),
+                "citations": [],
+            },
         )
     ).status_code == 422
     assert (
@@ -335,33 +358,23 @@ async def test_http_proposal_required_citations_permissions_and_minimal_merge(
     ).status_code == 409
 
 
-async def test_http_revise_citations_are_explicit_ordered_and_new_empty_version_clears_them(
+async def test_http_revise_rederives_the_grounds_from_the_session(
     consensus: SharingConsensus, api: httpx.AsyncClient
 ) -> None:
     e, s = consensus, consensus.state
     pid = await e.approved()
     path = f"/api/v1/workspaces/{s.workspace_id}/proposals/{pid}"
-    citations = [
-        {
-            "bundle_id": str(e.bundle.id),
-            "bundle_item_position": 1,
-            "claim_anchor": "Next",
-        },
-        {
-            "bundle_id": str(e.bundle.id),
-            "bundle_item_position": 0,
-            "claim_anchor": "claim",
-        },
-    ]
     body: dict[str, Any] = {
         "expected_version": 1,
         "edits": [{"find": "", "replace": "Next claim"}],
-        "bundle_ids": [str(e.bundle.id)],
-        "citations": citations,
+        "branch_id": str(s.branch.id),
     }
     response = await api.put(path, headers=bearer(s.owner.user_id), json=body)
     assert response.status_code == 200 and response.json()["version"] == 2
-    assert response.json()["current_version"]["citations"] == citations
+    assert [
+        (c["claim_anchor"], c["bundle_item_position"])
+        for c in response.json()["current_version"]["citations"]
+    ] == [("Next claim", 1)]
     assert response.json()["approvals"] == []
     assert (
         await api.get(path, headers=bearer(s.owner.user_id))
@@ -371,14 +384,9 @@ async def test_http_revise_citations_are_explicit_ordered_and_new_empty_version_
         conflict.status_code == 409
         and conflict.json()["error"]["code"] == "proposal_version_conflict"
     )
-    body.update(expected_version=2, citations=[])
-    empty = await api.put(path, headers=bearer(s.owner.user_id), json=body)
-    assert (
-        empty.status_code == 200 and empty.json()["current_version"]["citations"] == []
-    )
     async with s.uow().transaction() as tx:
         proposal = await e.proposals.find(tx, s.workspace_id, pid)
-        assert proposal and [len(v.citations) for v in proposal.versions] == [2, 2, 0]
+        assert proposal and [len(v.citations) for v in proposal.versions] == [1, 1]
 
 
 async def test_authenticated_routes_reject_invalid_workspace_and_strict_inputs(
@@ -393,7 +401,7 @@ async def test_authenticated_routes_reject_invalid_workspace_and_strict_inputs(
             {
                 "source_session_id": str(s.session.id),
                 "edits": [{"find": "", "replace": "claim"}],
-                "citations": [],
+                "branch_id": str(s.branch.id),
             },
         ),
         ("GET", f"/proposals/{uuid4()}", None),
@@ -403,8 +411,7 @@ async def test_authenticated_routes_reject_invalid_workspace_and_strict_inputs(
             {
                 "expected_version": 1,
                 "edits": [{"find": "", "replace": "claim"}],
-                "bundle_ids": [],
-                "citations": [],
+                "branch_id": str(s.branch.id),
             },
         ),
         (
@@ -452,7 +459,7 @@ async def test_proposal_read_holds_status_and_approvals_consistent(
         s.session.id,
         document_id=s.document_id,
         edits=(DocumentEdit("", "claim"),),
-        citations=(),
+        branch_id=s.branch.id,
     )
     task = None
     try:
@@ -493,8 +500,7 @@ async def test_additional_approvers_remain_version_owned_snapshots(
         pid,
         expected_version=1,
         edits=(DocumentEdit("", "new"),),
-        bundle_ids=(),
-        citations=(),
+        branch_id=s.branch.id,
         additional_approver_ids=frozenset({s.other.user_id}),
     )
     await e.decide.execute(
@@ -547,8 +553,7 @@ async def test_production_revision_absent_private_responses_match(
             json={
                 "expected_version": 1,
                 "edits": [{"find": "", "replace": "private change"}],
-                "bundle_ids": [],
-                "citations": [],
+                "branch_id": str(s.branch.id),
             },
         )
         responses.append((response.status_code, response.json()["error"]["code"]))

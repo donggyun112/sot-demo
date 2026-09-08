@@ -101,7 +101,11 @@ class ProposalVersion:
         text = base
         for edit in self.edits:
             if not edit.find:
-                text = f"{text.rstrip()}\n\n{edit.replace}" if text.strip() else edit.replace
+                text = (
+                    f"{text.rstrip()}\n\n{edit.replace}"
+                    if text.strip()
+                    else edit.replace
+                )
                 continue
             found = text.count(edit.find)
             if found == 0:

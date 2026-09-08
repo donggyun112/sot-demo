@@ -155,8 +155,6 @@ export function SessionView() {
           branch={branch}
           onBranch={(id) => setParam("branch", id)}
           turns={turnList}
-          bundleId={params.get("bundle")}
-          onPublished={(id) => setParam("bundle", id)}
           onProposed={(id) => void navigate(`/w/${workspaceId}/proposals/${id}`)}
         />
       </div>
@@ -359,8 +357,6 @@ function SessionSide({
   branch,
   onBranch,
   turns,
-  bundleId,
-  onPublished,
   onProposed,
 }: {
   open: boolean;
@@ -372,8 +368,6 @@ function SessionSide({
   branch: { id: string; version: number } | undefined;
   onBranch: (id: string) => void;
   turns: Turn[];
-  bundleId: string | null;
-  onPublished: (id: string) => void;
   onProposed: (id: string) => void;
 }) {
   const { t } = useTranslation();
@@ -388,10 +382,6 @@ function SessionSide({
       params: { path: { workspace_id: workspaceId, branch_id: branchId ?? "pending" } },
     },
     { enabled: Boolean(branchId) && can(member, "session.read") },
-  );
-  const publish = api.useMutation(
-    "post",
-    "/api/v1/workspaces/{workspace_id}/branches/{branch_id}/bundles",
   );
   const send = api.useMutation(
     "post",
@@ -439,7 +429,7 @@ function SessionSide({
     branch?.version ?? 0,
     bumped && branchId && bumped.id === branchId ? bumped.version : 0,
   );
-  const failure = [publish.error, send.error].find(Boolean);
+  const failure = send.error;
   // The bundle preview is what gets proposed when the body is left blank, so it
   // counts against the same review limit.
   return (
@@ -601,42 +591,6 @@ function SessionSide({
   function renderPath() {
     return (
       <Section title={t("sessions.path")}>
-        <Action
-          variant="primary"
-          label={t("sessions.publish")}
-          hint={t("sessions.publishHint")}
-          pending={publish.isPending}
-          blockedBy={
-            !participate
-              ? t("sessions.needParticipate")
-              : previewItems.length === 0
-                ? t("sessions.needCurated")
-                : bundleId
-                  ? t("sessions.alreadyPublished")
-                  : undefined
-          }
-          onClick={() => {
-            if (branchId == null) return;
-            publish.mutate(
-              {
-                params: { path: { workspace_id: workspaceId, branch_id: branchId } },
-                body: {
-                  expected_version: version,
-                  // Whoever opens the link reads a conversation, so name
-                  // it after the conversation rather than after the record.
-                  title: titleFromTurns(turns, t("sessions.untitledSession")),
-                },
-              },
-              {
-                onSuccess: (result) => {
-                  setBumped({ id: branchId, version: result.branch_version });
-                  onPublished(result.resource_id);
-                },
-              },
-            )
-          }}
-        />
-
         {/*
           Handing a session over is adding the recipient to it: they open the
           same conversation and keep working in it. A link would have handed

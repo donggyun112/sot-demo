@@ -24,7 +24,7 @@ from sot.consensus.domain import (
 from sot.document.contracts import RevisionResult
 from sot.identity.contracts import Actor
 from sot.shared.ids import (
-    BundleId,
+    BranchId,
     DocumentId,
     ProposalId,
     SessionId,
@@ -289,8 +289,7 @@ def build_consensus_router(
                 SessionId(body.source_session_id),
                 document_id=DocumentId(document_id),
                 edits=tuple(edit.to_edit() for edit in body.edits),
-                bundle_ids=tuple(BundleId(value) for value in body.bundle_ids),
-                citations=tuple(value.to_citation() for value in body.citations),
+                branch_id=BranchId(body.branch_id),
                 additional_approver_ids=frozenset(
                     UserId(value) for value in body.additional_approver_ids
                 ),
@@ -321,8 +320,7 @@ def build_consensus_router(
                 ProposalId(proposal_id),
                 expected_version=body.expected_version,
                 edits=tuple(edit.to_edit() for edit in body.edits),
-                bundle_ids=tuple(BundleId(value) for value in body.bundle_ids),
-                citations=tuple(value.to_citation() for value in body.citations),
+                branch_id=BranchId(body.branch_id),
                 additional_approver_ids=frozenset(
                     UserId(value) for value in body.additional_approver_ids
                 )

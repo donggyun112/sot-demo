@@ -140,9 +140,7 @@ class PostgresIdentityRepository:
             (now, user_id),
         )
 
-    async def find_by_email(
-        self, tx: TransactionContext, email: str
-    ) -> UserId | None:
+    async def find_by_email(self, tx: TransactionContext, email: str) -> UserId | None:
         row = await (
             await connection(tx).execute(
                 "SELECT id FROM sot.sot_user WHERE lower(email)=%s", (email,)

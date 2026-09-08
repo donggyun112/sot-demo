@@ -8,7 +8,7 @@ import pytest
 from sot.identity.contracts import Actor
 from sot.session import application, contracts, domain
 from sot.session.contracts import FrozenEvidence
-from sot.shared.ids import BundleId, UserId, WorkspaceId
+from sot.shared.ids import BranchId, BundleId, UserId, WorkspaceId
 from sot.workspace.contracts import WorkspaceMembership, WorkspaceRole
 from sot.workspace.domain import WorkspaceNotFound
 from tests.session.test_application import NOW, FixedClock, access, creator
@@ -190,9 +190,7 @@ async def test_publish_materializes_projection_then_later_preview_changes_only()
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "failure", ["write", "editor", "closed", "ceiling"]
-)
+@pytest.mark.parametrize("failure", ["write", "editor", "closed", "ceiling"])
 async def test_publish_failure_leaves_no_bundle_or_version_change(failure: str) -> None:
     store, actor, branch = await prepared()
     store.fail_write = failure == "write"
@@ -254,9 +252,7 @@ async def test_bundle_reader_hides_existence_from_uninvited_member(
                 tx,
                 actor=outsider,
                 workspace_id=branch.workspace_id,
-                bundle_id=result.bundle_id
-                if existing
-                else BundleId(uuid4()),
+                bundle_id=result.bundle_id if existing else BundleId(uuid4()),
             )
     assert "bundle_content" not in store.reads
     assert "session_content" not in store.reads

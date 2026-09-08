@@ -24,6 +24,7 @@ from sot.session.application import (
     ApplyCuration,
     BranchAccess,
     BundleAccess,
+    FreezeEvidence,
     RequiredApprovers,
     SessionAccess,
     VersionGuard,
@@ -124,6 +125,8 @@ async def product_harness() -> AgentProductHarness:
             bundles,
             RequiredApprovers(store),
             store,
+            # The agent's update records the conversation it came out of.
+            FreezeEvidence(store, store, branch_access, FixedClock()),
         ),
         branch_access,
         VersionGuard(store, branch_access),

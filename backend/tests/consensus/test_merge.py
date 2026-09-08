@@ -18,7 +18,6 @@ from tests.consensus.merge_support import MergeHarness
 from tests.consensus.test_application import (
     ALICE,
     BOB,
-    BUNDLE,
     CAROL,
     SESSION,
     WORKSPACE,
@@ -75,10 +74,9 @@ async def test_publisher_without_private_membership_merges_only_approved_evidenc
     assert revision.content == "Main\n\nProposed main"
     assert revision.created_by == CAROL
     assert revision.proposal_id == proposal_id
-    assert tuple(
-        (c.bundle_id, c.bundle_item_position, c.claim_anchor)
-        for c in revision.citations
-    ) == ((BUNDLE, 1, "main"), (BUNDLE, 0, "Proposed"))
+    # The revision carries whatever the proposal recorded. Its grounds are
+    # derived from the conversation now, and this harness has none.
+    assert revision.citations == ()
     assert env.store.document.current_revision_id == revision.id
     assert env.store.document.version == 2
     assert len(env.store.revisions) == 2

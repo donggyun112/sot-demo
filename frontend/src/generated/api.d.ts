@@ -238,23 +238,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/workspaces/{workspace_id}/branches/{branch_id}/bundles": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Publish */
-        post: operations["publish_api_v1_workspaces__workspace_id__branches__branch_id__bundles_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/workspaces/{workspace_id}/branches/{branch_id}/curation-ops": {
         parameters: {
             query?: never;
@@ -694,18 +677,6 @@ export interface components {
             /** Source Ids */
             source_ids: string[];
         };
-        /** CitationRequest */
-        CitationRequest: {
-            /**
-             * Bundle Id
-             * Format: uuid
-             */
-            bundle_id: string;
-            /** Bundle Item Position */
-            bundle_item_position: number;
-            /** Claim Anchor */
-            claim_anchor: string;
-        };
         /** CitationResponse */
         CitationResponse: {
             /**
@@ -732,10 +703,11 @@ export interface components {
         CreateProposalRequest: {
             /** Additional Approver Ids */
             additional_approver_ids?: string[];
-            /** Bundle Ids */
-            bundle_ids?: string[];
-            /** Citations */
-            citations: components["schemas"]["CitationRequest"][];
+            /**
+             * Branch Id
+             * Format: uuid
+             */
+            branch_id: string;
             /** Edits */
             edits: components["schemas"]["DocumentEditRequest"][];
             /**
@@ -1067,13 +1039,6 @@ export interface components {
             document: components["schemas"]["PublishedDocumentResponse"];
             revision: components["schemas"]["PublishedRevisionResponse"];
         };
-        /** PublishBundleRequest */
-        PublishBundleRequest: {
-            /** Expected Version */
-            expected_version: number;
-            /** Title */
-            title: string;
-        };
         /** PublishedDocumentResponse */
         PublishedDocumentResponse: {
             /**
@@ -1154,10 +1119,11 @@ export interface components {
         ReviseProposalRequest: {
             /** Additional Approver Ids */
             additional_approver_ids?: string[] | null;
-            /** Bundle Ids */
-            bundle_ids: string[];
-            /** Citations */
-            citations: components["schemas"]["CitationRequest"][];
+            /**
+             * Branch Id
+             * Format: uuid
+             */
+            branch_id: string;
             /** Edits */
             edits: components["schemas"]["DocumentEditRequest"][];
             /** Expected Version */
@@ -1768,42 +1734,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BundleItemResponse"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    publish_api_v1_workspaces__workspace_id__branches__branch_id__bundles_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                workspace_id: string;
-                branch_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PublishBundleRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BranchMutationResponse"];
                 };
             };
             /** @description Validation Error */

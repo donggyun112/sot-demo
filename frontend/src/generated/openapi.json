@@ -194,33 +194,6 @@
         "title": "BundleItemResponse",
         "type": "object"
       },
-      "CitationRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "bundle_id": {
-            "format": "uuid",
-            "title": "Bundle Id",
-            "type": "string"
-          },
-          "bundle_item_position": {
-            "minimum": 0,
-            "title": "Bundle Item Position",
-            "type": "integer"
-          },
-          "claim_anchor": {
-            "minLength": 1,
-            "title": "Claim Anchor",
-            "type": "string"
-          }
-        },
-        "required": [
-          "bundle_id",
-          "bundle_item_position",
-          "claim_anchor"
-        ],
-        "title": "CitationRequest",
-        "type": "object"
-      },
       "CitationResponse": {
         "additionalProperties": false,
         "properties": {
@@ -278,20 +251,10 @@
             "title": "Additional Approver Ids",
             "type": "array"
           },
-          "bundle_ids": {
-            "items": {
-              "format": "uuid",
-              "type": "string"
-            },
-            "title": "Bundle Ids",
-            "type": "array"
-          },
-          "citations": {
-            "items": {
-              "$ref": "#/components/schemas/CitationRequest"
-            },
-            "title": "Citations",
-            "type": "array"
+          "branch_id": {
+            "format": "uuid",
+            "title": "Branch Id",
+            "type": "string"
           },
           "edits": {
             "items": {
@@ -309,8 +272,8 @@
         },
         "required": [
           "source_session_id",
-          "edits",
-          "citations"
+          "branch_id",
+          "edits"
         ],
         "title": "CreateProposalRequest",
         "type": "object"
@@ -1019,26 +982,6 @@
         "title": "PublicationResponse",
         "type": "object"
       },
-      "PublishBundleRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "expected_version": {
-            "minimum": 0,
-            "title": "Expected Version",
-            "type": "integer"
-          },
-          "title": {
-            "title": "Title",
-            "type": "string"
-          }
-        },
-        "required": [
-          "expected_version",
-          "title"
-        ],
-        "title": "PublishBundleRequest",
-        "type": "object"
-      },
       "PublishedDocumentResponse": {
         "additionalProperties": false,
         "properties": {
@@ -1201,20 +1144,10 @@
             ],
             "title": "Additional Approver Ids"
           },
-          "bundle_ids": {
-            "items": {
-              "format": "uuid",
-              "type": "string"
-            },
-            "title": "Bundle Ids",
-            "type": "array"
-          },
-          "citations": {
-            "items": {
-              "$ref": "#/components/schemas/CitationRequest"
-            },
-            "title": "Citations",
-            "type": "array"
+          "branch_id": {
+            "format": "uuid",
+            "title": "Branch Id",
+            "type": "string"
           },
           "edits": {
             "items": {
@@ -1232,9 +1165,8 @@
         },
         "required": [
           "expected_version",
-          "edits",
-          "bundle_ids",
-          "citations"
+          "branch_id",
+          "edits"
         ],
         "title": "ReviseProposalRequest",
         "type": "object"
@@ -2162,71 +2094,6 @@
           }
         ],
         "summary": "Preview"
-      }
-    },
-    "/api/v1/workspaces/{workspace_id}/branches/{branch_id}/bundles": {
-      "post": {
-        "operationId": "publish_api_v1_workspaces__workspace_id__branches__branch_id__bundles_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "workspace_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Workspace Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "branch_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Branch Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PublishBundleRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BranchMutationResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Publish"
       }
     },
     "/api/v1/workspaces/{workspace_id}/branches/{branch_id}/curation-ops": {

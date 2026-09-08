@@ -313,7 +313,7 @@ async def test_additional_approver_sees_proposal_but_no_private_session_resource
     body = {
         "source_session_id": str(s.session.id),
         "edits": [{"find": "", "replace": "reviewable proposal"}],
-        "citations": [],
+        "branch_id": str(s.branch.id),
         "additional_approver_ids": [str(s.other.user_id)],
     }
     visible = await api.post(paths(s)[5], headers=bearer(s.owner.user_id), json=body)

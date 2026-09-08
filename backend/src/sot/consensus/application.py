@@ -34,7 +34,6 @@ from sot.shared.clock import Clock
 from sot.shared.errors import Forbidden, InvalidInput, NotFound
 from sot.shared.ids import (
     BranchId,
-    BundleId,
     DocumentId,
     ProposalId,
     SessionId,
@@ -83,8 +82,6 @@ class ProposalSources:
         session: SessionView,
         document_id: DocumentId,
         creator_id: UserId,
-        bundle_ids: tuple[BundleId, ...],
-        citations: tuple[ProposalCitation, ...],
         additional_approver_ids: frozenset[UserId],
     ) -> tuple[UUID, str, frozenset[UserId]]:
         """Use the caller's already-authorized immutable source within its tx."""
@@ -113,23 +110,6 @@ class ProposalSources:
         )
         for user_id in sorted(required, key=str):
             await self.members.require_member(tx, workspace_id, user_id)
-        item_counts: dict[BundleId, int] = {}
-        for bundle_id in bundle_ids:
-            snapshot = await self.bundles.require_snapshot(
-                tx,
-                actor=actor,
-                workspace_id=workspace_id,
-                bundle_id=bundle_id,
-            )
-            item_counts[bundle_id] = len(snapshot.items)
-        if any(
-            citation.bundle_id not in item_counts
-            or citation.bundle_item_position >= item_counts[citation.bundle_id]
-            for citation in citations
-        ):
-            raise InvalidInput(
-                "proposal_citation_invalid", "Citation item does not exist in bundle"
-            )
         return (
             document.current_revision.id,
             document.current_revision.content,
@@ -248,8 +228,6 @@ class CreateProposal:
             session=session,
             document_id=document_id,
             creator_id=actor.user_id,
-            bundle_ids=bundle_ids,
-            citations=citations,
             additional_approver_ids=additional_approver_ids,
         )
         proposal = Proposal.create(
@@ -382,8 +360,6 @@ class ReviseProposal:
                 session=session,
                 document_id=proposal.document_id,
                 creator_id=proposal.created_by,
-                bundle_ids=bundle_ids,
-                citations=citations,
                 additional_approver_ids=extras,
             )
             revised = proposal.revise(

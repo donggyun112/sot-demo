@@ -123,7 +123,9 @@ def browser_model() -> FunctionModel:
             yield {
                 0: DeltaToolCall(
                     "sot_update",
-                    json.dumps({"edits": [{"find": "", "replace": f"{prompt} proposal"}]}),
+                    json.dumps(
+                        {"edits": [{"find": "", "replace": f"{prompt} proposal"}]}
+                    ),
                     tool_call_id=str(prompt),
                 )
             }

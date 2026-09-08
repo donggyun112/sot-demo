@@ -16,7 +16,7 @@ from sot.workspace.application import (
     ListWorkspaceInvitations,
     RevokeInvitation,
     WorkspaceAccess,
-    )
+)
 from sot.workspace.delivery import LocalInvitationDelivery
 from sot.workspace.domain import (
     CODE_ALPHABET,
@@ -27,7 +27,7 @@ from sot.workspace.domain import (
     InvitationStatus,
     WorkspaceForbidden,
     WorkspaceRole,
-    )
+)
 from tests.workspace.test_application import NOW, MemoryStore
 
 
@@ -75,9 +75,9 @@ async def test_an_invitation_is_not_membership_until_it_is_accepted() -> None:
         ("Team", "Unnamed")
     ]
 
-    member = await AcceptInvitation(
-        store, store, store, lambda: store, store
-    ).execute(invitee, invitation.id)
+    member = await AcceptInvitation(store, store, store, lambda: store, store).execute(
+        invitee, invitation.id
+    )
     assert member.role is WorkspaceRole.MEMBER
     assert store.members[workspace_id, invitee.user_id] == member
     assert store.invitations[invitation.id].status is InvitationStatus.ACCEPTED
@@ -127,9 +127,9 @@ async def test_an_invitation_sent_before_they_had_an_account_binds_on_the_addres
     ).execute(newcomer)
     assert [item.invitation.id for item in mine] == [invitation.id]
 
-    member = await AcceptInvitation(
-        store, store, store, lambda: store, store
-    ).execute(newcomer, invitation.id)
+    member = await AcceptInvitation(store, store, store, lambda: store, store).execute(
+        newcomer, invitation.id
+    )
     assert member.role is WorkspaceRole.VIEWER
 
 
@@ -170,9 +170,9 @@ async def test_one_live_invitation_per_address_and_none_for_a_member() -> None:
     )
     replacement = replacement_issued.invitation
     assert replacement.role is WorkspaceRole.VIEWER
-    assert [
-        item.status for item in store.invitations.values()
-    ].count(InvitationStatus.EXPIRED) == 1
+    assert [item.status for item in store.invitations.values()].count(
+        InvitationStatus.EXPIRED
+    ) == 1
 
     await AcceptInvitation(store, store, store, lambda: store, store).execute(
         invitee, replacement.id
@@ -219,7 +219,9 @@ async def test_only_a_manager_sees_or_revokes_a_workspace_invitation() -> None:
         owner, workspace_id, email="teammate@example.com", role=WorkspaceRole.MEMBER
     )
     invitation = issued.invitation
-    listing = ListWorkspaceInvitations(store, WorkspaceAccess(store), lambda: store, store)
+    listing = ListWorkspaceInvitations(
+        store, WorkspaceAccess(store), lambda: store, store
+    )
     revoke = RevokeInvitation(store, WorkspaceAccess(store), lambda: store, store)
 
     assert [item.id for item in await listing.execute(owner, workspace_id)] == [

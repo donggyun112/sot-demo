@@ -361,9 +361,7 @@ class ListMyInvitations:
                 inviter = await self._attribution.require_attribution(
                     tx, item.inviter_id
                 )
-                views.append(
-                    InvitationView(item, workspace.name, inviter.display_name)
-                )
+                views.append(InvitationView(item, workspace.name, inviter.display_name))
             return tuple(views)
 
 
@@ -382,9 +380,7 @@ class AcceptInvitation:
         self._directory = directory
         self._uow_factory, self._clock = uow_factory, clock
 
-    async def execute(
-        self, actor: Actor, invitation_id: UUID
-    ) -> WorkspaceMembership:
+    async def execute(self, actor: Actor, invitation_id: UUID) -> WorkspaceMembership:
         now = self._clock.now()
         async with self._uow_factory().transaction() as tx:
             invitation = await self._bind(tx, invitation_id, actor)

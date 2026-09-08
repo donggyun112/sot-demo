@@ -13,7 +13,7 @@ from sot.consensus.application import (
     MergeProposal,
     ProposalSources,
 )
-from sot.consensus.domain import ApprovalDecision, DocumentEdit, ProposalCitation
+from sot.consensus.domain import ApprovalDecision, DocumentEdit
 from sot.document.application import DocumentAccess, PublishDocumentRevision
 from sot.document.contracts import DocumentView, RevisionView
 from sot.document.domain import Document, Revision, VersionConflict
@@ -25,38 +25,19 @@ from sot.workspace.domain import WorkspaceForbidden
 from tests.consensus.test_application import (
     ALICE,
     BOB,
-    BUNDLE,
+    BRANCH,
     CAROL,
     DOCUMENT,
     NOW,
     SESSION,
     WORKSPACE,
     Capabilities,
+    FakeEvidence,
     FixedClock,
     MemoryTransaction,
     Store,
 )
 from tests.document.test_application import document_view
-
-
-class FakeEvidence:
-    """Answers EvidenceFreezer for tests that do not exercise curation.
-
-    A proposal freezes the conversation it was written from; these tests are
-    about the proposal, so the frozen result is a stable stand-in they can
-    assert against.
-    """
-
-    def __init__(self, items: tuple[BundleItem, ...] = ()) -> None:
-        self.items = items
-        self.bundle_id = BundleId(uuid4())
-        self.calls: list[BranchId] = []
-
-    async def freeze(
-        self, tx, *, actor, workspace_id, branch_id, title
-    ) -> FrozenEvidence:
-        self.calls.append(branch_id)
-        return FrozenEvidence(self.bundle_id, self.items)
 
 
 @dataclass(kw_only=True)
@@ -242,11 +223,7 @@ class MergeHarness:
             SESSION,
             document_id=DOCUMENT,
             edits=(DocumentEdit("", "Proposed main"),),
-            bundle_ids=(BUNDLE,),
-            citations=(
-                ProposalCitation(BUNDLE, 1, "main"),
-                ProposalCitation(BUNDLE, 0, "Proposed"),
-            ),
+            branch_id=BRANCH,
         )
         if approve:
             for actor_id in (ALICE, BOB):

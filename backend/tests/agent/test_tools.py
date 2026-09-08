@@ -140,7 +140,9 @@ async def test_sot_update_returns_open_proposal_and_advances_lineage() -> None:
     creator = RecordingProposalCreator(BranchMutationResult(proposal_id, 5))
     deps = agent_deps(proposal_creator=creator)
 
-    result = await sot_update(tool_context(deps), [{"find": "", "replace": "candidate main"}])
+    result = await sot_update(
+        tool_context(deps), [{"find": "", "replace": "candidate main"}]
+    )
 
     assert result == {
         "proposalId": str(proposal_id),
@@ -167,7 +169,9 @@ async def test_failed_tool_command_does_not_advance_lineage() -> None:
     deps = agent_deps(proposal_creator=creator)
 
     with pytest.raises(VersionConflict):
-        await sot_update(tool_context(deps), [{"find": "", "replace": "loser proposal"}])
+        await sot_update(
+            tool_context(deps), [{"find": "", "replace": "loser proposal"}]
+        )
 
     assert deps.lineage.expected_version == 4
 
