@@ -747,3 +747,24 @@ it("walks from a revision back to the conversation behind it", async () => {
     within(history).getByRole("link", { name: "Proposal" }),
   ).toHaveAttribute("href", "/w/w1/proposals/proposal-1");
 });
+
+
+it("opens the session from the passage the update landed on", async () => {
+  // The question "where did this come from" is asked at the passage, so it is
+  // answered there — in the document, not in a panel somewhere else.
+  await signIn();
+  await openDocument();
+
+  const passage = (await screen.findByRole("heading", { name: "감사·모니터링" }))
+    .closest("[data-cited]");
+  expect(passage).not.toBeNull();
+  const link = within(passage as HTMLElement).getByRole("link", {
+    name: "From this session",
+  });
+  expect(link).toHaveAttribute("href", "/w/w1/sessions/session-1");
+
+  // A passage no update wrote carries no such claim.
+  const untouched = (await screen.findByRole("heading", { name: "문제 정의" }))
+    .closest("[data-cited]");
+  expect(untouched).toBeNull();
+});

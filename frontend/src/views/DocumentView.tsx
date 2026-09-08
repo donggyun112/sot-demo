@@ -7,9 +7,42 @@ import { useDisplayName, useTimestamp } from "../app/identity";
 import { TopBar } from "../components/AppShell";
 import { Section } from "../components/Page";
 import { MarkdownBody } from "../components/MarkdownBody";
-import { claimKey, headingsFrom } from "./outline";
+import { claimKey, headingsFrom, passagesFrom } from "./outline";
 import { editSummary } from "./patch";
 import styles from "./product.module.css";
+
+/**
+ * The way from a passage into the session that wrote it.
+ *
+ * Sections that came from an update are the ones a reader questions, so the
+ * question is answered where it is asked: on the passage itself, in the
+ * document, rather than in a panel somewhere else.
+ */
+function PassageSession({
+  workspaceId,
+  bundleId,
+}: {
+  workspaceId: string;
+  bundleId: string;
+}) {
+  const { t } = useTranslation();
+  const { api } = useSot();
+  /* Passages of one revision share a bundle, so this is one request. */
+  const cited = api.useQuery(
+    "get",
+    "/api/v1/workspaces/{workspace_id}/bundles/{bundle_id}",
+    { params: { path: { workspace_id: workspaceId, bundle_id: bundleId } } },
+  );
+  if (!cited.data) return null;
+  return (
+    <Link
+      className={styles.passageLink}
+      to={`/w/${workspaceId}/sessions/${cited.data.session_id}`}
+    >
+      {t("document.fromSession")}
+    </Link>
+  );
+}
 
 /**
  * The conversation a passage was written out of.
@@ -306,7 +339,27 @@ export function DocumentView() {
                   </p>
                 )}
                 {revision.content.trim() ? (
-                  <MarkdownBody text={revision.content} />
+                  passagesFrom(revision.content).map((passage) => {
+                    const grounds = citations.find(
+                      (one) =>
+                        claimKey(one.claim_anchor) === claimKey(passage.title),
+                    );
+                    return (
+                      <div
+                        key={passage.id}
+                        className={styles.passage}
+                        data-cited={grounds ? "true" : undefined}
+                      >
+                        <MarkdownBody text={passage.text} />
+                        {grounds && (
+                          <PassageSession
+                            workspaceId={workspaceId}
+                            bundleId={grounds.bundle_id}
+                          />
+                        )}
+                      </div>
+                    );
+                  })
                 ) : (
                   <p className={styles.empty}>{t("document.emptyBody")}</p>
                 )}

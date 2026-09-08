@@ -106,7 +106,8 @@
     "historyOpenSession": "Session it came from",
     "section": "Passage",
     "wholeBody": "The whole document",
-    "openCitedSession": "Open the session this came from"
+    "openCitedSession": "Open the session this came from",
+    "fromSession": "From this session"
   },
   "sessions": {
     "title": "Sessions",

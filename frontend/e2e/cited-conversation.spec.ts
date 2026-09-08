@@ -99,20 +99,31 @@ test("a merged passage leads back to the conversation that wrote it", async ({
       ).status(),
     ).toBe(200);
 
-    // From the merged passage: what was said, and the way back into it.
-    await alice.goto(`/w/${aw}/documents/${documentId}?panel=evidence`);
-    const rail = alice.getByRole("region", { name: "Evidence" });
-    await expect(rail.getByText(asked)).toBeVisible();
-
-    await rail
-      .getByRole("link", { name: "Open the session this came from" })
-      .click();
+    // The passage in the document leads into the session that wrote it. That
+    // is where a reader asks the question, so that is where it is answered.
+    await alice.goto(`/w/${aw}/documents/${documentId}`);
+    const passage = alice
+      .locator("[data-cited]")
+      .filter({ hasText: "감사·모니터링" });
+    await expect(passage).toBeVisible();
+    await passage.getByRole("link", { name: "From this session" }).click();
     await expect(alice).toHaveURL(
       new RegExp(`/sessions/${created.session_id}`),
     );
     await expect(
       alice.getByRole("paragraph").filter({ hasText: asked }),
     ).toBeVisible();
+
+    // And the rail still shows what was actually said, not an ordinal.
+    await alice.goto(`/w/${aw}/documents/${documentId}?panel=evidence`);
+    const rail = alice.getByRole("region", { name: "Evidence" });
+    await expect(rail.getByText(asked)).toBeVisible();
+    await rail
+      .getByRole("link", { name: "Open the session this came from" })
+      .click();
+    await expect(alice).toHaveURL(
+      new RegExp(`/sessions/${created.session_id}`),
+    );
   } finally {
     await context.close();
   }

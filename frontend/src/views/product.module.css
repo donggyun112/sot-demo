@@ -875,3 +875,46 @@ textarea.input {
 .inlineLink:hover {
   border-bottom-color: var(--brand);
 }
+
+/* One passage of the document. A passage an update wrote gets a rule down its
+   inside edge — enough to see where a decision landed, not enough to turn the
+   document into a diff. */
+.passage {
+  position: relative;
+  border-radius: var(--radius-md);
+  margin: 0 calc(var(--space-sm) * -1);
+  padding: 2px var(--space-sm);
+}
+
+.passage[data-cited="true"] {
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--brand) 30%, transparent);
+}
+
+.passage[data-cited="true"]:hover {
+  background: var(--surface-hover);
+  box-shadow: inset 2px 0 0 var(--brand);
+}
+
+/* The way in. It stays out of the reading until the passage is hovered, so a
+   document still reads as a document. */
+.passageLink {
+  display: inline-block;
+  margin: var(--space-xs) 0 var(--space-sm);
+  font-size: 12px;
+  color: var(--brand);
+  text-decoration: none;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.passage:hover .passageLink,
+.passageLink:focus-visible {
+  opacity: 1;
+}
+
+/* Touch and keyboard never hover, so the way in is simply always there. */
+@media (hover: none) {
+  .passageLink {
+    opacity: 1;
+  }
+}
