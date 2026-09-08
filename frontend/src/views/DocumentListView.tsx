@@ -41,7 +41,14 @@ export function DocumentListView() {
   */
   const uploadDocument = async (file: File) => {
     const content = await file.text();
-    const heading = headingsFrom(content).find((one) => one.title);
+    /*
+      Only a top-level heading names a document. Taking the first heading of
+      any depth read a file whose h1 is missing — one that opens with front
+      matter, say — as being called after whatever section came first.
+    */
+    const heading = headingsFrom(content).find(
+      (one) => one.depth === 1 && one.title,
+    );
     create.mutate(
       {
         params: { path: { workspace_id: workspaceId } },

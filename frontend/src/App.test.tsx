@@ -875,3 +875,31 @@ it("brings a file into the conversation as something that was said", async () =>
   // It reads as a turn: named, then quoted, in the transcript.
   expect(await screen.findByText("rotation.md")).toBeVisible();
 });
+
+
+it("names an uploaded file after the file when it has no top-level heading", async () => {
+  // A file that opens with front matter, or whose first heading is a section,
+  // is not called after that section. This project's own DESIGN.md begins
+  // with YAML and its first heading is "## Overview".
+  const server = createServer();
+  server.state.permissions = [...server.state.permissions, "document.create"];
+  await signIn(server);
+  expect(await screen.findByRole("heading", { name: "Documents" })).toBeVisible();
+
+  await userEvent.upload(
+    screen.getByLabelText("Upload a Markdown file"),
+    new File(
+      ["---\nname: SOT\n---\n\n## Overview\n\n본문."],
+      "DESIGN.md",
+      { type: "text/markdown" },
+    ),
+  );
+
+  const posted = server.requests.find(
+    (item) => item.method === "POST" && item.url.endsWith("/documents"),
+  );
+  const body = (await posted!.json()) as { title: string; content: string };
+  expect(body.title).toBe("DESIGN");
+  // The body is still the file, verbatim: front matter included.
+  expect(body.content).toContain("name: SOT");
+});
