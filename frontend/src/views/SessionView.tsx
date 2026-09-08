@@ -156,21 +156,7 @@ export function SessionView() {
           onBranch={(id) => setParam("branch", id)}
           turns={turnList}
           bundleId={params.get("bundle")}
-          tossToken={params.get("toss")}
-          tossId={params.get("tossId")}
           onPublished={(id) => setParam("bundle", id)}
-          onTossed={(token, id) => {
-            const next = new URLSearchParams(params);
-            next.set("toss", token);
-            next.set("tossId", id);
-            setParams(next, { replace: true });
-          }}
-          onRevoked={() => {
-            const next = new URLSearchParams(params);
-            next.delete("toss");
-            next.delete("tossId");
-            setParams(next, { replace: true });
-          }}
           onProposed={(id) => void navigate(`/w/${workspaceId}/proposals/${id}`)}
         />
       </div>
@@ -374,11 +360,7 @@ function SessionSide({
   onBranch,
   turns,
   bundleId,
-  tossToken,
-  tossId,
   onPublished,
-  onTossed,
-  onRevoked,
   onProposed,
 }: {
   open: boolean;
@@ -391,11 +373,7 @@ function SessionSide({
   onBranch: (id: string) => void;
   turns: Turn[];
   bundleId: string | null;
-  tossToken: string | null;
-  tossId: string | null;
   onPublished: (id: string) => void;
-  onTossed: (token: string, id: string) => void;
-  onRevoked: () => void;
   onProposed: (id: string) => void;
 }) {
   const { t } = useTranslation();
@@ -415,13 +393,25 @@ function SessionSide({
     "post",
     "/api/v1/workspaces/{workspace_id}/branches/{branch_id}/bundles",
   );
-  const toss = api.useMutation(
+  const send = api.useMutation(
     "post",
-    "/api/v1/workspaces/{workspace_id}/bundles/{bundle_id}/tosses",
+    "/api/v1/workspaces/{workspace_id}/sessions/{session_id}/members",
   );
-  const revoke = api.useMutation(
-    "delete",
-    "/api/v1/workspaces/{workspace_id}/tosses/{toss_id}",
+  const nameOf = useDisplayName();
+  const members = api.useQuery(
+    "get",
+    "/api/v1/workspaces/{workspace_id}/sessions/{session_id}/members",
+    { params: { path: { workspace_id: workspaceId, session_id: sessionId } } },
+  );
+  const roster = api.useQuery(
+    "get",
+    "/api/v1/workspaces/{workspace_id}/members",
+    { params: { path: { workspace_id: workspaceId } } },
+  );
+  const [recipient, setRecipient] = useState("");
+  /* Only people who do not already hold it can be sent it. */
+  const candidates = (roster.data ?? []).filter(
+    (item) => !(members.data ?? []).some((held) => held.user_id === item.user_id),
   );
   const propose = api.useMutation(
     "post",
@@ -444,7 +434,7 @@ function SessionSide({
     branch?.version ?? 0,
     bumped && branchId && bumped.id === branchId ? bumped.version : 0,
   );
-  const failure = [publish.error, toss.error, revoke.error].find(Boolean);
+  const failure = [publish.error, send.error].find(Boolean);
   // The bundle preview is what gets proposed when the body is left blank, so it
   // counts against the same review limit.
   return (
@@ -593,64 +583,72 @@ function SessionSide({
           }}
         />
 
-        {tossToken ? (
-          <div className={styles.sideCard}>
-            <div className={styles.who}>{t("toss.created")}</div>
-            {/* The token is readable by anyone holding it — say so. */}
-            <p className={styles.note}>{t("toss.public")}</p>
-            <div className={styles.actionsColumn}>
-              <CopyId
-                label={t("toss.copyLink")}
-                value={`${location.origin}/s/${tossToken}`}
-              />
-              <Link className={styles.ghost} to={`/s/${tossToken}`}>
-                {t("toss.openLink")}
-              </Link>
-              {tossId && (
-                <button
-                  className={styles.ghost}
-                  type="button"
-                  disabled={revoke.isPending}
-                  onClick={() =>
-                    revoke.mutate(
-                      {
-                        params: {
-                          path: { workspace_id: workspaceId, toss_id: tossId },
-                        },
-                      },
-                      { onSuccess: onRevoked },
-                    )
-                  }
-                >
-                  {t("toss.revoke")}
-                </button>
-              )}
+        {/*
+          Handing a session over is adding the recipient to it: they open the
+          same conversation and keep working in it. A link would have handed
+          out a read-only copy of the turns instead.
+        */}
+        <Section title={t("send.title")} count={members.data?.length}>
+          {members.data?.map((item) => (
+            <div key={item.user_id} className={styles.row}>
+              <div className={styles.rowTitle}>{nameOf(item.user_id)}</div>
+              <span className={styles.chip}>{t(`sessionRole.${item.role}`)}</span>
             </div>
-          </div>
-        ) : (
-          <Action
-            label={t("toss.create")}
-            hint={t("toss.createHint")}
-            pending={toss.isPending}
-            blockedBy={
-              !participate
-                ? t("sessions.needParticipate")
-                : !bundleId
-                  ? t("sessions.needBundle")
-                  : undefined
-            }
-            onClick={() => {
-              if (!bundleId) return;
-              toss.mutate(
-                {
-                  params: { path: { workspace_id: workspaceId, bundle_id: bundleId } },
-                  body: {},
-                },
-                { onSuccess: (result) => onTossed(result.token, result.id) },
-              );
-            }}
-          />
-        )}
+          ))}
+          {participate ? (
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (!recipient) return;
+                send.mutate(
+                  {
+                    params: {
+                      path: { workspace_id: workspaceId, session_id: sessionId },
+                    },
+                    body: { user_id: recipient, role: "editor" },
+                  },
+                  {
+                    onSuccess: () => {
+                      setRecipient("");
+                      void queryClient.invalidateQueries();
+                    },
+                  },
+                );
+              }}
+            >
+              <label className={styles.label} htmlFor="session-recipient">
+                {t("send.recipient")}
+                <select
+                  id="session-recipient"
+                  className={styles.select}
+                  value={recipient}
+                  onChange={(event) => setRecipient(event.target.value)}
+                >
+                  <option value="">{t("send.choose")}</option>
+                  {candidates.map((item) => (
+                    <option key={item.user_id} value={item.user_id}>
+                      {item.display_name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                className={styles.primary}
+                type="submit"
+                disabled={!recipient || send.isPending}
+              >
+                {send.isPending ? t("common.working") : t("send.action")}
+              </button>
+              {send.isError && (
+                <p className={styles.alert} role="alert">
+                  {t("common.error")}
+                </p>
+              )}
+            </form>
+          ) : (
+            <p className={styles.note}>{t("sessions.needParticipate")}</p>
+          )}
+        </Section>
 
         {/*
           The agent writes document updates, not the person: ask it in the

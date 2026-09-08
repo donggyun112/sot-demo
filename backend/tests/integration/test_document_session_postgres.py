@@ -92,7 +92,6 @@ async def test_canonical_schema_exists_and_keeps_legacy_tables(
             "sot_curation_op",
             "sot_bundle",
             "sot_bundle_item",
-            "sot_fork_origin",
         ):
             row = await (
                 await conn.execute("SELECT to_regclass(%s)", ("sot." + table,))
@@ -286,39 +285,6 @@ async def test_session_document_and_branch_parent_fks_cannot_cross_tenants(
                 s.other_workspace_id,
                 Branch.create(s.other_workspace_id, s.session.id, s.other.user_id, NOW),
             )
-
-
-async def test_detached_fork_schema_has_opaque_provenance_and_no_document(
-    state: Harness,
-) -> None:
-    s = state
-    detached = Session.create_detached_fork(s.other_workspace_id, s.other.user_id, NOW)
-    async with s.uow().transaction() as tx:
-        await s.sessions.create_session(tx, s.other_workspace_id, detached)
-        assert isinstance(tx, PostgresTransactionContext)
-        await tx.connection.execute(
-            "INSERT INTO sot.sot_fork_origin(workspace_id,id,session_id,source_bundle_id,title,author_display_name,published_at) VALUES (%s,%s,%s,%s,%s,%s,%s)",
-            (
-                s.other_workspace_id,
-                uuid4(),
-                detached.id,
-                uuid4(),
-                "Public",
-                "Author",
-                NOW,
-            ),
-        )
-    async with s.uow().transaction() as tx:
-        loaded = await s.sessions.load_session(tx, s.other_workspace_id, detached.id)
-        assert loaded is not None and loaded.document_id is None
-        assert isinstance(tx, PostgresTransactionContext)
-        row = await (
-            await tx.connection.execute(
-                "SELECT count(*) FROM sot.sot_document WHERE workspace_id=%s",
-                (s.other_workspace_id,),
-            )
-        ).fetchone()
-        assert row == (0,)
 
 
 async def test_document_conditional_publish_and_citation_failure_roll_back(

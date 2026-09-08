@@ -12,7 +12,6 @@ PRODUCT_MODULES = {
     "workspace",
     "document",
     "session",
-    "sharing",
     "consensus",
     "agent",
 }
@@ -31,8 +30,7 @@ ALLOWED_DEPENDENCIES = {
     "workspace": {"identity"},
     "document": {"identity", "workspace"},
     "session": {"identity", "workspace", "document"},
-    "sharing": {"identity", "workspace", "session"},
-    "consensus": {"identity", "workspace", "document", "session", "sharing"},
+    "consensus": {"identity", "workspace", "document", "session"},
     "agent": {"identity", "workspace", "document", "session", "consensus"},
 }
 
@@ -127,7 +125,6 @@ def test_cross_module_imports_use_contracts_only() -> None:
             "identity/providers/google.py",
             "from sot.workspace.contracts import WorkspaceAuthorizer",
         ),
-        ("sharing/api.py", "from sot.consensus import contracts"),
         (
             "identity/application.py",
             "from ..workspace.contracts import WorkspaceAuthorizer",
@@ -162,7 +159,6 @@ def test_module_checker_rejects_reverse_private_and_package_imports(
             "session/application/read.py",
             "from ...document.contracts import DocumentReader",
         ),
-        ("consensus/api.py", "from ..sharing.contracts import BundleReader"),
         ("agent/tools.py", "from sot.identity.contracts import Actor"),
         ("document/api.py", "import sot.workspace.contracts as workspace"),
         ("document/api/__init__.py", "from ...workspace import contracts"),

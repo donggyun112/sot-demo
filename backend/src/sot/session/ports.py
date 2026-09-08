@@ -4,7 +4,6 @@ from sot.session.domain import (
     Branch,
     Bundle,
     CurationRecord,
-    ForkOrigin,
     Session,
     SessionMember,
     Turn,
@@ -31,17 +30,6 @@ class SessionListQuery(Protocol):
         self, tx: TransactionContext, workspace_id: WorkspaceId, session_id: SessionId
     ) -> tuple[Branch, ...]:
         """Read metadata only after Session authorization; do not load Turns."""
-        ...
-
-
-class ForkOriginRepository(Protocol):
-    async def create_origin(
-        self,
-        tx: TransactionContext,
-        workspace_id: WorkspaceId,
-        origin: ForkOrigin,
-    ) -> None:
-        """Insert destination provenance in caller tx without resolving source IDs."""
         ...
 
 

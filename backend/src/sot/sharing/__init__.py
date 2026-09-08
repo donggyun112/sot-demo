@@ -1,1 +1,0 @@
-"""SOT sharing module."""

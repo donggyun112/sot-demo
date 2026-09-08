@@ -12,7 +12,6 @@ from sot.session.domain import (
     CurationRecord,
     DropTurn,
     EditTurn,
-    ForkOrigin,
     JoinTurns,
     RestoreTurn,
     Session,
@@ -79,23 +78,6 @@ class PostgresSessionRepository:
                 r[5],
             )
             for r in rows
-        )
-
-    async def create_origin(
-        self, tx: TransactionContext, workspace_id: WorkspaceId, origin: ForkOrigin
-    ) -> None:
-        require_scope(workspace_id, origin.workspace_id)
-        await connection(tx).execute(
-            "INSERT INTO sot.sot_fork_origin(id,workspace_id,session_id,source_bundle_id,title,author_display_name,published_at) VALUES (%s,%s,%s,%s,%s,%s,%s)",
-            (
-                uuid4(),
-                workspace_id,
-                origin.session_id,
-                origin.source_bundle_id,
-                origin.title,
-                origin.author_display_name,
-                origin.published_at,
-            ),
         )
 
     async def create_session(

@@ -10,4 +10,3 @@ export type Session = components["schemas"]["SessionResponse"];
 export type Branch = components["schemas"]["BranchResponse"];
 export type Turn = components["schemas"]["TurnResponse"];
 export type Proposal = components["schemas"]["ProposalResponse"];
-export type PublicBundle = components["schemas"]["PublicBundleResponse"];

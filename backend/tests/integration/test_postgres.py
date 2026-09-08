@@ -1,4 +1,4 @@
-"""Canonical publication/toss data survives a pool and application reconnect."""
+"""Canonical publication survives a pool and application reconnect."""
 
 import httpx
 import pytest
@@ -9,12 +9,12 @@ from sot.bootstrap.settings import Settings
 from tests.integration.test_document_session_postgres import (
     state as state,  # noqa: PLC0414
 )
-from tests.integration.test_sharing_consensus_postgres import (
+from tests.integration.test_consensus_postgres import (
     SECRET,
     SharingConsensus,
     bearer,
 )
-from tests.integration.test_sharing_consensus_postgres import (
+from tests.integration.test_consensus_postgres import (
     consensus as consensus,  # noqa: PLC0414
 )
 
@@ -46,13 +46,12 @@ async def test_published_revision_survives_repository_reconnect(
     async with app.router.lifespan_context(app), httpx.AsyncClient(
         transport=httpx.ASGITransport(app), base_url="https://test"
     ) as client:
-        shared = await client.post(
-            f"/api/v1/workspaces/{s.workspace_id}/bundles/{consensus.bundle.id}/tosses",
+        sent = await client.post(
+            f"/api/v1/workspaces/{s.workspace_id}/sessions/{s.session.id}/members",
             headers=bearer(s.owner.user_id),
-            json={},
+            json={"user_id": str(s.other.user_id), "role": "editor"},
         )
-        assert shared.status_code == 201
-        token = shared.json()["token"]
+        assert sent.status_code == 201
     await s.pool.close()
     reconnected = build_app(
         Settings(
@@ -88,9 +87,13 @@ async def test_published_revision_survives_repository_reconnect(
                 "claim_anchor": "First claim",
             },
         ]
-        public = await client.get(f"/api/v1/tosses/{token}")
-        assert public.status_code == 200
-        assert [item["content"] for item in public.json()["items"]] == [
-            "public question",
-            "public answer",
-        ]
+        # The session was handed to a teammate before the restart, and they
+        # still hold it afterwards.
+        members = await client.get(
+            f"/api/v1/workspaces/{s.workspace_id}/sessions/{s.session.id}/members",
+            headers=bearer(s.other.user_id),
+        )
+        assert members.status_code == 200
+        assert {
+            (item["user_id"], item["role"]) for item in members.json()
+        } >= {(str(s.other.user_id), "editor")}

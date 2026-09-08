@@ -64,31 +64,6 @@
         "title": "ApprovalResponse",
         "type": "object"
       },
-      "AttributionResponse": {
-        "additionalProperties": false,
-        "properties": {
-          "author_display_name": {
-            "title": "Author Display Name",
-            "type": "string"
-          },
-          "published_at": {
-            "format": "date-time",
-            "title": "Published At",
-            "type": "string"
-          },
-          "title": {
-            "title": "Title",
-            "type": "string"
-          }
-        },
-        "required": [
-          "title",
-          "author_display_name",
-          "published_at"
-        ],
-        "title": "AttributionResponse",
-        "type": "object"
-      },
       "AuthResponse": {
         "additionalProperties": false,
         "properties": {
@@ -339,25 +314,6 @@
         "title": "CreateProposalRequest",
         "type": "object"
       },
-      "CreateTossRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "expires_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Expires At"
-          }
-        },
-        "title": "CreateTossRequest",
-        "type": "object"
-      },
       "CreateWorkspaceRequest": {
         "additionalProperties": false,
         "properties": {
@@ -393,26 +349,6 @@
           "branch_id"
         ],
         "title": "CreatedSessionResponse",
-        "type": "object"
-      },
-      "CreatedTossResponse": {
-        "additionalProperties": false,
-        "properties": {
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "token": {
-            "title": "Token",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "token"
-        ],
-        "title": "CreatedTossResponse",
         "type": "object"
       },
       "CurationRequest": {
@@ -658,33 +594,6 @@
         "additionalProperties": false,
         "properties": {},
         "title": "EmptySessionRequest",
-        "type": "object"
-      },
-      "ForkRequest": {
-        "additionalProperties": false,
-        "properties": {},
-        "title": "ForkRequest",
-        "type": "object"
-      },
-      "ForkResponse": {
-        "additionalProperties": false,
-        "properties": {
-          "branch_id": {
-            "format": "uuid",
-            "title": "Branch Id",
-            "type": "string"
-          },
-          "session_id": {
-            "format": "uuid",
-            "title": "Session Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "session_id",
-          "branch_id"
-        ],
-        "title": "ForkResponse",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -964,79 +873,6 @@
           "additional_approver_ids"
         ],
         "title": "ProposalVersionResponse",
-        "type": "object"
-      },
-      "PublicBundleItemResponse": {
-        "additionalProperties": false,
-        "properties": {
-          "content": {
-            "title": "Content",
-            "type": "string"
-          },
-          "provenance": {
-            "enum": [
-              "copied",
-              "edited"
-            ],
-            "title": "Provenance",
-            "type": "string"
-          },
-          "role": {
-            "enum": [
-              "user",
-              "assistant"
-            ],
-            "title": "Role",
-            "type": "string"
-          },
-          "source_ids": {
-            "items": {
-              "format": "uuid",
-              "type": "string"
-            },
-            "title": "Source Ids",
-            "type": "array"
-          }
-        },
-        "required": [
-          "source_ids",
-          "role",
-          "content",
-          "provenance"
-        ],
-        "title": "PublicBundleItemResponse",
-        "type": "object"
-      },
-      "PublicBundleResponse": {
-        "additionalProperties": false,
-        "properties": {
-          "attribution": {
-            "$ref": "#/components/schemas/AttributionResponse"
-          },
-          "bundle_id": {
-            "format": "uuid",
-            "title": "Bundle Id",
-            "type": "string"
-          },
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/PublicBundleItemResponse"
-            },
-            "title": "Items",
-            "type": "array"
-          },
-          "title": {
-            "title": "Title",
-            "type": "string"
-          }
-        },
-        "required": [
-          "bundle_id",
-          "title",
-          "items",
-          "attribution"
-        ],
-        "title": "PublicBundleResponse",
         "type": "object"
       },
       "PublicationResponse": {
@@ -1355,6 +1191,61 @@
         "title": "RevisionResponse",
         "type": "object"
       },
+      "SendSessionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "role": {
+            "default": "editor",
+            "enum": [
+              "editor",
+              "viewer"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id"
+        ],
+        "title": "SendSessionRequest",
+        "type": "object"
+      },
+      "SessionMemberResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "role": {
+            "$ref": "#/components/schemas/SessionRole"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          },
+          "workspace_id": {
+            "format": "uuid",
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "session_id",
+          "user_id",
+          "role"
+        ],
+        "title": "SessionMemberResponse",
+        "type": "object"
+      },
       "SessionResponse": {
         "additionalProperties": false,
         "properties": {
@@ -1404,6 +1295,15 @@
         ],
         "title": "SessionResponse",
         "type": "object"
+      },
+      "SessionRole": {
+        "enum": [
+          "owner",
+          "editor",
+          "viewer"
+        ],
+        "title": "SessionRole",
+        "type": "string"
       },
       "SessionStatus": {
         "enum": [
@@ -1740,45 +1640,6 @@
           }
         },
         "summary": "Me"
-      }
-    },
-    "/api/v1/tosses/{token}": {
-      "get": {
-        "operationId": "public_toss_api_v1_tosses__token__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "token",
-            "required": true,
-            "schema": {
-              "title": "Token",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PublicBundleResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Public Toss"
       }
     },
     "/api/v1/workspaces": {
@@ -2193,71 +2054,6 @@
           }
         ],
         "summary": "Turns For Branch"
-      }
-    },
-    "/api/v1/workspaces/{workspace_id}/bundles/{bundle_id}/tosses": {
-      "post": {
-        "operationId": "create_toss_api_v1_workspaces__workspace_id__bundles__bundle_id__tosses_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "workspace_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Workspace Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "bundle_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Bundle Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateTossRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CreatedTossResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Create Toss"
       }
     },
     "/api/v1/workspaces/{workspace_id}/documents": {
@@ -3298,9 +3094,9 @@
         "summary": "Branch"
       }
     },
-    "/api/v1/workspaces/{workspace_id}/tosses/{token}/fork": {
-      "post": {
-        "operationId": "fork_toss_api_v1_workspaces__workspace_id__tosses__token__fork_post",
+    "/api/v1/workspaces/{workspace_id}/sessions/{session_id}/members": {
+      "get": {
+        "operationId": "list_session_members",
         "parameters": [
           {
             "in": "path",
@@ -3314,10 +3110,68 @@
           },
           {
             "in": "path",
-            "name": "token",
+            "name": "session_id",
             "required": true,
             "schema": {
-              "title": "Token",
+              "format": "uuid",
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SessionMemberResponse"
+                  },
+                  "title": "Response List Session Members",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Members Of Session"
+      },
+      "post": {
+        "operationId": "send_session_api_v1_workspaces__workspace_id__sessions__session_id__members_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Session Id",
               "type": "string"
             }
           }
@@ -3326,7 +3180,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ForkRequest"
+                "$ref": "#/components/schemas/SendSessionRequest"
               }
             }
           },
@@ -3337,7 +3191,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ForkResponse"
+                  "$ref": "#/components/schemas/SessionMemberResponse"
                 }
               }
             },
@@ -3359,55 +3213,7 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Fork Toss"
-      }
-    },
-    "/api/v1/workspaces/{workspace_id}/tosses/{toss_id}": {
-      "delete": {
-        "operationId": "revoke_toss_api_v1_workspaces__workspace_id__tosses__toss_id__delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "workspace_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Workspace Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "toss_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Toss Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Revoke Toss"
+        "summary": "Send Session"
       }
     },
     "/healthz": {

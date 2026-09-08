@@ -311,25 +311,6 @@ it("hides new-session when the actor cannot session.create", async () => {
   expect(screen.queryByRole("button", { name: "New session" })).not.toBeInTheDocument();
 });
 
-it("publishes a bundle, shares a toss, and forks into a workspace", async () => {
-  await signIn();
-  await openDocument();
-  await userEvent.click(await screen.findByRole("link", { name: "Sessions" }));
-  await userEvent.click(await screen.findByRole("button", { name: "New session" }));
-  await userEvent.click(await screen.findByRole("button", { name: "Publish bundle" }));
-  await userEvent.click(await screen.findByRole("button", { name: "Create toss link" }));
-  await userEvent.click(await screen.findByRole("link", { name: "Open toss link" }));
-  // A link shares a SESSION: it is listed on the side and its conversation
-  // is read in the middle, the same way a live session is read.
-  expect(await screen.findByRole("heading", { name: "Sessions" })).toBeVisible();
-  expect((await screen.findAllByText("B 선택")).length).toBeGreaterThan(0);
-  expect(await screen.findByText("B로 결정")).toBeVisible();
-  expect(screen.getByText("A shared session. You can read it here.")).toBeVisible();
-  await userEvent.click(await screen.findByRole("button", { name: "Fork into a workspace" }));
-  await userEvent.click(await screen.findByRole("button", { name: "Fork" }));
-  expect(await screen.findByRole("button", { name: "Publish bundle" })).toBeVisible();
-});
-
 it("lets an owner create an empty document from the list", async () => {
   const server = createServer();
   server.state.emptyDocuments = true;
@@ -427,7 +408,7 @@ it("titles a session from its first user turn, not its id", async () => {
   expect(screen.queryByText("session-1")).not.toBeInTheDocument();
 });
 
-it("keeps a published bundle in the URL so a reload can still toss it", async () => {
+it("keeps a published bundle in the URL so a reload still has it", async () => {
   const server = createServer();
   const auth = new AuthSession(async (request) => {
     if (request.url.endsWith("/auth/refresh"))
@@ -454,7 +435,8 @@ it("keeps a published bundle in the URL so a reload can still toss it", async ()
   await userEvent.click(await screen.findByRole("link", { name: "Sessions" }));
   await userEvent.click(await screen.findByRole("button", { name: "New session" }));
   await userEvent.click(await screen.findByRole("button", { name: "Publish bundle" }));
-  expect(await screen.findByRole("button", { name: "Create toss link" })).toBeVisible();
+  expect(await screen.findByRole("heading", { name: "Who holds this session" }))
+    .toBeVisible();
   expect(router.current).toContain("bundle=bundle-1");
 });
 
@@ -507,8 +489,6 @@ it("shows the whole path to the document with reasons, not hidden actions", asyn
 
   // Before anything is published, every step is still on screen and says why.
   const publish = await screen.findByRole("button", { name: "Publish bundle" });
-  expect(screen.getByRole("button", { name: "Create toss link" })).toBeDisabled();
-  expect(screen.getByText("Publish the bundle first.")).toBeVisible();
   // Document updates are the agent's to write, so the path says so here.
   expect(
     screen.getByText("The agent writes document updates. Ask for one in the session."),
@@ -516,10 +496,9 @@ it("shows the whole path to the document with reasons, not hidden actions", asyn
   await waitFor(() => expect(publish).toBeEnabled());
 
   await userEvent.click(publish);
-  expect(
-    await screen.findByRole("button", { name: "Create toss link" }),
-  ).toBeEnabled();
-  expect(screen.getByRole("button", { name: "Publish bundle" })).toBeDisabled();
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "Publish bundle" })).toBeDisabled(),
+  );
   expect(screen.getByText("Already published.")).toBeVisible();
 });
 
@@ -556,27 +535,6 @@ it("navigates from the sidebar and counts what is waiting on me", async () => {
   expect(screen.getAllByText("새 합의").length).toBeGreaterThan(1);
 });
 
-it("hands over a copyable share link and can revoke it", async () => {
-  const server = await signIn();
-  await openDocument();
-  await userEvent.click(await screen.findByRole("link", { name: "Sessions" }));
-  await userEvent.click(await screen.findByRole("button", { name: "New session" }));
-  await userEvent.click(await screen.findByRole("button", { name: "Publish bundle" }));
-  await userEvent.click(await screen.findByRole("button", { name: "Create toss link" }));
-  expect(
-    await screen.findByRole("button", { name: "Copy share link" }),
-  ).toBeVisible();
-  expect(screen.getByRole("link", { name: "Open toss link" })).toHaveAttribute(
-    "href",
-    "/s/share-me",
-  );
-  await userEvent.click(screen.getByRole("button", { name: "Revoke link" }));
-  await waitFor(() => expect(server.state.revokedTosses).toEqual(["toss-1"]));
-  expect(
-    screen.queryByRole("button", { name: "Copy share link" }),
-  ).not.toBeInTheDocument();
-});
-
 it("lists no outline entries for a document without headings", async () => {
   await signIn();
   await openDocument();
@@ -589,4 +547,32 @@ it("lists no outline entries for a document without headings", async () => {
       .queryAllByRole("button")
       .filter((button) => button.textContent?.trim() === ""),
   ).toHaveLength(0);
+});
+
+it("sends a session to a workspace member instead of minting a link", async () => {
+  const server = createServer();
+  await signIn(server);
+  await openDocument();
+  await userEvent.click(await screen.findByRole("link", { name: "Sessions" }));
+  await userEvent.click(await screen.findByRole("button", { name: "New session" }));
+
+  // Whoever already holds it is listed; only the others can be sent it.
+  expect(await screen.findByRole("heading", { name: "Who holds this session" }))
+    .toBeVisible();
+  const picker = await screen.findByLabelText("Send to");
+  expect(
+    [...picker.querySelectorAll("option")].map((item) => item.textContent),
+  ).toEqual(["Choose a member", "Reviewer"]);
+
+  await userEvent.selectOptions(picker, "user-2");
+  await userEvent.click(screen.getByRole("button", { name: "Send session" }));
+
+  await waitFor(() =>
+    expect(
+      server.state.sessionMembers.some((item) => item.user_id === "user-2"),
+    ).toBe(true),
+  );
+  // They hold it as an editor: the point is to continue it together.
+  expect(await screen.findByText("Editor")).toBeVisible();
+  expect(await screen.findByText("Reviewer")).toBeVisible();
 });

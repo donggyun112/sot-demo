@@ -61,11 +61,12 @@ from sot.session.application import (
     BundleAccess,
     CreateBranch,
     CreateSession,
-    CreateSessionFork,
     GetSession,
+    InviteSessionMember,
     ListBranchTurns,
     ListDocumentSessions,
     ListSessionBranches,
+    ListSessionMembers,
     PreviewBundle,
     PublishBundle,
     RequiredApprovers,
@@ -73,18 +74,6 @@ from sot.session.application import (
     VersionGuard,
 )
 from sot.session.postgres import PostgresSessionRepository
-from sot.sharing.api import (
-    TossSecurityMiddleware,
-    build_sharing_router,
-    install_toss_log_redaction,
-)
-from sot.sharing.application import (
-    CreateShareLink,
-    ForkSharedBundle,
-    ReadPublicBundle,
-    RevokeShareLink,
-)
-from sot.sharing.postgres import PostgresShareLinkRepository
 from sot.workspace.api import build_workspace_router
 from sot.workspace.application import (
     AddWorkspaceMember,
@@ -189,8 +178,6 @@ def build_app(
         return JSONResponse({"service": "sot", "status": "ready"})
 
     register_error_handlers(application)
-    install_toss_log_redaction()
-    application.add_middleware(TossSecurityMiddleware)
     application.include_router(build_auth_router(facade, settings))
     application.include_router(
         build_workspace_router(
@@ -234,26 +221,12 @@ def build_app(
             ),
             ListSessionBranches(sessions, session_access, uow_factory),
             ListBranchTurns(branch_access, uow_factory),
+            InviteSessionMember(sessions, session_access, access, uow_factory),
+            ListSessionMembers(sessions, session_access, uow_factory),
             actor,
         )
     )
     bundles = BundleAccess(sessions, session_access, access)
-    shares = PostgresShareLinkRepository()
-    public_bundles = ReadPublicBundle(shares, uow_factory, clock)
-    application.include_router(
-        build_sharing_router(
-            CreateShareLink(shares, bundles, identity, uow_factory, clock),
-            RevokeShareLink(shares, bundles, uow_factory, clock),
-            public_bundles,
-            ForkSharedBundle(
-                public_bundles,
-                access,
-                CreateSessionFork(sessions, sessions, clock),
-                uow_factory,
-            ),
-            actor,
-        )
-    )
     proposals = PostgresProposalRepository()
     proposal_reader = ReadProposal(proposals, session_access, access, uow_factory)
     sources = ProposalSources(

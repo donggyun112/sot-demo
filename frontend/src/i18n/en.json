@@ -57,16 +57,10 @@
   },
   "proposal": {
     "title": "Proposal",
-    "create": "Create proposal",
-    "createHint": "Ask approvers to merge this into the document.",
     "approve": "Approve",
     "reject": "Reject",
     "merge": "Merge",
     "approvers": "Required approvers",
-    "content": "Proposal body",
-    "additionalApprovers": "Additional approver ids (comma separated)",
-    "limit": "{{count}} / {{limit}} characters",
-    "tooLong": "Too long to review. State the decision and its grounds, not the whole discussion.",
     "patch": "Patch",
     "citations": "Citations",
     "bundle": "Bundle",
@@ -136,29 +130,10 @@
     "publishHint": "Freeze the curated turns as evidence.",
     "needParticipate": "You have read-only access to this workspace.",
     "needCurated": "Curate at least one turn into the bundle first.",
-    "needBundle": "Publish the bundle first.",
     "needDocument": "This session is not attached to a document.",
     "alreadyPublished": "Already published.",
     "restore": "Restore",
     "agentUpdates": "The agent writes document updates. Ask for one in the session."
-  },
-  "toss": {
-    "fork": "Fork into a workspace",
-    "confirm": "Fork",
-    "signIn": "Sign in to fork",
-    "destination": "Destination workspace",
-    "create": "Create toss link",
-    "created": "Toss link ready.",
-    "createHint": "Hand the evidence to a teammate without merging it.",
-    "openLink": "Open toss link",
-    "copyLink": "Copy share link",
-    "revoke": "Revoke link",
-    "public": "Anyone holding this link can read the bundle. Revoke it to cut access.",
-    "empty": "No shared evidence in this link.",
-    "notFound": "This toss link is invalid or expired.",
-    "untitled": "Untitled session",
-    "readOnly": "A shared session. You can read it here.",
-    "continue": "Continue"
   },
   "common": {
     "loading": "Loading…",
@@ -171,7 +146,6 @@
     "sidebar": "Workspace navigation",
     "inbox": "Inbox",
     "documents": "Documents",
-    "openApp": "Open SOT",
     "open": "Menu",
     "close": "Close menu"
   },
@@ -217,5 +191,16 @@
     "disconnected": "The response stream dropped. Your input and the partial reply are still on screen. ({{detail}})",
     "stopped": "Stopped. The partial reply is still on screen.",
     "requestFailed": "Request failed"
+  },
+  "send": {
+    "title": "Who holds this session",
+    "recipient": "Send to",
+    "choose": "Choose a member",
+    "action": "Send session"
+  },
+  "sessionRole": {
+    "owner": "Owner",
+    "editor": "Editor",
+    "viewer": "Viewer"
   }
 }

@@ -73,7 +73,7 @@ async function get(context: BrowserContext, path: string, auth?: Login) {
   });
 }
 
-test("private draft, public detached fork and explicit consensus merge", async ({ browser }) => {
+test("private draft, hand-off to a teammate and explicit consensus merge", async ({ browser }) => {
   const aliceContext = await browser.newContext();
   const bobContext = await browser.newContext();
   const publicContext = await browser.newContext();
@@ -148,47 +148,36 @@ test("private draft, public detached fork and explicit consensus merge", async (
     const publishedResponse = alice.waitForResponse((res) => res.request().method() === "POST" && res.url().endsWith("/bundles"));
     await alice.getByRole("button", { name: "Publish bundle" }).click();
     const bundle = await (await publishedResponse).json();
-    // The published bundle lives in the URL, so a reload can still toss it.
+    // The published bundle lives in the URL, so a reload still has it.
     await expect(alice).toHaveURL(new RegExp(`bundle=${bundle.resource_id}`));
-    const tossResponse = alice.waitForResponse((res) => res.request().method() === "POST" && res.url().endsWith("/tosses"));
-    await alice.getByRole("button", { name: "Create toss link" }).click();
-    const toss = await (await tossResponse).json();
-    await alice.getByRole("link", { name: "Open toss link" }).click();
-    // A link shares a SESSION: listed on the side, its conversation in the middle.
-    await expect(alice.getByRole("heading", { name: "Sessions" })).toBeVisible();
-    await expect(alice.getByText(summary)).toBeVisible();
-
-    const publicRead = await get(publicContext, `/tosses/${toss.token}`);
-    expect(publicRead.status()).toBe(200);
-    expect(publicRead.headers()["cache-control"]).toContain("no-store");
-    const shared = await publicRead.json();
-    expect(shared.items).toEqual([{ source_ids: [stored[1].id], role: "assistant", content: summary, provenance: "edited" }]);
-    for (const hidden of [privatePrompt, stored[0].id, created.session_id, aw]) expect(JSON.stringify(shared)).not.toContain(hidden);
-    expect((await get(publicContext, `${branchPath}/turns`)).status()).toBe(401);
+    // Before it is handed over, the session is Alice's alone: Bob is in this
+    // workspace but holds nothing in it.
     expect((await get(bobContext, `${branchPath}/turns`, bobLogin)).status()).toBe(404);
-    expect((await get(bobContext, `/workspaces/${bw}/branches/${created.branch_id}/turns`, bobLogin)).status()).toBe(404);
+    expect((await get(publicContext, `${branchPath}/turns`)).status()).toBe(401);
     expect(await (await get(bobContext, `${documentPath}/sessions`, bobLogin)).json()).toEqual([]);
+    expect((await get(bobContext, `/workspaces/${bw}/branches/${created.branch_id}/turns`, bobLogin)).status()).toBe(404);
 
-    await bob.goto(`/s/${toss.token}`);
-    await expect(bob.getByText(summary)).toBeVisible();
-    await bob.getByRole("button", { name: "Fork into a workspace" }).click();
-    await bob.getByLabel("Destination workspace").selectOption({ label: "Bob Workspace" });
-    const forkResponse = bob.waitForResponse((res) => res.request().method() === "POST" && res.url().endsWith("/fork"));
-    await bob.getByRole("button", { name: "Fork", exact: true }).click();
-    const fork = await (await forkResponse).json();
+    // Handing it over is adding Bob to it: he continues the same session
+    // rather than receiving a copy of the turns.
+    const sendResponse = alice.waitForResponse((res) => res.request().method() === "POST" && res.url().endsWith("/members"));
+    await alice.getByLabel("Send to").selectOption(bobLogin.user.id);
+    await alice.getByRole("button", { name: "Send session" }).click();
+    expect((await sendResponse).status()).toBe(201);
+    await expect(alice.getByText("Editor")).toBeVisible();
+
+    await bob.goto(`/w/${aw}/sessions/${created.session_id}`);
     await expect(bob.getByLabel("Agent message")).toBeVisible();
-    // A detached fork has no document, so nothing can be proposed from it.
-    // The path stays on screen and says why rather than disappearing.
-    await expect(
-      bob.getByText("This session is not attached to a document."),
-    ).toBeVisible();
-    const forkSession = await (await get(bobContext, `/workspaces/${bw}/sessions/${fork.session_id}`, bobLogin)).json();
-    expect(forkSession.document_id).toBeNull();
-    const forkTurns = await (await get(bobContext, `/workspaces/${bw}/branches/${fork.branch_id}/turns`, bobLogin)).json() as Turn[];
-    expect(forkTurns.map((turn) => ({ role: turn.role, content: turn.content }))).toEqual([{ role: "assistant", content: summary }]);
-    expect((await get(aliceContext, `/workspaces/${bw}/sessions/${fork.session_id}`, aliceLogin)).status()).toBe(403);
+    // He reads the WHOLE conversation, curation included: this is the session,
+    // not a public projection of it.
+    const bobTurns = await (await get(bobContext, `${branchPath}/turns`, bobLogin)).json() as Turn[];
+    expect(bobTurns.map((turn) => turn.content)).toEqual(stored.map((turn) => turn.content));
+    const bobSessions = await (await get(bobContext, `${documentPath}/sessions`, bobLogin)).json();
+    expect(bobSessions.map((item: { id: string }) => item.id)).toEqual([created.session_id]);
+    // Sharing never crosses a workspace boundary, so Bob's own stays untouched.
+    expect(await (await get(bobContext, `/workspaces/${bw}/documents`, bobLogin)).json()).not.toEqual([]);
+    expect((await get(publicContext, `${branchPath}/turns`)).status()).toBe(401);
 
-    // Return from Toss to the source Session, retaining the immutable Bundle selection.
+    // Back on the source Session, the immutable Bundle selection is retained.
     await alice.goto(`/w/${aw}/sessions/${created.session_id}?bundle=${bundle.resource_id}`);
     // The agent writes document updates, so the proposal arrives as EDITS
     // through the same endpoint sot_update calls — never typed by a person.
@@ -221,7 +210,9 @@ test("private draft, public detached fork and explicit consensus merge", async (
     await expect(bob.getByText(content).first()).toBeVisible();
     await bob.getByRole("button", { name: "Approve" }).click();
     await expect.poll(async () => (await (await get(bobContext, proposalPath, bobLogin)).json()).approvals.length).toBe(1);
-    expect((await get(bobContext, `${branchPath}/turns`, bobLogin)).status()).toBe(404);
+    // Bob reviews the diff AND can still open the session it came from: it was
+    // handed to him, so the evidence is not something he has to take on trust.
+    expect((await get(bobContext, `${branchPath}/turns`, bobLogin)).status()).toBe(200);
 
     await alice.getByRole("button", { name: "Approve" }).click();
     await expect(alice.getByText("Approved", { exact: true })).toBeVisible();

@@ -82,6 +82,24 @@ class ShareableBundleReader(Protocol):
     ) -> ShareableBundleSnapshot: ...
 
 
+class BundleOwningSessionReader(Protocol):
+    """Which session a bundle was published from, for someone allowed to read it.
+
+    Sharing never leaves the workspace, so a share link resolves to the session
+    it curated rather than to a copy of it. Callers who may not read that
+    session get the module's own not-found or forbidden.
+    """
+
+    async def require_owning_session(
+        self,
+        tx: TransactionContext,
+        *,
+        actor: Actor,
+        workspace_id: WorkspaceId,
+        bundle_id: BundleId,
+    ) -> SessionId: ...
+
+
 class BundleRevocationAuthorizer(Protocol):
     """Authorize the actual bundle owner to revoke a link, including closed sessions."""
 
@@ -180,49 +198,6 @@ class BranchVersionGuard(Protocol):
     ) -> int: ...
 
 
-@dataclass(frozen=True, slots=True)
-class ForkSeedItem:
-    source_ids: tuple[UUID, ...]
-    role: Literal["user", "assistant"]
-    content: str
-
-    def __post_init__(self) -> None:
-        if self.role not in {"user", "assistant"}:
-            raise InvalidInput("fork_seed_role_invalid", "Fork seed role is invalid")
-
-
-@dataclass(frozen=True, slots=True)
-class ForkAttribution:
-    title: str
-    author_display_name: str
-    published_at: datetime
-
-
-@dataclass(frozen=True, slots=True)
-class ForkedSessionResult:
-    session_id: SessionId
-    branch_id: BranchId
-
-
-class SessionForkWriter(Protocol):
-    """Create a detached Session via Session.create_detached_fork and seed its branch.
-
-    document_id stays None. Never create a destination document automatically or
-    retain a source document link; source_bundle_id is opaque provenance only.
-    """
-
-    async def create_from_public_bundle(
-        self,
-        tx: TransactionContext,
-        *,
-        actor: Actor,
-        destination_workspace_id: WorkspaceId,
-        source_bundle_id: BundleId,
-        attribution: ForkAttribution,
-        items: tuple[ForkSeedItem, ...],
-    ) -> ForkedSessionResult: ...
-
-
 class SessionApproverReader(Protocol):
     """Internal capability; caller must authorize source session before reading."""
 
@@ -241,6 +216,7 @@ __all__ = [
     "BranchMutationResult",
     "BranchVersionGuard",
     "BundleItem",
+    "BundleOwningSessionReader",
     "BundleReader",
     "BundleRevocationAuthorizer",
     "BundleSnapshot",
@@ -248,13 +224,9 @@ __all__ = [
     "CompletedTurnsAppender",
     "CompletedTurnsResult",
     "CreatedSessionResult",
-    "ForkAttribution",
-    "ForkSeedItem",
-    "ForkedSessionResult",
     "NewTurn",
     "SessionApproverReader",
     "SessionAuthorizer",
-    "SessionForkWriter",
     "SessionMember",
     "SessionPermission",
     "SessionRole",

@@ -12,9 +12,11 @@ from sot.session.application import (
     CreateBranch,
     CreateSession,
     GetSession,
+    InviteSessionMember,
     ListBranchTurns,
     ListDocumentSessions,
     ListSessionBranches,
+    ListSessionMembers,
     PreviewBundle,
     PublishBundle,
 )
@@ -31,9 +33,10 @@ from sot.session.domain import (
     EditTurn,
     JoinTurns,
     RestoreTurn,
+    SessionRole,
     SessionStatus,
 )
-from sot.shared.ids import BranchId, DocumentId, SessionId, WorkspaceId
+from sot.shared.ids import BranchId, DocumentId, SessionId, UserId, WorkspaceId
 
 
 class EmptySessionRequest(BaseModel):
@@ -186,6 +189,21 @@ class BundleItemResponse(BaseModel):
         )
 
 
+class SendSessionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    user_id: UUID
+    # An editor can keep working in it; a viewer can only read what is there.
+    role: Literal["editor", "viewer"] = "editor"
+
+
+class SessionMemberResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    workspace_id: UUID
+    session_id: UUID
+    user_id: UUID
+    role: SessionRole
+
+
 def build_session_router(
     create_session: CreateSession,
     get_session: GetSession,
@@ -196,6 +214,8 @@ def build_session_router(
     list_sessions: ListDocumentSessions,
     list_branches: ListSessionBranches,
     list_turns: ListBranchTurns,
+    invite_member: InviteSessionMember,
+    list_members: ListSessionMembers,
     actor: Callable[[Request], Awaitable[Actor]],
 ) -> APIRouter:
     router = APIRouter(prefix="/api/v1/workspaces/{workspace_id}")
@@ -273,6 +293,47 @@ def build_session_router(
             await get_session.execute(
                 current, WorkspaceId(workspace_id), SessionId(session_id)
             )
+        )
+
+    @router.get("/sessions/{session_id}/members", operation_id="list_session_members")
+    async def members_of_session(
+        workspace_id: UUID,
+        session_id: UUID,
+        current: Annotated[Actor, Depends(actor)],
+    ) -> tuple[SessionMemberResponse, ...]:
+        return tuple(
+            SessionMemberResponse(
+                workspace_id=item.workspace_id,
+                session_id=item.session_id,
+                user_id=item.user_id,
+                role=item.role,
+            )
+            for item in await list_members.execute(
+                current, WorkspaceId(workspace_id), SessionId(session_id)
+            )
+        )
+
+    @router.post("/sessions/{session_id}/members", status_code=201)
+    async def send_session(
+        workspace_id: UUID,
+        session_id: UUID,
+        body: SendSessionRequest,
+        current: Annotated[Actor, Depends(actor)],
+    ) -> SessionMemberResponse:
+        # Sending a session IS adding the recipient to it: they continue the
+        # same conversation rather than receiving a copy of it.
+        member = await invite_member.execute(
+            current,
+            WorkspaceId(workspace_id),
+            SessionId(session_id),
+            user_id=UserId(body.user_id),
+            role=SessionRole(body.role),
+        )
+        return SessionMemberResponse(
+            workspace_id=member.workspace_id,
+            session_id=member.session_id,
+            user_id=member.user_id,
+            role=member.role,
         )
 
     @router.post("/sessions/{session_id}/branches", status_code=201)

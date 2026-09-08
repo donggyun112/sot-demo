@@ -48,8 +48,6 @@ from sot.session.application import (
 )
 from sot.session.domain import Bundle, BundleItem, SessionMember, SessionRole
 from sot.shared.ids import BundleId, ProposalId, UserId
-from sot.sharing.application import CreateShareLink
-from sot.sharing.postgres import PostgresShareLinkRepository
 from sot.workspace.application import WorkspaceAccess
 from sot.workspace.domain import WorkspaceMembership, WorkspaceRole
 from sot.workspace.postgres import PostgresWorkspaceRepository
@@ -66,13 +64,11 @@ SECRET = "integration-only-sharing-consensus-secret-1234567890"
 class SharingConsensus:
     state: Harness
     bundle: Bundle
-    shares: PostgresShareLinkRepository
     proposals: PostgresProposalRepository
     create: CreateProposal
     revise: ReviseProposal
     decide: DecideProposal
     merge: MergeProposal
-    toss: CreateShareLink
 
     async def approved(self) -> ProposalId:
         s = self.state
@@ -108,7 +104,7 @@ async def consensus(state: Harness) -> SharingConsensus:
     sources = ProposalSources(
         sessions, documents, bundles, RequiredApprovers(s.sessions), members
     )
-    shares, proposals = PostgresShareLinkRepository(), PostgresProposalRepository()
+    proposals = PostgresProposalRepository()
     bundle = Bundle.publish(
         s.branch,
         (
@@ -128,7 +124,6 @@ async def consensus(state: Harness) -> SharingConsensus:
     return SharingConsensus(
         s,
         bundle,
-        shares,
         proposals,
         CreateProposal(
             proposals,
@@ -146,9 +141,6 @@ async def consensus(state: Harness) -> SharingConsensus:
             DocumentPublicationAccess(s.documents, members),
             PublishDocumentRevision(s.documents, members, SystemClock()),
             s.uow,
-        ),
-        CreateShareLink(
-            shares, bundles, PostgresIdentityRepository(), s.uow, SystemClock()
         ),
     )
 
@@ -182,96 +174,6 @@ def bearer(user_id: UserId) -> dict[str, str]:
             user_id
         )
     }
-
-
-async def test_raw_token_absent_and_public_snapshot_survives_identity_session_changes(
-    consensus: SharingConsensus, api: httpx.AsyncClient
-) -> None:
-    e, s = consensus, consensus.state
-    created = await api.post(
-        f"/api/v1/workspaces/{s.workspace_id}/bundles/{e.bundle.id}/tosses",
-        headers=bearer(s.owner.user_id),
-        json={},
-    )
-    assert created.status_code == 201
-    token, link_id = created.json()["token"], UUID(created.json()["id"])
-    async with s.uow().transaction() as tx:
-        assert isinstance(tx, PostgresTransactionContext)
-        row = await (
-            await tx.connection.execute(
-                "SELECT token_hash, row_to_json(sot_share_link)::text FROM sot.sot_share_link WHERE id=%s",
-                (link_id,),
-            )
-        ).fetchone()
-        assert row and row[0] == sha256(token.encode()).digest() and token not in row[1]
-        await tx.connection.execute(
-            "UPDATE sot.sot_user SET display_name='Changed' WHERE id=%s",
-            (s.owner.user_id,),
-        )
-        await tx.connection.execute(
-            "DELETE FROM sot.sot_session_member WHERE workspace_id=%s AND session_id=%s",
-            (s.workspace_id, s.session.id),
-        )
-    response = await api.get(f"/api/v1/tosses/{token}")
-    assert response.status_code == 200
-    assert response.headers["cache-control"] == "private, no-store"
-    assert response.json()["attribution"]["author_display_name"] == "Owner"
-    assert [i["content"] for i in response.json()["items"]] == [
-        "public question",
-        "public answer",
-    ]
-    assert (
-        str(s.workspace_id) not in response.text
-        and str(s.owner.user_id) not in response.text
-    )
-
-
-async def test_fork_detached_snapshot_and_revocation_expiry(
-    consensus: SharingConsensus, api: httpx.AsyncClient
-) -> None:
-    e, s = consensus, consensus.state
-    created = await e.toss.execute(s.owner, s.workspace_id, e.bundle.id)
-    token = created.raw_token
-    path = f"/api/v1/workspaces/{s.other_workspace_id}/tosses/{token}/fork"
-    assert (
-        await api.post(path, headers=bearer(s.owner.user_id), json={})
-    ).status_code == 403
-    response = await api.post(path, headers=bearer(s.other.user_id), json={})
-    assert response.status_code == 201
-    async with s.uow().transaction() as tx:
-        assert isinstance(tx, PostgresTransactionContext)
-        row = await (
-            await tx.connection.execute(
-                "SELECT s.document_id,o.title,o.author_display_name FROM sot.sot_session s JOIN sot.sot_fork_origin o ON (o.workspace_id,o.session_id)=(s.workspace_id,s.id) WHERE s.id=%s",
-                (UUID(response.json()["session_id"]),),
-            )
-        ).fetchone()
-        assert row == (None, "Frozen title", "Owner")
-        docs = await (
-            await tx.connection.execute(
-                "SELECT count(*) FROM sot.sot_document WHERE workspace_id=%s",
-                (s.other_workspace_id,),
-            )
-        ).fetchone()
-        assert docs == (0,)
-    revoked = await api.delete(
-        f"/api/v1/workspaces/{s.workspace_id}/tosses/{created.link_id}",
-        headers=bearer(s.owner.user_id),
-    )
-    assert revoked.status_code == 204
-    public = await api.get(f"/api/v1/tosses/{token}")
-    assert (
-        public.status_code == 404
-        and public.headers["cache-control"] == "private, no-store"
-    )
-    expired = await e.toss.execute(s.owner, s.workspace_id, e.bundle.id)
-    async with s.uow().transaction() as tx:
-        assert isinstance(tx, PostgresTransactionContext)
-        await tx.connection.execute(
-            "UPDATE sot.sot_share_link SET expires_at=created_at WHERE id=%s",
-            (expired.link_id,),
-        )
-    assert (await api.get(f"/api/v1/tosses/{expired.raw_token}")).status_code == 404
 
 
 async def test_version_citations_roundtrip_and_decision_uniqueness(
@@ -437,45 +339,6 @@ async def test_http_proposal_required_citations_permissions_and_minimal_merge(
     ).status_code == 409
 
 
-async def test_actual_bundle_publisher_is_frozen_and_revoke_never_rewrites_snapshot(
-    consensus: SharingConsensus, api: httpx.AsyncClient
-) -> None:
-    e, s = consensus, consensus.state
-    bundle = replace(e.bundle, id=BundleId(uuid4()), published_by=s.other.user_id)
-    async with s.uow().transaction() as tx:
-        await s.sessions.add_member(
-            tx,
-            s.workspace_id,
-            SessionMember(
-                s.workspace_id, s.session.id, s.other.user_id, SessionRole.EDITOR
-            ),
-        )
-        await s.sessions.create_bundle(tx, s.workspace_id, bundle)
-    link = await e.toss.execute(s.owner, s.workspace_id, bundle.id)
-    response = await api.get(f"/api/v1/tosses/{link.raw_token}")
-    assert response.json()["attribution"] == {
-        "title": "Frozen title",
-        "author_display_name": "Other",
-        "published_at": "2026-09-06T00:00:00Z",
-    }
-    async with s.uow().transaction() as tx:
-        original = await e.shares.find_link(tx, s.workspace_id, link.link_id)
-        assert original is not None
-        await e.shares.save_link(
-            tx,
-            replace(
-                original.revoke(s.owner.user_id, SystemClock().now()),
-                snapshot=replace(original.snapshot, title="must not replace"),
-            ),
-        )
-        loaded = await e.shares.find_link(tx, s.workspace_id, link.link_id)
-        assert (
-            loaded
-            and loaded.snapshot == original.snapshot
-            and loaded.token_hash == original.token_hash
-        )
-
-
 async def test_http_revise_citations_are_explicit_ordered_and_new_empty_version_clears_them(
     consensus: SharingConsensus, api: httpx.AsyncClient
 ) -> None:
@@ -528,9 +391,6 @@ async def test_authenticated_routes_reject_invalid_workspace_and_strict_inputs(
     e, s = consensus, consensus.state
     prefix = "/api/v1/workspaces/not-a-uuid"
     for method, suffix, body in (
-        ("POST", f"/bundles/{e.bundle.id}/tosses", {}),
-        ("DELETE", f"/tosses/{uuid4()}", None),
-        ("POST", "/tosses/token/fork", {}),
         (
             "POST",
             f"/documents/{s.document_id}/proposals",
@@ -584,59 +444,6 @@ async def test_authenticated_routes_reject_invalid_workspace_and_strict_inputs(
         wrong.status_code == 404
         and wrong.json()["error"]["code"] == "proposal_not_found"
     )
-
-
-async def test_real_request_logs_hide_capability_tokens(
-    consensus: SharingConsensus,
-    api: httpx.AsyncClient,
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    e, s = consensus, consensus.state
-    link = await e.toss.execute(s.owner, s.workspace_id, e.bundle.id)
-    with caplog.at_level(logging.INFO, logger="httpx"):
-        assert (await api.get(f"/api/v1/tosses/{link.raw_token}")).status_code == 200
-        assert (
-            await api.post(
-                f"/api/v1/workspaces/{s.other_workspace_id}/tosses/{link.raw_token}/fork",
-                headers=bearer(s.other.user_id),
-                json={},
-            )
-        ).status_code == 201
-    assert link.raw_token not in caplog.text
-    assert "/tosses/[redacted]" in caplog.text
-
-
-async def test_anonymous_http_reads_with_identity_and_source_tables_unavailable(
-    consensus: SharingConsensus, api: httpx.AsyncClient
-) -> None:
-    e, s = consensus, consensus.state
-    link = await e.toss.execute(s.owner, s.workspace_id, e.bundle.id)
-    # Only this disposable fixture's schema changes. PostgreSQL retains FK targets
-    # when renamed, while any anonymous identity/session SQL would now fail.
-    async with s.uow().transaction() as tx:
-        assert isinstance(tx, PostgresTransactionContext)
-        await tx.connection.execute(
-            "ALTER TABLE sot.sot_user RENAME TO unavailable_user"
-        )
-        await tx.connection.execute(
-            "ALTER TABLE sot.sot_session RENAME TO unavailable_session"
-        )
-        await tx.connection.execute(
-            "ALTER TABLE sot.sot_bundle RENAME TO unavailable_bundle"
-        )
-        await tx.connection.execute(
-            "ALTER TABLE sot.sot_bundle_item RENAME TO unavailable_bundle_item"
-        )
-    response = await api.get(
-        f"/api/v1/tosses/{link.raw_token}",
-        headers={"Authorization": "Bearer invalid-ignored-for-public-read"},
-    )
-    assert response.status_code == 200
-    assert response.json()["attribution"]["author_display_name"] == "Owner"
-    assert [item["content"] for item in response.json()["items"]] == [
-        "public question",
-        "public answer",
-    ]
 
 
 async def test_proposal_read_holds_status_and_approvals_consistent(
@@ -721,68 +528,6 @@ async def test_additional_approvers_remain_version_owned_snapshots(
             {s.other.user_id}
         )
         assert len(loaded.approvals) == 3
-
-
-async def test_production_owner_revokes_closed_session_toss_with_unchanged_permissions(
-    consensus: SharingConsensus, api: httpx.AsyncClient
-) -> None:
-    e, s = consensus, consensus.state
-    prefix = f"/api/v1/workspaces/{s.workspace_id}"
-    created = await api.post(
-        prefix + f"/bundles/{e.bundle.id}/tosses",
-        headers=bearer(s.owner.user_id),
-        json={},
-    )
-    assert created.status_code == 201
-    link_id, token = UUID(created.json()["id"]), created.json()["token"]
-    members = WorkspaceAccess(PostgresWorkspaceRepository())
-    await CloseSession(s.sessions, SessionAccess(s.sessions, members), s.uow).execute(
-        s.owner, s.workspace_id, s.session.id
-    )
-    create_after_close = await api.post(
-        prefix + f"/bundles/{e.bundle.id}/tosses",
-        headers=bearer(s.owner.user_id),
-        json={},
-    )
-    assert (
-        create_after_close.status_code == 409
-        and create_after_close.json()["error"]["code"] == "session_closed"
-    )
-    path = prefix + f"/tosses/{link_id}"
-    assert (await api.delete(path, headers=bearer(s.other.user_id))).status_code == 404
-    assert (
-        await api.delete(
-            f"/api/v1/workspaces/{s.other_workspace_id}/tosses/{link_id}",
-            headers=bearer(s.other.user_id),
-        )
-    ).status_code == 404
-    async with s.uow().transaction() as tx:
-        await s.sessions.add_member(
-            tx,
-            s.workspace_id,
-            SessionMember(
-                s.workspace_id, s.session.id, s.other.user_id, SessionRole.EDITOR
-            ),
-        )
-    denied = await api.delete(path, headers=bearer(s.other.user_id))
-    assert (
-        denied.status_code == 403
-        and denied.json()["error"]["code"] == "session_forbidden"
-    )
-    public = await api.get(f"/api/v1/tosses/{token}")
-    assert public.status_code == 200
-    revoked = await api.delete(path, headers=bearer(s.owner.user_id))
-    assert revoked.status_code == 204
-    hidden = await api.get(f"/api/v1/tosses/{token}")
-    assert (
-        hidden.status_code == 404
-        and hidden.headers["cache-control"] == "private, no-store"
-    )
-    assert (await api.delete(path, headers=bearer(s.owner.user_id))).status_code == 204
-    async with s.uow().transaction() as tx:
-        link = await e.shares.find_link(tx, s.workspace_id, link_id)
-        assert link and link.revoked_by == s.owner.user_id
-        assert await s.sessions.load_bundle(tx, s.workspace_id, e.bundle.id) == e.bundle
 
 
 @pytest.mark.parametrize("workspace_member", [False, True])

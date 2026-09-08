@@ -93,18 +93,6 @@ class SessionMember:
     role: SessionRole
 
 
-@dataclass(frozen=True, slots=True)
-class ForkOrigin:
-    """Copied public attribution; the source bundle ID is opaque, never a FK."""
-
-    workspace_id: WorkspaceId
-    session_id: SessionId
-    source_bundle_id: BundleId
-    title: str
-    author_display_name: str
-    published_at: datetime
-
-
 @dataclass(slots=True)
 class Session:
     id: SessionId
@@ -125,13 +113,6 @@ class Session:
         if document_id is None:
             raise InvalidInput("session_document_required", "A document is required")
         return cls(SessionId(uuid4()), workspace_id, document_id, created_by, now)
-
-    @classmethod
-    def create_detached_fork(
-        cls, workspace_id: WorkspaceId, created_by: UserId, now: datetime
-    ) -> Session:
-        """Create a public-bundle fork without any source/destination document link."""
-        return cls(SessionId(uuid4()), workspace_id, None, created_by, now)
 
     def require_open(self) -> None:
         if self.status is not SessionStatus.OPEN:

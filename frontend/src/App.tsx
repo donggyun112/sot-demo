@@ -21,7 +21,6 @@ import { DocumentListView } from "./views/DocumentListView";
 import { DocumentView } from "./views/DocumentView";
 import { SessionListView } from "./views/SessionListView";
 import { SessionView } from "./views/SessionView";
-import { TossView } from "./views/TossView";
 import { ProfileView } from "./views/ProfileView";
 import { MembersView } from "./views/MembersView";
 import { ProposalView } from "./views/ProposalView";
@@ -95,8 +94,7 @@ function AppRoutes({
 }) {
   const location = useLocation();
   const api = useMemo(() => createAPI(auth, apiBase), [auth, apiBase]);
-  const publicToss = location.pathname.startsWith("/s/");
-  if (!user && !publicToss) {
+  if (!user) {
     return <LoginView auth={auth} clientId={googleClientId} />;
   }
   return (
@@ -113,7 +111,6 @@ function AppRoutes({
         <SignedInRoutes api={api} />
       ) : (
         <Routes>
-          <Route path="/s/:shareToken" element={<TossView />} />
         </Routes>
       )}
     </SotContext.Provider>
@@ -147,7 +144,6 @@ function SignedInRoutes({ api }: { api: ReturnType<typeof createAPI> }) {
             <Route path="proposals/:proposalId" element={<ProposalView />} />
           </Route>
         </Route>
-        <Route path="/s/:shareToken" element={<TossView />} />
         <Route path="*" element={<HomeRedirect workspaces={list} />} />
       </Routes>
     </WorkspaceUiProvider>

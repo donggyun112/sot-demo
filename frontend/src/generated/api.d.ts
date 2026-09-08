@@ -101,23 +101,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/tosses/{token}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Public Toss */
-        get: operations["public_toss_api_v1_tosses__token__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/workspaces": {
         parameters: {
             query?: never;
@@ -232,23 +215,6 @@ export interface paths {
         get: operations["list_branch_turns"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/workspaces/{workspace_id}/bundles/{bundle_id}/tosses": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Create Toss */
-        post: operations["create_toss_api_v1_workspaces__workspace_id__bundles__bundle_id__tosses_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -465,35 +431,19 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/workspaces/{workspace_id}/tosses/{token}/fork": {
+    "/api/v1/workspaces/{workspace_id}/sessions/{session_id}/members": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** Members Of Session */
+        get: operations["list_session_members"];
         put?: never;
-        /** Fork Toss */
-        post: operations["fork_toss_api_v1_workspaces__workspace_id__tosses__token__fork_post"];
+        /** Send Session */
+        post: operations["send_session_api_v1_workspaces__workspace_id__sessions__session_id__members_post"];
         delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/workspaces/{workspace_id}/tosses/{toss_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Revoke Toss */
-        delete: operations["revoke_toss_api_v1_workspaces__workspace_id__tosses__toss_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -571,18 +521,6 @@ export interface components {
             proposal_id: string;
             /** Version */
             version: number;
-        };
-        /** AttributionResponse */
-        AttributionResponse: {
-            /** Author Display Name */
-            author_display_name: string;
-            /**
-             * Published At
-             * Format: date-time
-             */
-            published_at: string;
-            /** Title */
-            title: string;
         };
         /** AuthResponse */
         AuthResponse: {
@@ -703,11 +641,6 @@ export interface components {
              */
             source_session_id: string;
         };
-        /** CreateTossRequest */
-        CreateTossRequest: {
-            /** Expires At */
-            expires_at?: string | null;
-        };
         /** CreateWorkspaceRequest */
         CreateWorkspaceRequest: {
             /** Name */
@@ -725,16 +658,6 @@ export interface components {
              * Format: uuid
              */
             session_id: string;
-        };
-        /** CreatedTossResponse */
-        CreatedTossResponse: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Token */
-            token: string;
         };
         /** CurationRequest */
         CurationRequest: {
@@ -843,21 +766,6 @@ export interface components {
         };
         /** EmptySessionRequest */
         EmptySessionRequest: Record<string, never>;
-        /** ForkRequest */
-        ForkRequest: Record<string, never>;
-        /** ForkResponse */
-        ForkResponse: {
-            /**
-             * Branch Id
-             * Format: uuid
-             */
-            branch_id: string;
-            /**
-             * Session Id
-             * Format: uuid
-             */
-            session_id: string;
-        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -980,36 +888,6 @@ export interface components {
             required_approver_ids: string[];
             /** Version */
             version: number;
-        };
-        /** PublicBundleItemResponse */
-        PublicBundleItemResponse: {
-            /** Content */
-            content: string;
-            /**
-             * Provenance
-             * @enum {string}
-             */
-            provenance: "copied" | "edited";
-            /**
-             * Role
-             * @enum {string}
-             */
-            role: "user" | "assistant";
-            /** Source Ids */
-            source_ids: string[];
-        };
-        /** PublicBundleResponse */
-        PublicBundleResponse: {
-            attribution: components["schemas"]["AttributionResponse"];
-            /**
-             * Bundle Id
-             * Format: uuid
-             */
-            bundle_id: string;
-            /** Items */
-            items: components["schemas"]["PublicBundleItemResponse"][];
-            /** Title */
-            title: string;
         };
         /** PublicationResponse */
         PublicationResponse: {
@@ -1155,6 +1033,39 @@ export interface components {
              */
             workspace_id: string;
         };
+        /** SendSessionRequest */
+        SendSessionRequest: {
+            /**
+             * Role
+             * @default editor
+             * @enum {string}
+             */
+            role: "editor" | "viewer";
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
+        /** SessionMemberResponse */
+        SessionMemberResponse: {
+            role: components["schemas"]["SessionRole"];
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+            /**
+             * Workspace Id
+             * Format: uuid
+             */
+            workspace_id: string;
+        };
         /** SessionResponse */
         SessionResponse: {
             /**
@@ -1181,6 +1092,11 @@ export interface components {
              */
             workspace_id: string;
         };
+        /**
+         * SessionRole
+         * @enum {string}
+         */
+        SessionRole: "owner" | "editor" | "viewer";
         /**
          * SessionStatus
          * @enum {string}
@@ -1426,37 +1342,6 @@ export interface operations {
             };
         };
     };
-    public_toss_api_v1_tosses__token__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                token: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PublicBundleResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     list_for_actor_api_v1_workspaces_get: {
         parameters: {
             query?: never;
@@ -1696,42 +1581,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TurnResponse"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_toss_api_v1_workspaces__workspace_id__bundles__bundle_id__tosses_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                workspace_id: string;
-                bundle_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateTossRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CreatedTossResponse"];
                 };
             };
             /** @description Validation Error */
@@ -2349,29 +2198,25 @@ export interface operations {
             };
         };
     };
-    fork_toss_api_v1_workspaces__workspace_id__tosses__token__fork_post: {
+    list_session_members: {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 workspace_id: string;
-                token: string;
+                session_id: string;
             };
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ForkRequest"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
-            201: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ForkResponse"];
+                    "application/json": components["schemas"]["SessionMemberResponse"][];
                 };
             };
             /** @description Validation Error */
@@ -2385,24 +2230,30 @@ export interface operations {
             };
         };
     };
-    revoke_toss_api_v1_workspaces__workspace_id__tosses__toss_id__delete: {
+    send_session_api_v1_workspaces__workspace_id__sessions__session_id__members_post: {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 workspace_id: string;
-                toss_id: string;
+                session_id: string;
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SendSessionRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
-            204: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["SessionMemberResponse"];
+                };
             };
             /** @description Validation Error */
             422: {

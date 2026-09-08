@@ -63,23 +63,15 @@ export const proposal: Schema["ProposalResponse"] = {
     created_at: session.created_at,
   },
 };
-export const publicBundle: Schema["PublicBundleResponse"] = {
-  bundle_id: "bundle-1",
-  title: "B 선택",
-  items: [
-    {
-      source_ids: ["turn-1"],
-      role: "assistant",
-      content: "B로 결정",
-      provenance: "edited",
-    },
-  ],
-  attribution: {
-    title: "B 선택",
-    author_display_name: "Member",
-    published_at: session.created_at,
+/** What curation keeps: the bundle preview reads these. */
+export const bundleItems: Schema["BundleItemResponse"][] = [
+  {
+    source_ids: ["turn-1"],
+    role: "assistant",
+    content: "B로 결정",
+    provenance: "edited",
   },
-};
+];
 
 export function createServer() {
   const requests: Request[] = [];
@@ -93,9 +85,10 @@ export function createServer() {
       "session.participate",
     ] as Schema["Permission"][],
     sessions: [] as Schema["SessionResponse"][],
-    forks: [] as Schema["SessionResponse"][],
     proposals: [] as Schema["ProposalResponse"][],
-    revokedTosses: [] as string[],
+    sessionMembers: [
+      { workspace_id: "w1", session_id: "session-1", user_id: member.id, role: "owner" },
+    ] as { workspace_id: string; session_id: string; user_id: string; role: string }[],
     members: [
       { user_id: member.id, role: "owner", display_name: member.display_name },
       { user_id: "user-2", role: "viewer", display_name: "Reviewer" },
@@ -140,11 +133,21 @@ export function createServer() {
         role: state.permissions.includes("workspace.manage") ? "owner" : "member",
         permissions: state.permissions,
       });
-    if (path.endsWith("/members") && request.method === "GET")
+    // `/sessions/{id}/members` also ends with "/members": keep the workspace
+    // roster from answering for it.
+    if (
+      path.endsWith("/members") &&
+      !path.includes("/sessions/") &&
+      request.method === "GET"
+    )
       return Response.json(
         state.members.map((item) => ({ workspace_id, ...item })),
       );
-    if (path.endsWith("/members") && request.method === "POST") {
+    if (
+      path.endsWith("/members") &&
+      !path.includes("/sessions/") &&
+      request.method === "POST"
+    ) {
       const body = (await request.json()) as Schema["AddWorkspaceMemberRequest"];
       return Response.json(
         { workspace_id, user_id: body.user_id, role: body.role },
@@ -240,7 +243,7 @@ export function createServer() {
       );
     }
     if (path.endsWith("/sessions/session-1")) {
-      const found = [...state.forks, ...state.sessions].find(
+      const found = state.sessions.find(
         (item) => item.workspace_id === workspace_id && item.id === "session-1",
       );
       return found && found.created_by === state.user.id
@@ -319,7 +322,7 @@ export function createServer() {
       });
     }
     if (path.endsWith("/bundle-preview"))
-      return Response.json(publicBundle.items);
+      return Response.json(bundleItems);
     if (path.endsWith("/bundles")) {
       state.branchVersion++;
       return Response.json({
@@ -327,21 +330,26 @@ export function createServer() {
         branch_version: state.branchVersion,
       });
     }
-    if (path.endsWith("/bundles/bundle-1/tosses"))
-      return Response.json({ id: "toss-1", token: "share-me" });
-    if (path.endsWith("/tosses/toss-1") && request.method === "DELETE") {
-      state.revokedTosses.push("toss-1");
-      return new Response(null, { status: 204 });
-    }
-    if (path === "/api/v1/tosses/share-me") return Response.json(publicBundle);
-    if (path.endsWith("/tosses/share-me/fork")) {
-      state.forks.push({ ...session, workspace_id, document_id: null });
-      return Response.json({ session_id: session.id, branch_id: branch.id });
+    if (path.endsWith("/sessions/session-1/members")) {
+      if (request.method === "POST") {
+        const body = (await request.json()) as { user_id: string; role: string };
+        const member = {
+          workspace_id,
+          session_id: session.id,
+          user_id: body.user_id,
+          role: body.role,
+        };
+        state.sessionMembers = [...state.sessionMembers, member];
+        return Response.json(member, { status: 201 });
+      }
+      return Response.json(
+        state.sessionMembers.map((item) => ({ ...item, workspace_id })),
+      );
     }
     if (path.endsWith("/documents/doc-1/proposals")) {
       if (request.method === "POST") {
         const body = (await request.json()) as Schema["CreateProposalRequest"];
-        const source = [...state.forks, ...state.sessions].find(
+        const source = state.sessions.find(
           (item) =>
             item.workspace_id === workspace_id &&
             item.id === body.source_session_id,

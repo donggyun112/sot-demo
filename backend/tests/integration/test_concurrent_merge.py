@@ -24,8 +24,8 @@ from tests.consensus.test_application import CAROL, WORKSPACE
 from tests.integration.test_document_session_postgres import (
     state as state,  # noqa: PLC0414 -- shared fixture
 )
-from tests.integration.test_sharing_consensus_postgres import SharingConsensus
-from tests.integration.test_sharing_consensus_postgres import (
+from tests.integration.test_consensus_postgres import SharingConsensus
+from tests.integration.test_consensus_postgres import (
     consensus as consensus,  # noqa: PLC0414 -- shared fixture
 )
 
