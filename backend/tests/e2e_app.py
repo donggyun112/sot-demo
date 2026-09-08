@@ -102,7 +102,7 @@ def browser_model() -> FunctionModel:
     loser_ready, winner_committed = asyncio.Event(), asyncio.Event()
 
     async def stream(
-        messages: list[ModelMessage], _info: AgentInfo
+        messages: list[ModelMessage], info: AgentInfo
     ) -> AsyncIterator[str | dict[int, DeltaToolCall]]:
         prompt = next(
             part.content
@@ -129,6 +129,12 @@ def browser_model() -> FunctionModel:
                     tool_call_id=str(prompt),
                 )
             }
+            return
+        if prompt == "what does the document say?":
+            # Answered from the document the run was given, which is the whole
+            # point of giving it: the agent used to say it could not read one.
+            body = str(info.instructions).split("<<<DOCUMENT\n", 1)[-1]
+            yield "The document says: " + body.split("\nDOCUMENT>>>", 1)[0]
             return
         yield "Public reasoning: "
         yield "isolate each user's work."

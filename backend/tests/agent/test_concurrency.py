@@ -142,6 +142,7 @@ async def product_harness() -> AgentProductHarness:
             lambda: store,
             cite_creator,
             proposal_creator,
+            store,
         ),
         CompletedRunWriter(
             AppendCompletedTurns(store, branch_access, lambda: store, FixedClock())

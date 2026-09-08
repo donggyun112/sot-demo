@@ -41,6 +41,40 @@ async function get(context: BrowserContext, path: string, auth: Login) {
   });
 }
 
+test("the agent answers from the document it is editing", async ({ browser }) => {
+  // It used to say it had no way to read the document, while its only write
+  // tool needs the exact current text to anchor an edit against.
+  const owner = await browser.newContext();
+  try {
+    const alice = await owner.newPage();
+    const aliceLogin = await login(alice, "alice");
+    const aw = await openWorkspace(alice, "Alice Workspace");
+    const body = "# Rate limits\n\nTen requests per second, per account.";
+    const made = await owner.request.post(`${api}/workspaces/${aw}/documents`, {
+      headers: { Authorization: `Bearer ${aliceLogin.access_token}` },
+      data: { title: `Readable ${Date.now()}`, content: body },
+    });
+    expect(made.status()).toBe(201);
+    const documentId = (await made.json()).document.id as string;
+
+    await alice.goto(`/w/${aw}/documents/${documentId}/sessions`);
+    await alice.getByRole("button", { name: "New session" }).click();
+    const streamed = alice.waitForResponse((res) => res.url().endsWith("/agent"));
+    await alice.getByLabel("Agent message").fill("what does the document say?");
+    await alice.getByLabel("Agent message").press("Enter");
+    const answer = await (await streamed).text();
+
+    // The document reached the model verbatim, so it can quote it back and
+    // anchor an edit in it.
+    expect(answer).toContain("Ten requests per second, per account.");
+    await expect(
+      alice.getByRole("article").filter({ hasText: "The document says" }),
+    ).toBeVisible();
+  } finally {
+    await owner.close();
+  }
+});
+
 test("a viewer continues the conversation in a session of their own", async ({
   browser,
 }) => {

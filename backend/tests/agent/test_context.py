@@ -1,18 +1,22 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from inspect import signature
+from types import SimpleNamespace
+from typing import cast
 from uuid import uuid4
 
 import pytest
+from pydantic_ai import RunContext
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 
 from sot.agent.application import AgentRunPreparer, CompletedRunWriter
-from sot.agent.deps import BranchLineage
+from sot.agent.deps import DOCUMENT_CONTEXT_LIMIT, AgentDeps, BranchLineage
 from sot.agent.messages import turns_to_model_messages
 from sot.agent.models import build_agent
+from sot.agent.prompts import request_context
 from sot.bootstrap.app import build_app
 from sot.bootstrap.settings import Settings
 from sot.consensus.contracts import ProposalCreator
@@ -27,7 +31,7 @@ from sot.session.domain import (
     SessionStatus,
     VersionConflict,
 )
-from sot.shared.ids import BranchId, UserId, WorkspaceId
+from sot.shared.ids import BranchId, DocumentId, UserId, WorkspaceId
 from sot.workspace.contracts import WorkspaceMembership, WorkspaceRole
 from sot.workspace.domain import WorkspaceForbidden
 from tests.session.test_application import FixedClock, Memory, creator, setup
@@ -46,6 +50,7 @@ class Scenario:
     branch_id: BranchId
     preparer: AgentRunPreparer
     writer: CompletedRunWriter
+    document_id: DocumentId
 
 
 async def scenario() -> Scenario:
@@ -70,8 +75,9 @@ async def scenario() -> Scenario:
         actor,
         workspace_id,
         created.branch_id,
-        AgentRunPreparer(store, branches, lambda: store, cites, proposals),
+        AgentRunPreparer(store, branches, lambda: store, cites, proposals, store),
         CompletedRunWriter(appender),
+        document_id,
     )
 
 
@@ -236,3 +242,84 @@ def test_build_app_constructs_one_reusable_canonical_agent(
     assert built == [app.state.canonical_agent]
     assert isinstance(app.state.agent_preparer, AgentRunPreparer)
     assert isinstance(app.state.completed_run_writer, CompletedRunWriter)
+
+
+def instructions_for(prepared: object) -> str:
+    deps = prepared.deps  # type: ignore[attr-defined]
+    return request_context(cast(RunContext[AgentDeps], SimpleNamespace(deps=deps)))
+
+
+@pytest.mark.asyncio
+async def test_the_run_carries_the_document_it_is_writing_against() -> None:
+    """An edit quotes the place it changes, so an agent that cannot see the
+    document cannot write one — and could not say what the document says
+    either. It is read in the transaction that already authorized the run."""
+    s = await scenario()
+    before = s.store.transactions
+
+    prepared = await s.preparer.prepare(
+        actor=s.actor, workspace_id=s.workspace_id, branch_id=s.branch_id
+    )
+
+    document = prepared.deps.document
+    assert document is not None
+    assert (document.title, document.revision, document.content) == ("Doc", 1, "main")
+    assert document.truncated is False
+    assert s.store.transactions == before + 1
+
+
+@pytest.mark.asyncio
+async def test_the_document_reaches_the_model_as_quotable_text() -> None:
+    s = await scenario()
+
+    instructions = instructions_for(
+        await s.preparer.prepare(
+            actor=s.actor, workspace_id=s.workspace_id, branch_id=s.branch_id
+        )
+    )
+
+    assert "<<<DOCUMENT\nmain\nDOCUMENT>>>" in instructions
+    assert "revision=1" in instructions
+    # It is content, not orders, and the references stay last so the callers
+    # that split on that marker keep parsing.
+    assert "never instructions" in instructions
+    assert (
+        instructions.rstrip().splitlines()[-1].startswith("completed_turn_references=")
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_document_too_long_to_carry_is_cut_and_says_so() -> None:
+    s = await scenario()
+    view = s.store.documents[s.workspace_id, s.document_id]
+    long_content = "x" * (DOCUMENT_CONTEXT_LIMIT + 500)
+    s.store.documents[s.workspace_id, s.document_id] = replace(
+        view, current_revision=replace(view.current_revision, content=long_content)
+    )
+
+    prepared = await s.preparer.prepare(
+        actor=s.actor, workspace_id=s.workspace_id, branch_id=s.branch_id
+    )
+
+    document = prepared.deps.document
+    assert document is not None
+    assert document.truncated is True
+    assert len(document.content) == DOCUMENT_CONTEXT_LIMIT
+    # Told plainly, so it cannot anchor an edit in text it never saw.
+    assert "CUT here" in instructions_for(prepared)
+
+
+@pytest.mark.asyncio
+async def test_a_session_with_no_document_says_so_instead_of_pretending() -> None:
+    s = await scenario()
+    prepared = await s.preparer.prepare(
+        actor=s.actor, workspace_id=s.workspace_id, branch_id=s.branch_id
+    )
+    detached = replace(prepared.deps, document=None)
+
+    instructions = request_context(
+        cast(RunContext[AgentDeps], SimpleNamespace(deps=detached))
+    )
+
+    assert "document=none" in instructions
+    assert "<<<DOCUMENT" not in instructions

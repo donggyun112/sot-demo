@@ -1,7 +1,8 @@
 from dataclasses import dataclass
 
-from sot.agent.deps import AgentDeps, BranchLineage
+from sot.agent.deps import AgentDeps, BranchLineage, DocumentSnapshot
 from sot.consensus.contracts import ProposalCreator
+from sot.document.contracts import DocumentReader
 from sot.identity.contracts import Actor
 from sot.session.contracts import (
     BranchContextReader,
@@ -35,12 +36,14 @@ class AgentRunPreparer:
         uow_factory: UnitOfWorkFactory,
         cite_creator: CiteCreator,
         proposal_creator: ProposalCreator,
+        documents: DocumentReader,
     ) -> None:
         self._authorizer = authorizer
         self._reader = reader
         self._uow_factory = uow_factory
         self._cite_creator = cite_creator
         self._proposal_creator = proposal_creator
+        self._documents = documents
 
     async def prepare(
         self, *, actor: Actor, workspace_id: WorkspaceId, branch_id: BranchId
@@ -56,6 +59,23 @@ class AgentRunPreparer:
                 branch_id=branch_id,
                 permission=SessionPermission.EDIT,
             )
+            # Read here: the same transaction already proved this actor may
+            # see the session, and the snapshot has to match the revision the
+            # run's edits will be anchored against.
+            document = None
+            if context.document_id is not None:
+                view = await self._documents.require_document(
+                    tx,
+                    actor=actor,
+                    workspace_id=workspace_id,
+                    document_id=context.document_id,
+                )
+                document = DocumentSnapshot.of(
+                    view.document.id,
+                    view.document.title,
+                    view.current_revision.number,
+                    view.current_revision.content,
+                )
         # Mapping and all model work happen after this read transaction closes.
         return PreparedAgentRun(
             context.turns,
@@ -66,6 +86,7 @@ class AgentRunPreparer:
                 BranchLineage(context.version),
                 self._cite_creator,
                 self._proposal_creator,
+                document=document,
             ),
         )
 
