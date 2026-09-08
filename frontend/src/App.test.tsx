@@ -848,7 +848,9 @@ it("starts a document from the file it already exists as", async () => {
   });
 });
 
-it("brings a file into the conversation as something that was said", async () => {
+it("holds a picked file in the composer until the message is sent", async () => {
+  // Attaching on pick published someone's file the moment they clicked it,
+  // with no way back and nothing said about it.
   const server = createServer();
   server.state.sessions = [session];
   await signIn(server);
@@ -857,11 +859,22 @@ it("brings a file into the conversation as something that was said", async () =>
   await userEvent.click(await screen.findByRole("button", { name: "New session" }));
 
   await userEvent.upload(
-    await screen.findByLabelText("Attach a file"),
+    await screen.findByLabelText("Attach files"),
     new File(["## 만료\n90일마다 회전한다."], "rotation.md", {
       type: "text/markdown",
     }),
   );
+
+  // Staged, not sent: the file is on screen and nothing has left the browser.
+  expect(await screen.findByText("rotation.md")).toBeVisible();
+  expect(
+    await screen.findByRole("button", { name: "Remove rotation.md" }),
+  ).toBeVisible();
+  expect(
+    server.requests.find((item) => item.url.endsWith("/attachments")),
+  ).toBeUndefined();
+
+  await userEvent.click(screen.getByRole("button", { name: "Send" }));
 
   const posted = server.requests.find((item) =>
     item.url.endsWith("/attachments"),
@@ -869,11 +882,59 @@ it("brings a file into the conversation as something that was said", async () =>
   expect(posted).toBeDefined();
   expect(await posted!.json()).toEqual({
     expected_version: branch.version,
-    filename: "rotation.md",
-    content: "## 만료\n90일마다 회전한다.",
+    files: [
+      { filename: "rotation.md", content: "## 만료\n90일마다 회전한다." },
+    ],
   });
-  // It reads as a turn: named, then quoted, in the transcript.
+});
+
+it("takes a picked file back out of the composer", async () => {
+  const server = createServer();
+  server.state.sessions = [session];
+  await signIn(server);
+  await openDocument();
+  await userEvent.click(await screen.findByRole("link", { name: "Sessions" }));
+  await userEvent.click(await screen.findByRole("button", { name: "New session" }));
+
+  await userEvent.upload(
+    await screen.findByLabelText("Attach files"),
+    new File(["본문"], "wrong.md", { type: "text/markdown" }),
+  );
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Remove wrong.md" }),
+  );
+
+  expect(screen.queryByText("wrong.md")).toBeNull();
+  expect(
+    server.requests.find((item) => item.url.endsWith("/attachments")),
+  ).toBeUndefined();
+});
+
+it("shows a file in the transcript as a file, not as its contents", async () => {
+  // A hundred lines of someone's YAML in the middle of a conversation is
+  // not something anyone reads.
+  const server = createServer();
+  server.state.sessions = [session];
+  server.state.turns = [
+    {
+      id: "turn-file",
+      workspace_id: "w1",
+      branch_id: branch.id,
+      ordinal: 1,
+      role: "attachment",
+      content: "rotation.md\n\n## 회전\n키는 90일마다 바꾼다.\n끝.",
+      created_at: session.created_at,
+      created_by: member.id,
+    },
+  ];
+  await signIn(server);
+  await openDocument();
+  await userEvent.click(await screen.findByRole("link", { name: "Sessions" }));
+  await userEvent.click(await screen.findByRole("button", { name: "New session" }));
+
   expect(await screen.findByText("rotation.md")).toBeVisible();
+  expect(await screen.findByText("3 lines")).toBeVisible();
+  expect(screen.queryByText(/키는 90일마다 바꾼다/)).toBeNull();
 });
 
 

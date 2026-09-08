@@ -64,7 +64,7 @@
         "title": "ApprovalResponse",
         "type": "object"
       },
-      "AttachmentRequest": {
+      "AttachedFile": {
         "additionalProperties": false,
         "properties": {
           "content": {
@@ -72,11 +72,6 @@
             "minLength": 1,
             "title": "Content",
             "type": "string"
-          },
-          "expected_version": {
-            "minimum": 0,
-            "title": "Expected Version",
-            "type": "integer"
           },
           "filename": {
             "maxLength": 200,
@@ -86,9 +81,33 @@
           }
         },
         "required": [
-          "expected_version",
           "filename",
           "content"
+        ],
+        "title": "AttachedFile",
+        "type": "object"
+      },
+      "AttachmentRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_version": {
+            "minimum": 0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/AttachedFile"
+            },
+            "maxItems": 10,
+            "minItems": 1,
+            "title": "Files",
+            "type": "array"
+          }
+        },
+        "required": [
+          "expected_version",
+          "files"
         ],
         "title": "AttachmentRequest",
         "type": "object"
@@ -1640,7 +1659,8 @@
             "enum": [
               "user",
               "assistant",
-              "tool"
+              "tool",
+              "attachment"
             ],
             "title": "Role",
             "type": "string"

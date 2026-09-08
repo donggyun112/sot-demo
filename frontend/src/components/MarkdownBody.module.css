@@ -74,6 +74,15 @@
   padding: 0;
 }
 
+/*
+  The highlighter emits one span per line and marks it `block`, expecting a
+  Tailwind utility to make it one. This app has no Tailwind, so every line of
+  a code block ran into the next.
+*/
+.md :global(pre code span.block) {
+  display: block;
+}
+
 .md :global(a) {
   color: var(--brand);
 }

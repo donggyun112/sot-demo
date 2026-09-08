@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import replace
 from uuid import UUID, uuid4
 
@@ -622,14 +623,14 @@ class AttachToBranch:
         branch_id: BranchId,
         *,
         expected_version: int,
-        attachment: Attachment,
+        attachments: Sequence[Attachment],
     ) -> CompletedTurnsResult:
         return await self._appender.execute(
             actor,
             workspace_id,
             branch_id,
             expected_version=expected_version,
-            messages=(attachment.as_turn(),),
+            messages=tuple(one.as_turn() for one in attachments),
         )
 
 

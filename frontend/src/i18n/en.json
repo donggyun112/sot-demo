@@ -205,7 +205,11 @@
     "stopped": "Stopped. The partial reply is still on screen.",
     "requestFailed": "Request failed",
     "thinking": "Reasoning",
-    "attach": "Attach a file"
+    "attach": "Attach files",
+    "attachFailed": "The files were not attached, so nothing was sent. ({{detail}})",
+    "fileLines": "{{count}} line",
+    "fileLines_other": "{{count}} lines",
+    "fileRemove": "Remove {{name}}"
   },
   "send": {
     "title": "Who holds this session",

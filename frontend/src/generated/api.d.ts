@@ -694,14 +694,19 @@ export interface components {
             /** Version */
             version: number;
         };
-        /** AttachmentRequest */
-        AttachmentRequest: {
+        /** AttachedFile */
+        AttachedFile: {
             /** Content */
             content: string;
-            /** Expected Version */
-            expected_version: number;
             /** Filename */
             filename: string;
+        };
+        /** AttachmentRequest */
+        AttachmentRequest: {
+            /** Expected Version */
+            expected_version: number;
+            /** Files */
+            files: components["schemas"]["AttachedFile"][];
         };
         /** AuthResponse */
         AuthResponse: {
@@ -1446,7 +1451,7 @@ export interface components {
              * Role
              * @enum {string}
              */
-            role: "user" | "assistant" | "tool";
+            role: "user" | "assistant" | "tool" | "attachment";
             /** Tool Call Id */
             tool_call_id?: string | null;
             /** Tool Kind */

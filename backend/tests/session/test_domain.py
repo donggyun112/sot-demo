@@ -129,7 +129,9 @@ def test_a_file_brought_into_a_session_is_named_then_quoted() -> None:
     agent reads it as part of the conversation rather than as a side channel."""
     turn = Attachment("design.md", "# 설계\n\n토큰은 회전한다.").as_turn()
 
-    assert turn.role == "user"
+    # Its own role, so the transcript can show a file as a file while the
+    # model still reads the text.
+    assert turn.role == "attachment"
     assert turn.content == "design.md\n\n# 설계\n\n토큰은 회전한다."
 
 

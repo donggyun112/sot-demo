@@ -203,7 +203,10 @@
     "stopped": "중지했습니다. 받는 중이던 응답은 화면에 남아 있습니다.",
     "requestFailed": "요청 실패",
     "thinking": "생각 과정",
-    "attach": "파일 첨부"
+    "attach": "파일 첨부",
+    "attachFailed": "파일이 첨부되지 않아 아무것도 전송되지 않았습니다. ({{detail}})",
+    "fileLines": "{{count}}줄",
+    "fileRemove": "{{name}} 제거"
   },
   "send": {
     "title": "이 세션을 가진 사람",

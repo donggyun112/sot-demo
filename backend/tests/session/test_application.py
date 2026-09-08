@@ -15,6 +15,7 @@ from sot.identity.contracts import Actor
 from sot.session import contracts
 from sot.session.application import (
     AppendCompletedTurns,
+    AttachToBranch,
     BranchAccess,
     CloseSession,
     CreateBranch,
@@ -27,6 +28,7 @@ from sot.session.application import (
     VersionGuard,
 )
 from sot.session.domain import (
+    Attachment,
     Branch,
     NewTurn,
     Session,
@@ -490,6 +492,36 @@ async def test_close_keeps_read_access_and_rejects_all_mutations() -> None:
                 expected_version=0,
             )
     assert store.branches[workspace_id, result.branch_id].version == 0
+
+
+@pytest.mark.asyncio
+async def test_files_picked_together_attach_together_in_order() -> None:
+    """Someone picks three files and then sends. They land as three turns in
+    the order they were picked, under one version check: a partial attach
+    would leave the sender undoing turns nobody asked for."""
+    store, actor, workspace_id, document_id = setup()
+    result = await creator(store).execute(actor, workspace_id, document_id)
+    branch_access = BranchAccess(store, access(store), store)
+    attach = AttachToBranch(
+        AppendCompletedTurns(store, branch_access, lambda: store, FixedClock())
+    )
+
+    added = await attach.execute(
+        actor,
+        workspace_id,
+        result.branch_id,
+        expected_version=0,
+        attachments=(
+            Attachment("a.md", "first"),
+            Attachment("b.md", "second"),
+        ),
+    )
+
+    assert [(turn.role, turn.content) for turn in added.turns] == [
+        ("attachment", "a.md\n\nfirst"),
+        ("attachment", "b.md\n\nsecond"),
+    ]
+    assert added.branch_version == 1
 
 
 @pytest.mark.asyncio

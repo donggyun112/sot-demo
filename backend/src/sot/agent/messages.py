@@ -139,10 +139,15 @@ def completed_turn_references(
     """Map authorized history without promoting any conversation text to instructions."""
     references: list[CompletedTurnReference] = []
     for turn in sorted(turns, key=lambda turn: turn.ordinal):
-        if turn.role in {"user", "assistant"}:
+        # A file someone brought is citable evidence like anything else they
+        # said, and it carries under their name.
+        if turn.role in {"user", "assistant", "attachment"}:
             references.append(
                 CompletedTurnReference(
-                    turn.id, turn.ordinal, len(references) + 1, turn.role
+                    turn.id,
+                    turn.ordinal,
+                    len(references) + 1,
+                    "user" if turn.role == "attachment" else turn.role,
                 )
             )
     return tuple(references)
@@ -154,7 +159,9 @@ def turns_to_model_messages(turns: tuple[Turn, ...]) -> list[ModelMessage]:
         part: (
             UserPromptPart | TextPart | ToolCallPart | ToolReturnPart | RetryPromptPart
         )
-        if turn.role == "user":
+        # An attachment is something a person put in front of the agent, so
+        # the model reads it as they said it: the name, then the file.
+        if turn.role in {"user", "attachment"}:
             part = UserPromptPart(turn.content, timestamp=turn.created_at)
         elif turn.role == "assistant":
             part = TextPart(turn.content)

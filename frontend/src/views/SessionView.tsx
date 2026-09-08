@@ -227,7 +227,7 @@ export function SessionView() {
               highlightCall={params.get("call") ?? undefined}
               onAttach={
                 can(member, "session.participate") && !readOnly
-                  ? async (file) => {
+                  ? async (files) => {
                       await attach.mutateAsync({
                         params: {
                           path: {
@@ -237,8 +237,12 @@ export function SessionView() {
                         },
                         body: {
                           expected_version: branch.version,
-                          filename: file.name,
-                          content: await file.text(),
+                          files: await Promise.all(
+                            files.map(async (file) => ({
+                              filename: file.name,
+                              content: await file.text(),
+                            })),
+                          ),
                         },
                       });
                       await queryClient.invalidateQueries();

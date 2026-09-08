@@ -104,11 +104,18 @@ class CurationRequest(BaseModel):
         return self.operation.to_operation()
 
 
+class AttachedFile(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    filename: Annotated[str, Field(min_length=1, max_length=200)]
+    content: Annotated[str, Field(min_length=1, max_length=ATTACHMENT_LIMIT)]
+
+
 class AttachmentRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     expected_version: Annotated[int, Field(ge=0, strict=True)]
-    filename: Annotated[str, Field(min_length=1, max_length=200)]
-    content: Annotated[str, Field(min_length=1, max_length=ATTACHMENT_LIMIT)]
+    # Someone picks several files and then sends. They arrive together or not
+    # at all: one version check, one order, nothing half-attached to undo.
+    files: Annotated[tuple[AttachedFile, ...], Field(min_length=1, max_length=10)]
 
 
 class ForkSessionRequest(BaseModel):
@@ -189,7 +196,10 @@ class TurnResponse(BaseModel):
     workspace_id: UUID
     branch_id: UUID
     ordinal: int
-    role: Literal["user", "assistant", "tool"]
+    # `attachment` is a file someone brought in. Its content is the file's
+    # name, a blank line, then the file, so a reader can be shown the file
+    # rather than the hundred lines inside it.
+    role: Literal["user", "assistant", "tool", "attachment"]
     content: str
     created_at: datetime
     created_by: UUID
@@ -301,7 +311,9 @@ def build_session_router(
             WorkspaceId(workspace_id),
             BranchId(branch_id),
             expected_version=body.expected_version,
-            attachment=Attachment(body.filename, body.content),
+            attachments=tuple(
+                Attachment(file.filename, file.content) for file in body.files
+            ),
         )
         return BranchMutationResponse(
             resource_id=result.turns[-1].id, branch_version=result.branch_version

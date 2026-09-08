@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from datetime import datetime
 from enum import StrEnum
-from typing import Literal
+from typing import Literal, get_args
 from uuid import UUID, uuid4
 
 from sot.shared.errors import Conflict, Forbidden, InvalidInput, NotFound
@@ -190,11 +190,18 @@ class Attachment:
             )
 
     def as_turn(self) -> NewTurn:
-        """Named, then quoted verbatim. A reader sees where it came from."""
-        return NewTurn("user", f"{self.filename.strip()}\n\n{self.content}")
+        """Named, then quoted verbatim, under a role of its own.
+
+        The model reads the name and the whole body — that is the point of
+        bringing a file — while a reader of the transcript sees a file rather
+        than the hundred lines inside it. Only the role can tell them apart:
+        the same text typed by hand is a message, not an attachment.
+        """
+        return NewTurn("attachment", f"{self.filename.strip()}\n\n{self.content}")
 
 
-TurnRole = Literal["user", "assistant", "tool"]
+TurnRole = Literal["user", "assistant", "tool", "attachment"]
+TURN_ROLES = frozenset(get_args(TurnRole))
 
 
 @dataclass(frozen=True, slots=True)
@@ -203,7 +210,7 @@ class NewTurn:
     content: str
 
     def __post_init__(self) -> None:
-        if self.role not in {"user", "assistant", "tool"}:
+        if self.role not in TURN_ROLES:
             raise InvalidInput("turn_role_invalid", "Turn role is invalid")
 
 
@@ -355,11 +362,17 @@ class CurationProjection:
 
     @classmethod
     def from_turns(cls, turns: tuple[Turn, ...]) -> CurationProjection:
-        # Tool payloads are private execution data, not public conversation items.
+        # Tool payloads are private execution data, not public conversation
+        # items. A file someone brought is theirs, so it carries as one.
         items = tuple(
-            BundleItem((turn.id,), turn.role, turn.content, "copied")
+            BundleItem(
+                (turn.id,),
+                "user" if turn.role == "attachment" else turn.role,
+                turn.content,
+                "copied",
+            )
             for turn in turns
-            if turn.role in {"user", "assistant"}
+            if turn.role in {"user", "assistant", "attachment"}
         )
         return cls(items, items)
 

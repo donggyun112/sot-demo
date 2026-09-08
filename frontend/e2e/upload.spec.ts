@@ -67,14 +67,36 @@ test("a markdown file starts a document and joins a conversation", async ({
       )
     ).json();
     await alice.goto(`/w/${aw}/sessions/${session.session_id}`);
+    // Picked, then sent: two files at once, and nothing leaves the browser
+    // until the send.
+    await alice.getByLabel("Attach files").setInputFiles([
+      {
+        name: "rotation.md",
+        mimeType: "text/markdown",
+        buffer: Buffer.from("## 회전\n키는 90일마다 바꾼다.", "utf8"),
+      },
+      {
+        name: "budget.md",
+        mimeType: "text/markdown",
+        buffer: Buffer.from("## 예산\n분기마다 검토한다.", "utf8"),
+      },
+    ]);
+    await expect(alice.getByText("budget.md")).toBeVisible();
+    expect(
+      await context.request
+        .get(`${api}/workspaces/${aw}/branches/${session.branch_id}/turns`, {
+          headers: auth,
+        })
+        .then((r) => r.json()),
+    ).toEqual([]);
+
+    // Taking one back out leaves the other staged.
     const attached = alice.waitForResponse(
       (r) => r.request().method() === "POST" && r.url().endsWith("/attachments"),
     );
-    await alice.getByLabel("Attach a file").setInputFiles({
-      name: "rotation.md",
-      mimeType: "text/markdown",
-      buffer: Buffer.from("## 회전\n키는 90일마다 바꾼다.", "utf8"),
-    });
+    await alice.getByRole("button", { name: "Remove budget.md" }).click();
+    await expect(alice.getByText("budget.md")).toBeHidden();
+    await alice.getByRole("button", { name: "Send", exact: true }).click();
     expect((await attached).status()).toBe(201);
 
     const turns = (await (
@@ -83,13 +105,19 @@ test("a markdown file starts a document and joins a conversation", async ({
         { headers: auth },
       )
     ).json()) as Turn[];
-    // Named, then quoted verbatim, as a turn the agent will read as history.
+    // Named, then quoted verbatim, under a role of its own: the agent reads
+    // the whole file, the transcript shows a file.
     expect(turns).toHaveLength(1);
-    expect(turns[0].role).toBe("user");
+    expect(turns[0].role).toBe("attachment");
     expect(turns[0].content).toBe("rotation.md\n\n## 회전\n키는 90일마다 바꾼다.");
     await expect(
       alice.getByRole("article").filter({ hasText: "rotation.md" }),
     ).toBeVisible();
+    // The file, not the hundred lines inside it.
+    await expect(alice.getByText("2 lines")).toBeVisible();
+    await expect(
+      alice.getByRole("article").filter({ hasText: "키는 90일마다 바꾼다" }),
+    ).toBeHidden();
   } finally {
     await context.close();
   }

@@ -115,6 +115,14 @@
   box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
+/*
+  Files picked but not sent, above the box they will be sent with. They sit
+  inside the composer because that is what they are part of: a draft.
+*/
+.staged {
+  padding: var(--space-md) var(--space-md) var(--space-xs);
+}
+
 .field {
   flex: 1;
   min-height: 0;

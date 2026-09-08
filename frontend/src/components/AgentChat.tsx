@@ -4,6 +4,9 @@ import { PydanticAIAgent } from "@ag-ui/pydantic-ai";
 import type { AuthSession } from "../auth";
 import { serviceRoot } from "../transport";
 import type { Turn } from "../types";
+import { attachedFile, fileKind, countLines } from "./attachedFile";
+import { FileCard } from "./FileCard";
+import cards from "./FileCard.module.css";
 import { MarkdownBody } from "./MarkdownBody";
 import { readableJson } from "./readableJson";
 import { useSmoothText } from "./smoothText";
@@ -25,8 +28,11 @@ interface AgentChatProps {
   nameOf?: (userId: string) => string;
   /** A tool call to open and mark, for someone arriving from the document. */
   highlightCall?: string;
-  /** Brings a file into the conversation. Absent when nobody may write here. */
-  onAttach?: (file: File) => Promise<void>;
+  /**
+   * Brings the files picked before sending into the conversation, together.
+   * Absent when nobody may write here.
+   */
+  onAttach?: (files: File[]) => Promise<void>;
 }
 type AgentMessage = PydanticAIAgent["messages"][number];
 /**
@@ -36,10 +42,18 @@ type AgentMessage = PydanticAIAgent["messages"][number];
  */
 const canonicalMessages = (turns: Turn[]): AgentMessage[] =>
   turns
-    .filter((turn) => turn.role === "user" || turn.role === "assistant")
+    .filter(
+      (turn) =>
+        turn.role === "user" ||
+        turn.role === "assistant" ||
+        turn.role === "attachment",
+    )
     .map(({ id, role, content }) => ({
       id,
-      role: role as "user" | "assistant",
+      /* An attachment is something its sender said, which is what the model
+         reads it as. The transcript still shows it as the file it is: the
+         turn's own id is what tells the two views it is the same thing. */
+      role: role === "assistant" ? "assistant" : ("user" as const),
       content,
     }));
 
@@ -91,6 +105,9 @@ type Block =
      as an assistant turn made every reply look like two replies. It is never
      stored either, so it exists only while the run is on screen. */
   | { kind: "thinking"; id: string; content: string }
+  /* A file someone brought in. The transcript shows the file, not the
+     hundred lines inside it — those are for the agent to read. */
+  | { kind: "file"; id: string; name: string; lines: number; author?: string }
   | {
       kind: "tool";
       id: string;
@@ -101,6 +118,17 @@ type Block =
          exact call that wrote it. */
       callId?: string;
     };
+
+function fileBlock(turn: Turn): Block {
+  const file = attachedFile(turn.content);
+  return {
+    kind: "file",
+    id: turn.id,
+    name: file.name,
+    lines: file.lines,
+    author: turn.created_by,
+  };
+}
 
 /** A call and its result are one thing that happened, so they read as one. */
 function attachResult(blocks: Block[], callId: string, result: unknown) {
@@ -115,7 +143,12 @@ function attachResult(blocks: Block[], callId: string, result: unknown) {
 }
 
 /** The live run: AG-UI messages, already in order. */
-function liveBlocks(messages: readonly AgentMessage[]): Block[] {
+function liveBlocks(
+  messages: readonly AgentMessage[],
+  /* Attachment turns by id: the run replays them as what their sender
+     said, and this is what turns them back into files on screen. */
+  files: Map<string, Block>,
+): Block[] {
   const blocks: Block[] = [];
   const pushToolCalls = (message: AgentMessage) => {
     if (!("toolCalls" in message) || !Array.isArray(message.toolCalls)) return;
@@ -148,6 +181,11 @@ function liveBlocks(messages: readonly AgentMessage[]): Block[] {
           name: envelope.tool_name ?? "",
           result: envelope.result,
         });
+      continue;
+    }
+    const file = files.get(message.id);
+    if (file) {
+      blocks.push(file);
       continue;
     }
     const content = textContent(message);
@@ -185,6 +223,10 @@ function isRunDetail(block: Block): boolean {
 function storedBlocks(turns: Turn[]): Block[] {
   const blocks: Block[] = [];
   for (const turn of turns) {
+    if (turn.role === "attachment") {
+      blocks.push(fileBlock(turn));
+      continue;
+    }
     if (turn.role !== "tool") {
       blocks.push({
         kind: "text",
@@ -258,6 +300,12 @@ export function AgentChat(props: AgentChatProps) {
   const [status, setStatus] = useState("");
   /* Which tool records the reader has opened, so a re-render leaves them. */
   const [folds, setFolds] = useState<Record<string, boolean>>({});
+  /*
+    Files picked but not yet sent. Attaching on pick published someone's file
+    the moment they clicked it, with no way back and nothing said about it;
+    they wait here until the message they belong to is sent.
+  */
+  const [staged, setStaged] = useState<File[]>([]);
 
   useEffect(() => {
     const subscription = agent.subscribe({
@@ -302,7 +350,32 @@ export function AgentChat(props: AgentChatProps) {
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     const content = input.trim();
-    if (!content || running || needsRefetch || agent.isRunning) return;
+    if (running || needsRefetch || agent.isRunning) return;
+    const files = staged;
+    if (!content && files.length === 0) return;
+    /*
+      The files go in first: they are what the message is about. Handing over
+      a file and saying nothing is a whole gesture, so with no message this
+      ends here rather than asking the agent to answer an empty prompt.
+    */
+    if (files.length > 0) {
+      setRunning(true);
+      try {
+        await props.onAttach?.(files);
+        setStaged([]);
+      } catch (error) {
+        setRunning(false);
+        const detail =
+          error instanceof Error ? error.message : t("agent.requestFailed");
+        setStatus(t("agent.attachFailed", { detail }));
+        return;
+      }
+      setRunning(false);
+      if (!content) {
+        setStatus("");
+        return;
+      }
+    }
     stopped.current = false;
     completed.current = false;
     preservePartial.current = true;
@@ -338,7 +411,13 @@ export function AgentChat(props: AgentChatProps) {
   // partial output is still on screen — the live messages are the record.
   // Once it lands and syncs, the stored turns are. Both are already in order.
   const settled = !running && !preservePartial.current && !needsRefetch;
-  const live = liveBlocks(messages);
+  const files = useMemo(() => {
+    const known = new Map<string, Block>();
+    for (const turn of props.turns)
+      if (turn.role === "attachment") known.set(turn.id, fileBlock(turn));
+    return known;
+  }, [props.turns]);
+  const live = liveBlocks(messages, files);
   const blocks = settled && !live.some(isRunDetail) ? storedBlocks(props.turns) : live;
   /*
     Only the block still being written is paced. Everything above it is
@@ -380,6 +459,20 @@ export function AgentChat(props: AgentChatProps) {
                     />
                   </div>
                 )}
+              </TurnRow>
+            ) : block.kind === "file" ? (
+              <TurnRow
+                key={block.id}
+                role="user"
+                name={
+                  block.author && props.nameOf
+                    ? props.nameOf(block.author)
+                    : props.youLabel
+                }
+              >
+                <div className={cards.row}>
+                  <FileCard name={block.name} lines={block.lines} />
+                </div>
               </TurnRow>
             ) : block.kind === "thinking" ? (
               <details
@@ -443,6 +536,23 @@ export function AgentChat(props: AgentChatProps) {
       {sendable && (
         <form className={styles.composer} onSubmit={(event) => void submit(event)}>
           <div className={styles.card}>
+            {staged.length > 0 && (
+              <div className={styles.staged}>
+                <div className={cards.row}>
+                  {staged.map((file, index) => (
+                    <FileCard
+                      key={`${file.name}-${index}`}
+                      name={file.name}
+                      onRemove={() =>
+                        setStaged((current) =>
+                          current.filter((_, at) => at !== index),
+                        )
+                      }
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
             <label className={styles.field}>
               <textarea
                 aria-label={t("agent.message")}
@@ -469,11 +579,13 @@ export function AgentChat(props: AgentChatProps) {
                     type="file"
                     accept=".md,.markdown,.mdx,text/markdown,text/plain"
                     disabled={running || needsRefetch}
+                    multiple
                     onChange={(event) => {
-                      const file = event.target.files?.[0];
+                      const picked = [...(event.target.files ?? [])];
                       /* Cleared, or the same file twice does nothing. */
                       event.target.value = "";
-                      if (file) void props.onAttach?.(file);
+                      if (picked.length)
+                        setStaged((current) => [...current, ...picked]);
                     }}
                   />
                 </label>
@@ -502,7 +614,12 @@ export function AgentChat(props: AgentChatProps) {
                   {t("agent.stop")}
                 </button>
               ) : (
-                <button disabled={needsRefetch || !input.trim()} type="submit">
+                <button
+                  disabled={
+                    needsRefetch || (!input.trim() && staged.length === 0)
+                  }
+                  type="submit"
+                >
                   {t("agent.send")}
                 </button>
               )}
