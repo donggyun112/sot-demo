@@ -98,11 +98,17 @@ export function ProposalView() {
               {version.citations.length === 0 ? (
                 <p className={styles.empty}>{t("proposal.noCitations")}</p>
               ) : (
+                /*
+                  An ordinal on its own — "bundle 1, item 6" — tells a reader
+                  nothing, so each claim leads back to the conversation the
+                  update was written in.
+                */
                 version.citations.map((item) => (
-                  <div
+                  <Link
                     key={`${item.bundle_id}-${item.bundle_item_position}`}
                     className={styles.row}
                     title={item.bundle_id}
+                    to={`/w/${workspaceId}/sessions/${data.source_session_id}`}
                   >
                     <div>
                       <div className={styles.rowTitle}>{item.claim_anchor}</div>
@@ -116,7 +122,10 @@ export function ProposalView() {
                         })}
                       </div>
                     </div>
-                  </div>
+                    <span className={styles.chip}>
+                      {t("document.historyOpenSession")}
+                    </span>
+                  </Link>
                 ))
               )}
 

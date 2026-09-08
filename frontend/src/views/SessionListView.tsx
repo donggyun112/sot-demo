@@ -128,7 +128,7 @@ export function SessionListView() {
                     <div className={styles.rowTitle}>{t("proposal.title")}</div>
                     <div className={styles.meta}>{at(item.created_at)}</div>
                   </div>
-                  <span className={styles.chip}>{t(`sessionStatus.${item.status}`)}</span>
+                  <span className={styles.chip}>{t(`proposalStatus.${item.status}`)}</span>
                 </Link>
               ))}
             </>
