@@ -5,7 +5,6 @@ import pytest
 
 from sot.consensus.domain import (
     ApprovalDecision,
-    DocumentEdit,
     ProposalNotFound,
     ProposalStatus,
 )

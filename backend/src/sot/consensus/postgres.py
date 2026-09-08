@@ -6,8 +6,8 @@ from sot.bootstrap.database import PostgresTransactionContext
 from sot.consensus.domain import (
     Approval,
     ApprovalDecision,
-    Proposal,
     DocumentEdit,
+    Proposal,
     ProposalCitation,
     ProposalNotFound,
     ProposalStatus,

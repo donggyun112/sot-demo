@@ -1,22 +1,30 @@
 from collections.abc import Awaitable, Callable
-from typing import Annotated
+from datetime import datetime
+from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel, ConfigDict, StringConstraints
 
 from sot.identity.contracts import Actor
 from sot.shared.ids import UserId, WorkspaceId
 from sot.workspace.application import (
+    AcceptInvitation,
     AddWorkspaceMember,
     CreateWorkspace,
     GetCurrentWorkspaceMember,
     GetWorkspace,
+    InvitationView,
+    InviteToWorkspace,
     ListActorWorkspaces,
+    ListMyInvitations,
+    ListWorkspaceInvitations,
     ListWorkspaceMembers,
+    RevokeInvitation,
     WorkspaceMemberProfile,
 )
 from sot.workspace.domain import (
+    Invitation,
     Permission,
     Workspace,
     WorkspaceMembership,
@@ -36,6 +44,75 @@ class AddWorkspaceMemberRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     user_id: UUID
     role: WorkspaceRole
+
+
+class InviteRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    email: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=3, max_length=320)
+    ]
+    # Ownership is not transferable by invitation, so it is not offered here.
+    role: Literal[WorkspaceRole.MEMBER, WorkspaceRole.VIEWER] = WorkspaceRole.MEMBER
+
+
+class InvitationResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: UUID
+    workspace_id: UUID
+    invitee_email: str
+    role: WorkspaceRole
+    created_at: datetime
+    expires_at: datetime
+    # Present only where nothing delivers the invitation, so the inviter can
+    # pass it on themselves. Never on a listing: a code is a credential, and
+    # one that has already been sent should not be sitting on a screen.
+    code: str | None = None
+
+    @classmethod
+    def from_invitation(
+        cls, value: Invitation, *, code: str | None = None
+    ) -> "InvitationResponse":
+        return cls(
+            id=value.id,
+            workspace_id=value.workspace_id,
+            invitee_email=value.invitee_email,
+            role=value.role,
+            created_at=value.created_at,
+            expires_at=value.expires_at,
+            code=code,
+        )
+
+
+class RedeemRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    code: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=10, max_length=10)
+    ]
+
+
+class MyInvitationResponse(BaseModel):
+    """What an invitee sees: who is asking, and to join what."""
+
+    model_config = ConfigDict(extra="forbid")
+    id: UUID
+    workspace_id: UUID
+    workspace_name: str
+    inviter_display_name: str
+    role: WorkspaceRole
+    created_at: datetime
+    expires_at: datetime
+
+    @classmethod
+    def from_view(cls, value: InvitationView) -> "MyInvitationResponse":
+        return cls(
+            id=value.invitation.id,
+            workspace_id=value.invitation.workspace_id,
+            workspace_name=value.workspace_name,
+            inviter_display_name=value.inviter_display_name,
+            role=value.invitation.role,
+            created_at=value.invitation.created_at,
+            expires_at=value.invitation.expires_at,
+        )
 
 
 class WorkspaceResponse(BaseModel):
@@ -83,6 +160,11 @@ class WorkspaceMemberProfileResponse(WorkspaceMemberResponse):
 def build_workspace_router(
     create: CreateWorkspace,
     add_member: AddWorkspaceMember,
+    invite: InviteToWorkspace,
+    list_invitations: ListWorkspaceInvitations,
+    revoke_invitation: RevokeInvitation,
+    list_my_invitations: ListMyInvitations,
+    decide_invitation: AcceptInvitation,
     list_workspaces: ListActorWorkspaces,
     get_workspace: GetWorkspace,
     get_member: GetCurrentWorkspaceMember,
@@ -153,5 +235,91 @@ def build_workspace_router(
                 role=body.role,
             )
         )
+
+    @router.get("/{workspace_id}/invitations", operation_id="list_invitations")
+    async def invitations(
+        workspace_id: UUID, current: Annotated[Actor, Depends(actor)]
+    ) -> tuple[InvitationResponse, ...]:
+        return tuple(
+            InvitationResponse.from_invitation(item)
+            for item in await list_invitations.execute(
+                current, WorkspaceId(workspace_id)
+            )
+        )
+
+    @router.post("/{workspace_id}/invitations", status_code=201)
+    async def send_invitation(
+        workspace_id: UUID,
+        body: InviteRequest,
+        current: Annotated[Actor, Depends(actor)],
+    ) -> InvitationResponse:
+        issued = await invite.execute(
+            current,
+            WorkspaceId(workspace_id),
+            email=body.email,
+            role=WorkspaceRole(body.role),
+        )
+        return InvitationResponse.from_invitation(
+            issued.invitation,
+            code=issued.invitation.code if issued.hand_over_code else None,
+        )
+
+    @router.delete(
+        "/{workspace_id}/invitations/{invitation_id}",
+        status_code=204,
+        operation_id="revoke_invitation",
+    )
+    async def revoke(
+        workspace_id: UUID,
+        invitation_id: UUID,
+        current: Annotated[Actor, Depends(actor)],
+    ) -> Response:
+        await revoke_invitation.execute(
+            current, WorkspaceId(workspace_id), invitation_id
+        )
+        return Response(status_code=204)
+
+    return router
+
+
+def build_invitation_router(
+    list_mine: ListMyInvitations,
+    decide: AcceptInvitation,
+    actor: Callable[[Request], Awaitable[Actor]],
+) -> APIRouter:
+    """An invitee's own view: not scoped to a workspace they are not in yet."""
+    router = APIRouter(prefix="/api/v1/invitations")
+
+    @router.get("", operation_id="list_my_invitations")
+    async def mine(
+        current: Annotated[Actor, Depends(actor)],
+    ) -> tuple[MyInvitationResponse, ...]:
+        return tuple(
+            MyInvitationResponse.from_view(item)
+            for item in await list_mine.execute(current)
+        )
+
+    @router.post("/{invitation_id}/accept", status_code=201)
+    async def accept(
+        invitation_id: UUID, current: Annotated[Actor, Depends(actor)]
+    ) -> WorkspaceMemberResponse:
+        return WorkspaceMemberResponse.from_membership(
+            await decide.execute(current, invitation_id)
+        )
+
+    @router.post("/redeem", status_code=201)
+    async def redeem(
+        body: RedeemRequest, current: Annotated[Actor, Depends(actor)]
+    ) -> WorkspaceMemberResponse:
+        return WorkspaceMemberResponse.from_membership(
+            await decide.redeem(current, body.code)
+        )
+
+    @router.post("/{invitation_id}/decline", status_code=204)
+    async def decline(
+        invitation_id: UUID, current: Annotated[Actor, Depends(actor)]
+    ) -> Response:
+        await decide.decline(current, invitation_id)
+        return Response(status_code=204)
 
     return router

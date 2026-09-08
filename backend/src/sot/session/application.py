@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import replace
 from uuid import UUID, uuid4
 
 from sot.document.contracts import DocumentReader

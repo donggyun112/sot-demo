@@ -16,7 +16,7 @@ from psycopg_pool import AsyncConnectionPool
 from pydantic import SecretStr
 
 from sot.bootstrap.app import SystemClock, build_app
-from sot.bootstrap.database import PostgresTransactionContext, PostgresUnitOfWork
+from sot.bootstrap.database import PostgresUnitOfWork
 from sot.bootstrap.migrate import run_migrations
 from sot.bootstrap.settings import Settings
 from sot.document.application import (

@@ -139,3 +139,23 @@ class PostgresIdentityRepository:
             "UPDATE sot.sot_auth_session SET revoked_at=%s WHERE user_id=%s AND revoked_at IS NULL",
             (now, user_id),
         )
+
+    async def find_by_email(
+        self, tx: TransactionContext, email: str
+    ) -> UserId | None:
+        row = await (
+            await connection(tx).execute(
+                "SELECT id FROM sot.sot_user WHERE lower(email)=%s", (email,)
+            )
+        ).fetchone()
+        return UserId(row[0]) if row else None
+
+    async def require_email(self, tx: TransactionContext, user_id: UserId) -> str:
+        row = await (
+            await connection(tx).execute(
+                "SELECT lower(email) FROM sot.sot_user WHERE id=%s", (user_id,)
+            )
+        ).fetchone()
+        if row is None:
+            raise UserNotFound()
+        return str(row[0])

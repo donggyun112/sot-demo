@@ -86,6 +86,15 @@ export function createServer() {
     ] as Schema["Permission"][],
     sessions: [] as Schema["SessionResponse"][],
     proposals: [] as Schema["ProposalResponse"][],
+    invitations: [] as {
+      id: string;
+      workspace_id: string;
+      invitee_email: string;
+      role: string;
+      created_at: string;
+      expires_at: string;
+      code?: string;
+    }[],
     sessionMembers: [
       { workspace_id: "w1", session_id: "session-1", user_id: member.id, role: "owner" },
     ] as { workspace_id: string; session_id: string; user_id: string; role: string }[],
@@ -143,6 +152,29 @@ export function createServer() {
       return Response.json(
         state.members.map((item) => ({ workspace_id, ...item })),
       );
+    if (path.endsWith("/invitations")) {
+      if (request.method === "POST") {
+        const body = (await request.json()) as { email: string; role: string };
+        const invitation = {
+          id: "invitation-1",
+          workspace_id,
+          invitee_email: body.email.toLowerCase(),
+          role: body.role,
+          created_at: session.created_at,
+          expires_at: "2026-09-15T00:00:00Z",
+          // Nothing delivers it here, so the code comes back to the inviter.
+          code: "ABCD234XYZ",
+        };
+        state.invitations = [...state.invitations, invitation];
+        return Response.json(invitation, { status: 201 });
+      }
+      return Response.json(state.invitations);
+    }
+    if (path.includes("/invitations/") && request.method === "DELETE") {
+      const id = path.split("/").pop();
+      state.invitations = state.invitations.filter((item) => item.id !== id);
+      return new Response(null, { status: 204 });
+    }
     if (
       path.endsWith("/members") &&
       !path.includes("/sessions/") &&

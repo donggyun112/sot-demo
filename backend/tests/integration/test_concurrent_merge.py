@@ -21,12 +21,12 @@ from sot.workspace.application import WorkspaceAccess
 from sot.workspace.postgres import PostgresWorkspaceRepository
 from tests.consensus.merge_support import MergeHarness
 from tests.consensus.test_application import CAROL, WORKSPACE
-from tests.integration.test_document_session_postgres import (
-    state as state,  # noqa: PLC0414 -- shared fixture
-)
 from tests.integration.test_consensus_postgres import SharingConsensus
 from tests.integration.test_consensus_postgres import (
     consensus as consensus,  # noqa: PLC0414 -- shared fixture
+)
+from tests.integration.test_document_session_postgres import (
+    state as state,  # noqa: PLC0414 -- shared fixture
 )
 
 

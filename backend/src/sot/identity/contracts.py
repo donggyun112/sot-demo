@@ -35,3 +35,19 @@ class IdentityAttributionReader(Protocol):
     async def require_attribution(
         self, tx: TransactionContext, user_id: UserId
     ) -> IdentityAttribution: ...
+
+
+class IdentityDirectory(Protocol):
+    """Find an account by the address colleagues already know it by.
+
+    Returns None rather than raising: an invitation to someone without an
+    account yet is valid, and binds when they first sign in.
+    """
+
+    async def find_by_email(
+        self, tx: TransactionContext, email: str
+    ) -> UserId | None: ...
+
+    async def require_email(self, tx: TransactionContext, user_id: UserId) -> str:
+        """The address this account is reachable at, for matching invitations."""
+        ...

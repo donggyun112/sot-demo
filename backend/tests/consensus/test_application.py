@@ -17,8 +17,8 @@ from sot.consensus.application import (
     ReviseProposal,
 )
 from sot.consensus.domain import (
-    DocumentEdit,
     ApprovalDecision,
+    DocumentEdit,
     Proposal,
     ProposalCitation,
     ProposalNotFound,

@@ -3,11 +3,13 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from uuid import uuid4
+from datetime import UTC, datetime
+from uuid import UUID, uuid4
 
 import pytest
 
 from sot.identity.contracts import Actor, IdentityAttribution
+from sot.shared.errors import Conflict
 from sot.shared.ids import UserId, WorkspaceId
 from sot.shared.unit_of_work import TransactionContext
 from sot.workspace.application import (
@@ -19,6 +21,8 @@ from sot.workspace.application import (
     WorkspaceAccess,
 )
 from sot.workspace.domain import (
+    Invitation,
+    InvitationStatus,
     Permission,
     Workspace,
     WorkspaceForbidden,
@@ -26,6 +30,8 @@ from sot.workspace.domain import (
     WorkspaceMembership,
     WorkspaceRole,
 )
+
+NOW = datetime(2026, 9, 6, tzinfo=UTC)
 
 
 @dataclass
@@ -38,6 +44,9 @@ class MemoryStore:
     transactions: int = 0
     fail_member: bool = False
     display_names: dict[UserId, str] = field(default_factory=dict)
+    emails: dict[UserId, str] = field(default_factory=dict)
+    invitations: dict[UUID, Invitation] = field(default_factory=dict)
+    now_value: datetime = NOW
 
     def check(self, tx: TransactionContext) -> None:
         assert self.active is tx
@@ -45,13 +54,17 @@ class MemoryStore:
     @asynccontextmanager
     async def transaction(self) -> AsyncIterator[TransactionContext]:
         assert self.active is None, "nested transaction"
-        before = self.workspaces.copy(), self.members.copy()
+        before = (
+            self.workspaces.copy(),
+            self.members.copy(),
+            self.invitations.copy(),
+        )
         self.active = object()
         self.transactions += 1
         try:
             yield self.active
         except BaseException:
-            self.workspaces, self.members = before
+            self.workspaces, self.members, self.invitations = before
             raise
         finally:
             self.active = None
@@ -104,6 +117,94 @@ class MemoryStore:
     async def require_actor(self, tx: TransactionContext, user_id: UserId) -> Actor:
         self.check(tx)
         return Actor(user_id)
+
+    def now(self) -> datetime:
+        return self.now_value
+
+    async def find_by_email(
+        self, tx: TransactionContext, email: str
+    ) -> UserId | None:
+        self.check(tx)
+        return next((u for u, e in self.emails.items() if e == email), None)
+
+    async def require_email(self, tx: TransactionContext, user_id: UserId) -> str:
+        self.check(tx)
+        return self.emails[user_id]
+
+    async def add(self, tx: TransactionContext, invitation: Invitation) -> None:
+        self.check(tx)
+        live = self.invitations.values()
+        if any(
+            item.workspace_id == invitation.workspace_id
+            and item.invitee_email == invitation.invitee_email
+            and item.status is InvitationStatus.PENDING
+            for item in live
+        ):
+            raise Conflict("invitation_pending", "Already invited")
+        self.invitations[invitation.id] = invitation
+
+    async def save(self, tx: TransactionContext, invitation: Invitation) -> None:
+        self.check(tx)
+        held = self.invitations.get(invitation.id)
+        # The real update only writes over a still-pending row.
+        if held is None or held.status is InvitationStatus.PENDING:
+            self.invitations[invitation.id] = invitation
+
+    async def find(
+        self, tx: TransactionContext, invitation_id: UUID
+    ) -> Invitation | None:
+        self.check(tx)
+        return self.invitations.get(invitation_id)
+
+    async def find_pending(
+        self, tx: TransactionContext, workspace_id: WorkspaceId, email: str
+    ) -> Invitation | None:
+        self.check(tx)
+        return next(
+            (
+                item
+                for item in self.invitations.values()
+                if item.workspace_id == workspace_id
+                and item.invitee_email == email
+                and item.status is InvitationStatus.PENDING
+            ),
+            None,
+        )
+
+    async def find_by_code(
+        self, tx: TransactionContext, code: str
+    ) -> Invitation | None:
+        self.check(tx)
+        return next(
+            (
+                item
+                for item in self.invitations.values()
+                if item.code == code and item.status is InvitationStatus.PENDING
+            ),
+            None,
+        )
+
+    async def list_pending_for_workspace(
+        self, tx: TransactionContext, workspace_id: WorkspaceId
+    ) -> tuple[Invitation, ...]:
+        self.check(tx)
+        return tuple(
+            item
+            for item in self.invitations.values()
+            if item.workspace_id == workspace_id
+            and item.status is InvitationStatus.PENDING
+        )
+
+    async def list_pending_for_invitee(
+        self, tx: TransactionContext, user_id: UserId, email: str
+    ) -> tuple[Invitation, ...]:
+        self.check(tx)
+        return tuple(
+            item
+            for item in self.invitations.values()
+            if item.status is InvitationStatus.PENDING
+            and (item.invitee_user_id == user_id or item.invitee_email == email)
+        )
 
     async def require_attribution(
         self, tx: TransactionContext, user_id: UserId

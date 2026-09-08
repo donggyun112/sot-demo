@@ -74,17 +74,26 @@ from sot.session.application import (
     VersionGuard,
 )
 from sot.session.postgres import PostgresSessionRepository
-from sot.workspace.api import build_workspace_router
+from sot.workspace.api import build_invitation_router, build_workspace_router
 from sot.workspace.application import (
+    AcceptInvitation,
     AddWorkspaceMember,
     CreateWorkspace,
     GetCurrentWorkspaceMember,
     GetWorkspace,
+    InviteToWorkspace,
     ListActorWorkspaces,
+    ListMyInvitations,
+    ListWorkspaceInvitations,
     ListWorkspaceMembers,
+    RevokeInvitation,
     WorkspaceAccess,
 )
-from sot.workspace.postgres import PostgresWorkspaceRepository
+from sot.workspace.delivery import LocalInvitationDelivery
+from sot.workspace.postgres import (
+    PostgresInvitationRepository,
+    PostgresWorkspaceRepository,
+)
 
 
 class SystemClock:
@@ -179,16 +188,42 @@ def build_app(
 
     register_error_handlers(application)
     application.include_router(build_auth_router(facade, settings))
+    invitations = PostgresInvitationRepository()
+    decide_invitation = AcceptInvitation(
+        invitations, workspace, identity, uow_factory, clock
+    )
+    my_invitations = ListMyInvitations(
+        invitations, workspace, identity, identity, uow_factory, clock
+    )
     application.include_router(
         build_workspace_router(
             CreateWorkspace(workspace, uow_factory),
             AddWorkspaceMember(workspace, access, facade, uow_factory),
+            InviteToWorkspace(
+                invitations,
+                workspace,
+                access,
+                identity,
+                # Nothing here sends mail, so the code goes back to the inviter
+                # to hand over. A real mailer replaces this, and then the code
+                # stops being shown.
+                LocalInvitationDelivery(),
+                uow_factory,
+                clock,
+            ),
+            ListWorkspaceInvitations(invitations, access, uow_factory, clock),
+            RevokeInvitation(invitations, access, uow_factory, clock),
+            my_invitations,
+            decide_invitation,
             ListActorWorkspaces(workspace, uow_factory),
             GetWorkspace(workspace, access, uow_factory),
             GetCurrentWorkspaceMember(access, uow_factory),
             ListWorkspaceMembers(workspace, access, identity, uow_factory),
             actor,
         )
+    )
+    application.include_router(
+        build_invitation_router(my_invitations, decide_invitation, actor)
     )
     application.state.pool = pool
     documents = PostgresDocumentRepository()

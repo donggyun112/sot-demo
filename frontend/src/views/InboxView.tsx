@@ -1,6 +1,9 @@
+import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Link, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 import { useOpenProposals } from "../app/inbox";
+import { useSot } from "../app/sot";
 import { useDisplayName, useTimestamp } from "../app/identity";
 import { TopBar } from "../components/AppShell";
 import { PageState, Section } from "../components/Page";
@@ -14,6 +17,19 @@ export function InboxView() {
   const { loading, waitingOnMe, mine, all } = useOpenProposals();
   const nameOf = useDisplayName();
   const at = useTimestamp();
+  const { api } = useSot();
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  // An invitation is not scoped to a workspace you are not in yet.
+  const invitations = api.useQuery("get", "/api/v1/invitations", {});
+  const accept = api.useMutation("post", "/api/v1/invitations/{invitation_id}/accept");
+  const decline = api.useMutation(
+    "post",
+    "/api/v1/invitations/{invitation_id}/decline",
+  );
+  const redeem = api.useMutation("post", "/api/v1/invitations/redeem");
+  const [code, setCode] = useState("");
+  const pending = invitations.data ?? [];
 
   const row = (
     proposal: (typeof all)[number]["proposal"],
@@ -52,12 +68,105 @@ export function InboxView() {
         <div className={styles.stack}>
           {loading && <PageState title={t("common.loading")} />}
 
-          {!loading && all.length === 0 && (
+          {pending.length > 0 && (
+            <Section title={t("invite.waiting")} count={pending.length}>
+              {pending.map((item) => (
+                <div key={item.id} className={styles.row}>
+                  <div>
+                    <div className={styles.rowTitle}>{item.workspace_name}</div>
+                    <div className={styles.meta}>
+                      {t("invite.from", { name: item.inviter_display_name })} ·{" "}
+                      {t(`workspaceRole.${item.role}`)} ·{" "}
+                      {t("invite.expires", { at: at(item.expires_at) })}
+                    </div>
+                  </div>
+                  <div className={styles.turnActions}>
+                    <button
+                      className={styles.primary}
+                      type="button"
+                      disabled={accept.isPending}
+                      onClick={() =>
+                        accept.mutate(
+                          { params: { path: { invitation_id: item.id } } },
+                          {
+                            onSuccess: (joined) => {
+                              void queryClient.invalidateQueries();
+                              void navigate(`/w/${joined.workspace_id}`);
+                            },
+                          },
+                        )
+                      }
+                    >
+                      {t("invite.accept")}
+                    </button>
+                    <button
+                      className={styles.ghost}
+                      type="button"
+                      disabled={decline.isPending}
+                      onClick={() =>
+                        decline.mutate(
+                          { params: { path: { invitation_id: item.id } } },
+                          { onSuccess: () => void queryClient.invalidateQueries() },
+                        )
+                      }
+                    >
+                      {t("invite.decline")}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </Section>
+          )}
+
+          {!loading && all.length === 0 && pending.length === 0 && (
             <PageState
               title={t("inbox.emptyTitle")}
               description={t("inbox.empty")}
             />
           )}
+
+          {/* An invitation that reached you by hand rather than by mail. */}
+          <Section title={t("invite.haveCode")}>
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (!code.trim()) return;
+                redeem.mutate(
+                  { body: { code: code.trim().toUpperCase() } },
+                  {
+                    onSuccess: (joined) => {
+                      setCode("");
+                      void queryClient.invalidateQueries();
+                      void navigate(`/w/${joined.workspace_id}`);
+                    },
+                  },
+                );
+              }}
+            >
+              <label className={styles.label} htmlFor="invite-code">
+                {t("invite.code")}
+                <input
+                  id="invite-code"
+                  className={styles.input}
+                  value={code}
+                  onChange={(event) => setCode(event.target.value)}
+                  placeholder="ABCD234XYZ"
+                />
+              </label>
+              <button
+                className={styles.primary}
+                type="submit"
+                disabled={code.trim().length !== 10 || redeem.isPending}
+              >
+                {t("invite.join")}
+              </button>
+              {redeem.isError && (
+                <p className={styles.alert} role="alert">
+                  {t("invite.badCode")}
+                </p>
+              )}
+            </form>
+          </Section>
 
           {waitingOnMe.length > 0 && (
             <Section title={t("inbox.waiting")} count={waitingOnMe.length}>

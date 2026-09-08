@@ -282,7 +282,7 @@ it("hides workspace members from a member without workspace.manage", async () =>
   expect(screen.queryByRole("button", { name: "New document" })).not.toBeInTheDocument();
 });
 
-it("lets an owner open members and add a user", async () => {
+it("invites a member by email instead of asking for their id", async () => {
   const server = createServer();
   server.state.permissions = [
     "workspace.manage",
@@ -296,9 +296,21 @@ it("lets an owner open members and add a user", async () => {
   await signIn(server);
   await userEvent.click(await screen.findByRole("link", { name: "Members" }));
   expect(await screen.findByRole("heading", { name: "Members" })).toBeVisible();
-  await userEvent.type(screen.getByLabelText("User id"), "user-2");
-  await userEvent.click(screen.getByRole("button", { name: "Add member" }));
-  expect(await screen.findByText("Member added.")).toBeVisible();
+  await userEvent.type(screen.getByLabelText("Email"), "Teammate@Example.com");
+  await userEvent.click(screen.getByRole("button", { name: "Send invitation" }));
+  // Nothing delivers it in this install, so the inviter is handed the code.
+  expect(await screen.findByText("Pass this code to them")).toBeVisible();
+  expect(
+    screen.getByRole("button", { name: "Copy invitation code" }),
+  ).toBeVisible();
+
+  // An invitation is not membership: it waits, and can be taken back.
+  expect(await screen.findByText("teammate@example.com")).toBeVisible();
+  expect(
+    screen.getByRole("heading", { name: "Waiting to be accepted" }),
+  ).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  await waitFor(() => expect(server.state.invitations).toEqual([]));
 });
 
 it("hides new-session when the actor cannot session.create", async () => {
@@ -477,7 +489,8 @@ it("lists the workspace roster on the members screen", async () => {
   await userEvent.click(await screen.findByRole("link", { name: "Members" }));
   expect(await screen.findByRole("heading", { name: "Members" })).toBeVisible();
   expect(screen.getByText("Reviewer")).toBeVisible();
-  expect(screen.getByText("Viewer")).toBeVisible();
+  // "Viewer" is both a roster role and an option in the invite picker.
+  expect((await screen.findAllByText("Viewer")).length).toBeGreaterThan(0);
   expect(screen.queryByText("user-2")).not.toBeInTheDocument();
 });
 

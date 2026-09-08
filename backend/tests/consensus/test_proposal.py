@@ -6,9 +6,9 @@ from uuid import uuid4
 import pytest
 
 from sot.consensus.domain import (
-    DocumentEdit,
     PROPOSAL_CONTENT_LIMIT,
     ApprovalDecision,
+    DocumentEdit,
     Proposal,
     ProposalCitation,
     ProposalStatus,

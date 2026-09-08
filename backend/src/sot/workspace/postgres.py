@@ -1,4 +1,5 @@
 from typing import Any
+from uuid import UUID
 
 from psycopg import AsyncConnection
 
@@ -6,6 +7,8 @@ from sot.bootstrap.database import PostgresTransactionContext
 from sot.shared.ids import UserId, WorkspaceId
 from sot.shared.unit_of_work import TransactionContext
 from sot.workspace.domain import (
+    Invitation,
+    InvitationStatus,
     Workspace,
     WorkspaceMemberAlreadyExists,
     WorkspaceMembership,
@@ -98,3 +101,122 @@ class PostgresWorkspaceRepository:
             )
         ).fetchall()
         return tuple(Workspace(WorkspaceId(row[0]), row[1]) for row in rows)
+
+
+COLUMNS = (
+    "id,workspace_id,inviter_id,invitee_email,invitee_user_id,role,status,"
+    "created_at,decided_at,expires_at,code"
+)
+
+
+def _invitation(row: tuple[Any, ...]) -> Invitation:
+    return Invitation(
+        row[0],
+        WorkspaceId(row[1]),
+        UserId(row[2]),
+        row[3],
+        WorkspaceRole(row[5]),
+        row[7],
+        row[9],
+        row[10],
+        UserId(row[4]) if row[4] else None,
+        InvitationStatus(row[6]),
+        row[8],
+    )
+
+
+class PostgresInvitationRepository:
+    async def add(self, tx: TransactionContext, invitation: Invitation) -> None:
+        await connection(tx).execute(
+            f"INSERT INTO sot.sot_workspace_invitation({COLUMNS}) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            (
+                invitation.id,
+                invitation.workspace_id,
+                invitation.inviter_id,
+                invitation.invitee_email,
+                invitation.invitee_user_id,
+                invitation.role,
+                invitation.status,
+                invitation.created_at,
+                invitation.decided_at,
+                invitation.expires_at,
+                invitation.code,
+            ),
+        )
+
+    async def save(self, tx: TransactionContext, invitation: Invitation) -> None:
+        # Settling is one-way, so only a still-pending row may be written over.
+        await connection(tx).execute(
+            "UPDATE sot.sot_workspace_invitation "
+            "SET status=%s, decided_at=%s, invitee_user_id=%s "
+            "WHERE id=%s AND status='pending'",
+            (
+                invitation.status,
+                invitation.decided_at,
+                invitation.invitee_user_id,
+                invitation.id,
+            ),
+        )
+
+    async def find(
+        self, tx: TransactionContext, invitation_id: UUID
+    ) -> Invitation | None:
+        row = await (
+            await connection(tx).execute(
+                f"SELECT {COLUMNS} FROM sot.sot_workspace_invitation WHERE id=%s",
+                (invitation_id,),
+            )
+        ).fetchone()
+        return _invitation(row) if row else None
+
+    async def find_pending(
+        self, tx: TransactionContext, workspace_id: WorkspaceId, email: str
+    ) -> Invitation | None:
+        row = await (
+            await connection(tx).execute(
+                f"SELECT {COLUMNS} FROM sot.sot_workspace_invitation "
+                "WHERE workspace_id=%s AND invitee_email=%s AND status='pending'",
+                (workspace_id, email),
+            )
+        ).fetchone()
+        return _invitation(row) if row else None
+
+    async def find_by_code(
+        self, tx: TransactionContext, code: str
+    ) -> Invitation | None:
+        row = await (
+            await connection(tx).execute(
+                f"SELECT {COLUMNS} FROM sot.sot_workspace_invitation "
+                "WHERE code=%s AND status='pending'",
+                (code,),
+            )
+        ).fetchone()
+        return _invitation(row) if row else None
+
+    async def list_pending_for_workspace(
+        self, tx: TransactionContext, workspace_id: WorkspaceId
+    ) -> tuple[Invitation, ...]:
+        rows = await (
+            await connection(tx).execute(
+                f"SELECT {COLUMNS} FROM sot.sot_workspace_invitation "
+                "WHERE workspace_id=%s AND status='pending' ORDER BY created_at DESC",
+                (workspace_id,),
+            )
+        ).fetchall()
+        return tuple(_invitation(row) for row in rows)
+
+    async def list_pending_for_invitee(
+        self, tx: TransactionContext, user_id: UserId, email: str
+    ) -> tuple[Invitation, ...]:
+        # Either binding finds it: an invitation sent before they had an
+        # account still reaches them once the address matches.
+        rows = await (
+            await connection(tx).execute(
+                f"SELECT {COLUMNS} FROM sot.sot_workspace_invitation "
+                "WHERE status='pending' AND (invitee_user_id=%s OR invitee_email=%s) "
+                "ORDER BY created_at DESC",
+                (user_id, email),
+            )
+        ).fetchall()
+        return tuple(_invitation(row) for row in rows)

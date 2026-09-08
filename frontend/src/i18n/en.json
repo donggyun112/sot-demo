@@ -49,10 +49,6 @@
   "members": {
     "title": "Members",
     "hint": "Only an owner can add members.",
-    "userId": "User id",
-    "userIdHint": "You need the id they copied from their own profile.",
-    "add": "Add member",
-    "added": "Member added.",
     "you": "You"
   },
   "proposal": {
@@ -202,5 +198,27 @@
     "owner": "Owner",
     "editor": "Editor",
     "viewer": "Viewer"
+  },
+  "invite": {
+    "title": "Invite a member",
+    "hint": "Invite by email. They are a member once they accept.",
+    "email": "Email",
+    "role": "Role",
+    "action": "Send invitation",
+    "sent": "Invitation sent.",
+    "pending": "Waiting to be accepted",
+    "noPending": "No invitations are waiting.",
+    "expires": "until {{at}}",
+    "revoke": "Cancel",
+    "waiting": "Invitations to you",
+    "from": "{{name}} invited you",
+    "accept": "Accept",
+    "decline": "Decline",
+    "handOver": "Pass this code to them",
+    "copyCode": "Copy invitation code",
+    "haveCode": "Join with a code",
+    "code": "Invitation code",
+    "join": "Join",
+    "badCode": "That code cannot be used."
   }
 }

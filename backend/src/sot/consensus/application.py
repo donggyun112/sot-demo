@@ -5,8 +5,8 @@ from uuid import UUID
 
 from sot.consensus.contracts import MergeProposalResult, ProposalReader, ProposalView
 from sot.consensus.domain import (
-    DocumentEdit,
     ApprovalDecision,
+    DocumentEdit,
     Proposal,
     ProposalCitation,
     ProposalNotFound,

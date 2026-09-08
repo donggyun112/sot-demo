@@ -16,6 +16,7 @@ from sot.agent.application import AgentRunPreparer, CompletedRunWriter, Prepared
 from sot.agent.messages import turns_to_model_messages
 from sot.agent.models import build_agent
 from sot.consensus.application import CreateProposal, ProposalSources
+from sot.consensus.contracts import DocumentEdit
 from sot.consensus.domain import Proposal, ProposalStatus
 from sot.identity.contracts import Actor
 from sot.session.application import (
@@ -28,7 +29,6 @@ from sot.session.application import (
     VersionGuard,
 )
 from sot.session.contracts import NewTurn
-from sot.consensus.contracts import DocumentEdit
 from sot.session.domain import JoinTurns
 from sot.shared.ids import BranchId, ProposalId, WorkspaceId
 from sot.shared.unit_of_work import TransactionContext

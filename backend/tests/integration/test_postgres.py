@@ -6,9 +6,6 @@ from pydantic import SecretStr
 
 from sot.bootstrap.app import build_app
 from sot.bootstrap.settings import Settings
-from tests.integration.test_document_session_postgres import (
-    state as state,  # noqa: PLC0414
-)
 from tests.integration.test_consensus_postgres import (
     SECRET,
     SharingConsensus,
@@ -16,6 +13,9 @@ from tests.integration.test_consensus_postgres import (
 )
 from tests.integration.test_consensus_postgres import (
     consensus as consensus,  # noqa: PLC0414
+)
+from tests.integration.test_document_session_postgres import (
+    state as state,  # noqa: PLC0414
 )
 
 

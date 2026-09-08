@@ -13,16 +13,22 @@ from sot.bootstrap.settings import Settings
 from sot.identity.api import build_auth_router, resolve_actor
 from sot.identity.contracts import Actor
 from sot.shared.errors import SOTError
-from sot.workspace.api import build_workspace_router
+from sot.workspace.api import build_invitation_router, build_workspace_router
 from sot.workspace.application import (
+    AcceptInvitation,
     AddWorkspaceMember,
     CreateWorkspace,
     GetCurrentWorkspaceMember,
     GetWorkspace,
+    InviteToWorkspace,
     ListActorWorkspaces,
+    ListMyInvitations,
+    ListWorkspaceInvitations,
     ListWorkspaceMembers,
+    RevokeInvitation,
     WorkspaceAccess,
 )
+from sot.workspace.delivery import LocalInvitationDelivery
 from tests.identity.test_auth_facade import make_facade
 from tests.workspace.test_application import MemoryStore
 
@@ -39,10 +45,25 @@ async def test_workspace_routes_use_bearer_actor_and_routed_workspace() -> None:
     app = FastAPI()
     app.add_exception_handler(SOTError, handle_sot_error)
     app.include_router(build_auth_router(facade, Settings(environment="test")))
+    mine = ListMyInvitations(store, store, store, store, lambda: store, store)
+    decide = AcceptInvitation(store, store, store, lambda: store, store)
     app.include_router(
         build_workspace_router(
             CreateWorkspace(store, lambda: store),
             AddWorkspaceMember(store, access, store, lambda: store),
+            InviteToWorkspace(
+                store,
+                store,
+                access,
+                store,
+                LocalInvitationDelivery(),
+                lambda: store,
+                store,
+            ),
+            ListWorkspaceInvitations(store, access, lambda: store, store),
+            RevokeInvitation(store, access, lambda: store, store),
+            mine,
+            decide,
             ListActorWorkspaces(store, lambda: store),
             GetWorkspace(store, access, lambda: store),
             GetCurrentWorkspaceMember(access, lambda: store),
@@ -50,6 +71,7 @@ async def test_workspace_routes_use_bearer_actor_and_routed_workspace() -> None:
             actor,
         )
     )
+    app.include_router(build_invitation_router(mine, decide, actor))
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app), base_url="https://test"
     ) as client:

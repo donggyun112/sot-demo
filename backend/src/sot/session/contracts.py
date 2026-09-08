@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Literal, Protocol
+from typing import Protocol
 from uuid import UUID
 
 from sot.identity.contracts import Actor
@@ -16,7 +16,6 @@ from sot.session.domain import (
     SessionStatus,
     Turn,
 )
-from sot.shared.errors import InvalidInput
 from sot.shared.ids import (
     BranchId,
     BundleId,

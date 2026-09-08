@@ -6,7 +6,12 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Path, Request
 from pydantic import BaseModel, ConfigDict, StringConstraints
 
-from sot.document.application import CreateDocument, GetDocument, GetRevision, ListDocuments
+from sot.document.application import (
+    CreateDocument,
+    GetDocument,
+    GetRevision,
+    ListDocuments,
+)
 from sot.document.contracts import DocumentSummary, DocumentView, RevisionView
 from sot.identity.contracts import Actor
 from sot.shared.ids import DocumentId, WorkspaceId

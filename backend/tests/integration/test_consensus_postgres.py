@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, replace
 from datetime import timedelta
-from hashlib import sha256
 from typing import Any
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import httpx
 import psycopg
@@ -37,16 +35,14 @@ from sot.document.application import (
     DocumentPublicationAccess,
     PublishDocumentRevision,
 )
-from sot.identity.postgres import PostgresIdentityRepository
 from sot.identity.tokens import SOTAccessTokenCodec
 from sot.session.application import (
     BundleAccess,
-    CloseSession,
     RequiredApprovers,
     SessionAccess,
     VersionGuard,
 )
-from sot.session.domain import Bundle, BundleItem, SessionMember, SessionRole
+from sot.session.domain import Bundle, BundleItem
 from sot.shared.ids import BundleId, ProposalId, UserId
 from sot.workspace.application import WorkspaceAccess
 from sot.workspace.domain import WorkspaceMembership, WorkspaceRole
