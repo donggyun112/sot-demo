@@ -576,7 +576,12 @@ function SessionSide({
             publish.mutate(
               {
                 params: { path: { workspace_id: workspaceId, branch_id: branchId } },
-                body: { expected_version: version, title: t("sessions.bundle") },
+                body: {
+                  expected_version: version,
+                  // Whoever opens the link reads a conversation, so name
+                  // it after the conversation rather than after the record.
+                  title: titleFromTurns(turns, t("sessions.untitledSession")),
+                },
               },
               {
                 onSuccess: (result) => {

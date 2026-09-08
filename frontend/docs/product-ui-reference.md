@@ -6,38 +6,38 @@ Global English-first interface for a consensus workspace. Root `index.html` is t
 
 ## Product
 
-SOT is a place where people toss a curated session, not a finished sentence. The UI should feel like Linear (density, quiet chrome) meeting a document canvas (Notion/GitHub docs): a readable main column, a persistent outline, and an evidence rail. Copy is direct. No “Shared Source of Truth” masthead. Brand mark is **SOT**; tagline is **Sessions as evidence**.
+SOT is a place where people toss a curated session, not a finished sentence. The UI follows the Apple reference: near-invisible chrome, SF system typography, generous whitespace, frosted navigation, and one Action Blue. Data-heavy views keep a readable main column, persistent outline, and evidence rail without falling back to dashboard decoration. Copy is direct. Brand mark is **SOT**; tagline is **Sessions as evidence**.
 
 ## Tokens
 
 | Token | Value | Use |
 | --- | --- | --- |
-| `--canvas` | `oklch(0.18 0.005 285.823)` | Document reading area — the quietest surface |
-| `--surface` | `oklch(0.21 0.006 285.885)` | Header, rails, side panels. Lighter than the canvas |
-| `--surface-raised` | `oklch(0.235 0.007 285.885)` | Cards inside a panel |
-| `--surface-hover` | `oklch(0.274 0.006 286.033)` | Pointer over a target |
-| `--surface-selected` | `oklch(0.3 0.006 286.033)` | Lasting selection. Neutral, never a tinted accent |
-| `--surface-strong` | `oklch(0.35 0.006 286.033)` | Avatar grounds |
-| `--divider` | `oklch(1 0 0 / 8%)` | Structural separation |
-| `--border` | `oklch(1 0 0 / 14%)` | Bounded controls, emphasised cards |
-| `--ink` | `oklch(0.985 0 0)` | Everything meant to be read |
-| `--ink-muted` | `oklch(0.705 0.015 286.067)` | "What is this" — meta, descriptions |
-| `--ink-dim` | `oklch(0.552 0.016 285.938)` | Skippable — timestamps, eyebrows, placeholders |
-| `--brand` | `oklch(0.65 0.16 255)` | Links and the one primary action per screen |
-| `--brand-hover` / `--focus-ring` | `oklch(0.72 0.16 255)` / `…/ 40%` | Primary hover, `:focus-visible` |
-| `--success` / `--success-tint` | `oklch(0.65 0.15 145)` / `… / 14%` | Approved, merged, published |
-| `--danger` / `--danger-tint` | `oklch(0.704 0.191 22.216)` / `… / 14%` | Removed diff lines, errors |
-| `--radius-sm`…`--radius-xl` | `6/8/10/14px` + `pill` | Controls, cards, panels |
+| `--canvas` | `#f5f5f7` | Apple parchment canvas and navigation material |
+| `--surface` | `#ffffff` | Reading surface and utility cards |
+| `--surface-raised` | `#fafafc` | Quiet inset surface |
+| `--surface-hover` | `#f0f0f2` | Pointer over a target |
+| `--surface-selected` | `#e8e8ed` | Lasting neutral selection |
+| `--surface-strong` | `#d2d2d7` | Avatar and disabled grounds |
+| `--divider` | `#e5e5ea` | Structural hairline |
+| `--border` | `#d2d2d7` | Bounded controls and utility cards |
+| `--ink` | `#1d1d1f` | Headlines and body copy |
+| `--ink-muted` | `#6e6e73` | Descriptions and metadata |
+| `--ink-dim` | `#86868b` | Timestamps, labels, placeholders |
+| `--brand` | `#0066cc` | Every interactive signal on light surfaces |
+| `--brand-hover` / `--focus-ring` | `#0071e3` / `rgb(0 102 204 / 28%)` | Primary hover and focus |
+| `--success` / `--success-tint` | `#248a3d` / `rgb(36 138 61 / 10%)` | Approved, merged, published |
+| `--danger` / `--danger-tint` | `#d70015` / `rgb(215 0 21 / 8%)` | Removed diff lines and errors |
+| `--radius-sm`…`--radius-xl` | `8/11/18/24px` + `pill` | Utility controls, cards, panels |
 | `--space-xs`…`--space-section` | `4/8/12/16/24/32/48px` | 4px base unit |
-| `--header` | `56px` | App header height |
-| `--font` | `"Inter", "Pretendard Variable", "Noto Sans KR", system-ui, sans-serif` | UI + Korean fallback |
+| `--header` | `52px` | Frosted product bar height |
+| `--font` | `"SF Pro Text", "SF Pro Display", -apple-system, …` | Apple system UI + Korean fallback |
 | `--font-mono` | `"JetBrains Mono", ui-monospace, …` | Patch diffs, ids, tool names |
 
-Type scale: `28/-0.6` document and issue titles · `22/-0.4` section headings · `16/-0.05` body · `14` rows, panels and buttons · `12` meta, and `12/+0.4` uppercase eyebrow. Five sizes, and **two weights only — 400 and 500**. There is no 18, no 20, no 40, and no semibold anywhere.
+Type scale: `48–72/600` entry hero · `40/600` document titles · `28/600` section headings · `17/400` body · `14/400` utility copy · `12/600` labels. Display sizes use tight negative tracking; body copy stays regular.
 
 There are no shadows on in-page surfaces; depth is the surface ladder. Shadow appears only under something that floats and can be dismissed.
 
-Do not use Newsreader or DM Sans as the product face, coral/teal cutover colors, a light canvas, or pure black.
+Do not add a second accent, decorative gradients, shadows on UI chrome, or non-system display faces. Pure black is reserved for an intentional dark content surface, not navigation.
 
 ## Sharing a session
 

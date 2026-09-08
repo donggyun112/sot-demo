@@ -5,6 +5,8 @@ import type { AuthSession } from "../auth";
 import { serviceRoot } from "../transport";
 import type { Turn } from "../types";
 import { MarkdownBody } from "./MarkdownBody";
+import { Turn as TurnRow } from "./Turn";
+import turns from "./Turn.module.css";
 import styles from "./AgentChat.module.css";
 
 interface AgentChatProps {
@@ -145,7 +147,7 @@ export function AgentChat(props: AgentChatProps) {
       <div aria-live="polite" className={styles.transcript}>
         {/* One reading column shared by the transcript and the composer, so
             their left and right edges line up. */}
-        <div className={styles.column}>
+        <div className={turns.column}>
           {messages.map((message) => {
             const content = textContent(message);
             const calls =
@@ -153,60 +155,56 @@ export function AgentChat(props: AgentChatProps) {
                 ? message.toolCalls
                 : [];
             if (!content && calls.length === 0) return null;
-            if (message.role === "user")
-              return (
-                <article className={styles.turn} data-role="user" key={message.id}>
-                  <Who label={props.youLabel} role="user" />
-                  <div className={styles.userBubble}>
-                    <MarkdownBody compact text={content} />
-                  </div>
-                </article>
-              );
+            const isUser = message.role === "user";
             // Tool work is process, not answer: it folds away under a step
-            // count and reads at caption size, while the reply itself sits
-            // in the flow with no bubble around it.
+            // count and reads at caption size, above the reply itself.
             const steps = message.role === "tool" ? 1 : calls.length;
             return (
-              <article
-                className={styles.turn}
-                data-role={message.role}
+              <TurnRow
                 key={message.id}
+                role={message.role}
+                name={isUser ? props.youLabel : t("agent.name")}
               >
-                <Who label={t("agent.name")} role={message.role} />
-                {steps > 0 && (
-                  <details
-                    className={styles.fold}
-                    open={running && message === last}
-                  >
-                    <summary>{t("agent.steps", { count: steps })}</summary>
-                    <div className={styles.foldBody}>
-                      {message.role === "tool" ? (
-                        <pre className={styles.toolOut}>{content}</pre>
-                      ) : (
-                        calls.map((call) => (
-                          <details className={styles.step} key={call.id}>
-                            <summary>
-                              <span className={styles.stepName}>
-                                {call.function.name}
-                              </span>
-                            </summary>
-                            {call.function.arguments && (
-                              <pre className={styles.toolOut}>
-                                {call.function.arguments}
-                              </pre>
-                            )}
-                          </details>
-                        ))
-                      )}
-                    </div>
-                  </details>
+                {isUser ? (
+                  <MarkdownBody compact text={content} />
+                ) : (
+                  <>
+                    {steps > 0 && (
+                      <details
+                        className={styles.fold}
+                        open={running && message === last}
+                      >
+                        <summary>{t("agent.steps", { count: steps })}</summary>
+                        <div className={styles.foldBody}>
+                          {message.role === "tool" ? (
+                            <pre className={styles.toolOut}>{content}</pre>
+                          ) : (
+                            calls.map((call) => (
+                              <details className={styles.step} key={call.id}>
+                                <summary>
+                                  <span className={styles.stepName}>
+                                    {call.function.name}
+                                  </span>
+                                </summary>
+                                {call.function.arguments && (
+                                  <pre className={styles.toolOut}>
+                                    {call.function.arguments}
+                                  </pre>
+                                )}
+                              </details>
+                            ))
+                          )}
+                        </div>
+                      </details>
+                    )}
+                    {content && message.role !== "tool" && (
+                      <div className={turns.prose}>
+                        <MarkdownBody compact text={content} />
+                      </div>
+                    )}
+                  </>
                 )}
-                {content && message.role !== "tool" && (
-                  <div className={styles.prose}>
-                    <MarkdownBody compact text={content} />
-                  </div>
-                )}
-              </article>
+              </TurnRow>
             );
           })}
         </div>
@@ -270,14 +268,3 @@ export function AgentChat(props: AgentChatProps) {
   );
 }
 
-/** Who spoke: the initial in an avatar plus the name, on that turn's side. */
-function Who({ label, role }: { label: string; role: string }) {
-  return (
-    <div className={styles.who}>
-      <span aria-hidden="true" className={styles.av} data-role={role}>
-        {label.slice(0, 1)}
-      </span>
-      <span className={styles.name}>{label}</span>
-    </div>
-  );
-}

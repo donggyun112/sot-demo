@@ -1,0 +1,78 @@
+/*
+ * Conversation geometry, shared by the live agent session and by a session
+ * someone shared with a link: a capped, centred reading column so both read
+ * the same way and neither drifts from the other.
+ */
+.column {
+  width: 100%;
+  max-width: 896px;
+  margin-inline: auto;
+}
+
+/* Only your message is a message: it wears a bubble, is capped at 80% and
+   sits right. The reply takes the full column on the left. */
+
+.turn {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--space-xs) 0;
+}
+
+.turn[data-role="user"] {
+  max-width: 80%;
+  margin-left: auto;
+  align-items: flex-end;
+}
+
+.turn[data-role="user"] .who {
+  flex-direction: row-reverse;
+}
+
+.userBubble {
+  background: var(--surface-raised);
+  border-radius: 16px;
+  padding: var(--space-xs) 14px;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+/* Speaker line: avatar leads, on whichever edge the turn is aligned to. */
+
+.who {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.av {
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-sm);
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 500;
+  flex: 0 0 auto;
+  background: var(--surface-selected);
+  color: var(--ink);
+  border: 1px solid var(--divider);
+}
+
+.av[data-role="assistant"],
+.av[data-role="tool"] {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: var(--on-brand);
+}
+
+.name {
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+.prose {
+  font-size: 14px;
+  line-height: 1.625;
+  color: var(--ink);
+}

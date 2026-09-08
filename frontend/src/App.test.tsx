@@ -319,7 +319,12 @@ it("publishes a bundle, shares a toss, and forks into a workspace", async () => 
   await userEvent.click(await screen.findByRole("button", { name: "Publish bundle" }));
   await userEvent.click(await screen.findByRole("button", { name: "Create toss link" }));
   await userEvent.click(await screen.findByRole("link", { name: "Open toss link" }));
-  expect(await screen.findByRole("heading", { name: "Shared evidence" })).toBeVisible();
+  // A link shares a SESSION: it is listed on the side and its conversation
+  // is read in the middle, the same way a live session is read.
+  expect(await screen.findByRole("heading", { name: "Sessions" })).toBeVisible();
+  expect((await screen.findAllByText("B 선택")).length).toBeGreaterThan(0);
+  expect(await screen.findByText("B로 결정")).toBeVisible();
+  expect(screen.getByText("A shared session. You can read it here.")).toBeVisible();
   await userEvent.click(await screen.findByRole("button", { name: "Fork into a workspace" }));
   await userEvent.click(await screen.findByRole("button", { name: "Fork" }));
   expect(await screen.findByRole("button", { name: "Publish bundle" })).toBeVisible();

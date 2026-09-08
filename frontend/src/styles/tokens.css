@@ -1,5 +1,4 @@
-/* Tokens from DESIGN.md. Every value here is declared there; nothing is
-   invented at the CSS layer. */
+/* Apple DESIGN.md adapted for SOT's product states and dense work surfaces. */
 :root {
   /* Apple DESIGN.md surface system. */
   --canvas: #f5f5f7;
@@ -117,6 +116,12 @@ select {
 
 button {
   cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease,
+    transform 100ms ease, opacity 140ms ease;
+}
+
+button:active:not(:disabled) {
+  transform: scale(0.96);
 }
 
 a {
@@ -154,4 +159,14 @@ a:hover {
 ::-webkit-scrollbar-thumb:hover {
   background: rgb(27 26 23 / 32%);
   background-clip: content-box;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
 }

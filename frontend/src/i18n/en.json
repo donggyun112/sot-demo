@@ -112,7 +112,6 @@
     "preview": "Bundle preview",
     "previewEmpty": "Nothing is curated into the bundle yet.",
     "publish": "Publish bundle",
-    "bundle": "Shared bundle",
     "shared": "Shared",
     "curation": "Curation",
     "drop": "Drop",
@@ -144,7 +143,6 @@
     "agentUpdates": "The agent writes document updates. Ask for one in the session."
   },
   "toss": {
-    "title": "Shared evidence",
     "fork": "Fork into a workspace",
     "confirm": "Fork",
     "signIn": "Sign in to fork",
@@ -157,7 +155,10 @@
     "revoke": "Revoke link",
     "public": "Anyone holding this link can read the bundle. Revoke it to cut access.",
     "empty": "No shared evidence in this link.",
-    "notFound": "This toss link is invalid or expired."
+    "notFound": "This toss link is invalid or expired.",
+    "untitled": "Untitled session",
+    "readOnly": "A shared session. You can read it here.",
+    "continue": "Continue"
   },
   "common": {
     "loading": "Loading…",

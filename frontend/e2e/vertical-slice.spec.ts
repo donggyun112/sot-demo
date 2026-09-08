@@ -154,7 +154,8 @@ test("private draft, public detached fork and explicit consensus merge", async (
     await alice.getByRole("button", { name: "Create toss link" }).click();
     const toss = await (await tossResponse).json();
     await alice.getByRole("link", { name: "Open toss link" }).click();
-    await expect(alice.getByRole("heading", { name: "Shared evidence" })).toBeVisible();
+    // A link shares a SESSION: listed on the side, its conversation in the middle.
+    await expect(alice.getByRole("heading", { name: "Sessions" })).toBeVisible();
     await expect(alice.getByText(summary)).toBeVisible();
 
     const publicRead = await get(publicContext, `/tosses/${toss.token}`);
