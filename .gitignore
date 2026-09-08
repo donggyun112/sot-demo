@@ -34,3 +34,4 @@ playwright-report/
 .codecanvas/
 .worktrees/
 *.bak
+*.tmp.mjs
