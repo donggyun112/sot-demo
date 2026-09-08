@@ -32,6 +32,18 @@ export const turns: Schema["TurnResponse"][] = [
     role: "assistant",
     content: "B로 결정",
     created_at: session.created_at,
+    created_by: member.id,
+  },
+  {
+    id: "turn-2",
+    workspace_id: "w1",
+    branch_id: branch.id,
+    ordinal: 2,
+    role: "user",
+    /* Said by someone else, in a session this reader was handed. */
+    content: "그럼 A는 왜 뺐죠?",
+    created_at: session.created_at,
+    created_by: "user-2",
   },
 ];
 export const proposal: Schema["ProposalResponse"] = {

@@ -1505,6 +1505,11 @@
             "title": "Created At",
             "type": "string"
           },
+          "created_by": {
+            "format": "uuid",
+            "title": "Created By",
+            "type": "string"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -1536,7 +1541,8 @@
           "ordinal",
           "role",
           "content",
-          "created_at"
+          "created_at",
+          "created_by"
         ],
         "title": "TurnResponse",
         "type": "object"

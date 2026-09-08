@@ -22,15 +22,25 @@ from sot.agent.messages import (
     turns_to_model_messages,
 )
 from sot.session.contracts import NewTurn, Turn
-from sot.shared.ids import BranchId, WorkspaceId
+from sot.shared.ids import BranchId, UserId, WorkspaceId
 
 NOW = datetime(2026, 9, 6, tzinfo=UTC)
 WORKSPACE = WorkspaceId(uuid4())
 BRANCH = BranchId(uuid4())
+SPEAKER = UserId(uuid4())
 
 
 def stored(message: NewTurn, ordinal: int) -> Turn:
-    return Turn(uuid4(), WORKSPACE, BRANCH, ordinal, message.role, message.content, NOW)
+    return Turn(
+        uuid4(),
+        WORKSPACE,
+        BRANCH,
+        ordinal,
+        message.role,
+        message.content,
+        NOW,
+        SPEAKER,
+    )
 
 
 def test_mapping_sorts_ordinals_and_groups_request_and_response_parts() -> None:

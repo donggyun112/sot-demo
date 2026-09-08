@@ -735,3 +735,74 @@ async def test_forking_names_the_session_the_branch_actually_belongs_to() -> Non
         await forker(store).execute(
             actor, workspace_id, other.session_id, branch_id=source.branch_id
         )
+
+
+@pytest.mark.asyncio
+async def test_a_turn_records_who_said_it_not_who_owns_the_branch() -> None:
+    """Two people in one session: the transcript has to tell them apart, or
+    every reader's own name goes on everyone else's words."""
+    store, owner, workspace_id, document_id = setup()
+    created = await creator(store).execute(owner, workspace_id, document_id)
+    guest = Actor(UserId(uuid4()))
+    store.workspace_members[workspace_id, guest.user_id] = WorkspaceMembership(
+        workspace_id, guest.user_id, WorkspaceRole.MEMBER
+    )
+    async with store.transaction() as tx:
+        await store.add_member(
+            tx,
+            workspace_id,
+            SessionMember(
+                workspace_id, created.session_id, guest.user_id, SessionRole.EDITOR
+            ),
+        )
+    append = AppendCompletedTurns(
+        store, BranchAccess(store, access(store), store), lambda: store, FixedClock()
+    )
+    await append.execute(
+        owner,
+        workspace_id,
+        created.branch_id,
+        expected_version=0,
+        messages=(NewTurn("user", "mine"),),
+    )
+    await append.execute(
+        guest,
+        workspace_id,
+        created.branch_id,
+        expected_version=1,
+        messages=(NewTurn("user", "theirs"), NewTurn("assistant", "answered")),
+    )
+
+    turns = store.branches[workspace_id, created.branch_id].turns
+    assert [(turn.content, turn.created_by) for turn in turns] == [
+        ("mine", owner.user_id),
+        ("theirs", guest.user_id),
+        # The agent answered inside the guest's run, so it is theirs to own.
+        ("answered", guest.user_id),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_a_fork_keeps_the_words_with_the_person_who_said_them() -> None:
+    store, owner, workspace_id, document_id = setup()
+    source = await conversation(store, owner, workspace_id, document_id)
+    reader = Actor(UserId(uuid4()))
+    store.workspace_members[workspace_id, reader.user_id] = WorkspaceMembership(
+        workspace_id, reader.user_id, WorkspaceRole.MEMBER
+    )
+    async with store.transaction() as tx:
+        await store.add_member(
+            tx,
+            workspace_id,
+            SessionMember(
+                workspace_id, source.session_id, reader.user_id, SessionRole.VIEWER
+            ),
+        )
+
+    forked = await forker(store).execute(
+        reader, workspace_id, source.session_id, branch_id=source.branch_id
+    )
+
+    # Copying a conversation does not make the copier its author.
+    copy = store.branches[workspace_id, forked.branch_id]
+    assert {turn.created_by for turn in copy.turns} == {owner.user_id}

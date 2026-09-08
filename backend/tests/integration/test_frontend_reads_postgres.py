@@ -278,6 +278,7 @@ async def test_branch_version_and_completed_turns_exclude_execution_internals(
             branch = await s.sessions.load_branch(tx, s.workspace_id, s.branch.id)
             assert branch is not None
             partial = branch.append_completed(
+                author=branch.created_by,
                 expected_version=1,
                 messages=(NewTurn("assistant", "rolled back partial"),),
                 now=SystemClock().now(),

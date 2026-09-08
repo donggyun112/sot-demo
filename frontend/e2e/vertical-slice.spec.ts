@@ -45,7 +45,10 @@ async function login(page: Page, actor: "alice" | "bob"): Promise<Login> {
   expect(body.access_token).not.toBe(`google-test-${actor}`);
   await expect(page.getByRole("link", { name: body.user.display_name, exact: true })).toBeVisible();
   const cookie = (await page.context().cookies()).find((item) => item.name === "sot_refresh");
-  expect(cookie).toMatchObject({ httpOnly: true, secure: true, sameSite: "Lax", path: "/api/v1/auth" });
+  // Secure follows the environment — this harness is http, and a Secure cookie
+  // would be dropped here the way it was in the local install. The rest of the
+  // cookie's protection does not depend on the transport.
+  expect(cookie).toMatchObject({ httpOnly: true, secure: false, sameSite: "Lax", path: "/api/v1/auth" });
   expect(await credentialsInStorage(page)).toEqual({ session: [], leaked: [] });
   const refreshed = page.waitForResponse((item) => item.url().endsWith("/auth/refresh"));
   await page.reload();

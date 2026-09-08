@@ -431,6 +431,7 @@ it("titles a session from its first user turn, not its id", async () => {
       role: "user",
       content: "인증 흐름 정리\n두 번째 줄",
       created_at: "2026-09-06T00:00:00Z",
+      created_by: member.id,
     },
   ];
   await signIn(server);
@@ -672,4 +673,29 @@ it("offers no fork in a session you can already write in", async () => {
   expect(
     screen.queryByRole("button", { name: "Continue in a session of your own" }),
   ).toBeNull();
+});
+
+
+it("puts a teammate's name on a teammate's words", async () => {
+  // The transcript used to sign every line with the reader's own name, so a
+  // session someone handed you read as if you had written all of it.
+  await signIn();
+  await openDocument();
+  await userEvent.click(await screen.findByRole("link", { name: "Sessions" }));
+  await userEvent.click(await screen.findByRole("button", { name: "New session" }));
+
+  const turnFor = async (content: string) => {
+    const matches = await screen.findAllByText(content);
+    const article = matches
+      .map((node) => node.closest("article"))
+      .find((node): node is HTMLElement => node !== null);
+    expect(article).toBeDefined();
+    return article!;
+  };
+
+  expect(
+    within(await turnFor("그럼 A는 왜 뺐죠?")).getByText("Reviewer"),
+  ).toBeVisible();
+  // And the agent is still the agent, not a person.
+  expect(within(await turnFor("B로 결정")).getByText("SOT Agent")).toBeVisible();
 });

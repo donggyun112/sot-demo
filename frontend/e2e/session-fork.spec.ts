@@ -122,11 +122,27 @@ test("a viewer continues the conversation in a session of their own", async ({
       stored.map((turn) => [turn.role, turn.content]),
     );
     expect(copied.map((turn) => turn.id)).not.toEqual(stored.map((turn) => turn.id));
+    // Copying what someone said does not make the copier its author, so the
+    // transcript reads under Alice's name even in Bob's session.
+    expect(new Set(copied.map((turn) => turn.created_by))).toEqual(
+      new Set([aliceLogin.user.id]),
+    );
+    await expect(
+      bob.getByRole("article").filter({ hasText: prompt }).getByText("Alice"),
+    ).toBeVisible();
 
     const answered = bob.waitForResponse((res) => res.url().endsWith("/agent"));
     await bob.getByLabel("Agent message").fill("Per account.");
     await bob.getByLabel("Agent message").press("Enter");
     await (await answered).text();
+    const afterBob = (await (
+      await get(
+        readerContext,
+        `/workspaces/${aw}/branches/${fork.branch_id}/turns`,
+        bobLogin,
+      )
+    ).json()) as Turn[];
+    expect(afterBob.at(-1)?.created_by).toBe(bobLogin.user.id);
     expect(
       (
         (await (

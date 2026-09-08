@@ -50,6 +50,7 @@ def test_completed_turns_are_append_only_and_versioned() -> None:
         WorkspaceId(uuid4()), SessionId(uuid4()), UserId(uuid4()), NOW
     )
     first = branch.append_completed(
+        author=branch.created_by,
         expected_version=0,
         messages=(
             NewTurn("user", "question"),
@@ -58,7 +59,10 @@ def test_completed_turns_are_append_only_and_versioned() -> None:
         now=NOW,
     )
     second = branch.append_completed(
-        expected_version=1, messages=(NewTurn("tool", '{"result":1}'),), now=NOW
+        author=branch.created_by,
+        expected_version=1,
+        messages=(NewTurn("tool", '{"result":1}'),),
+        now=NOW,
     )
     assert [turn.ordinal for turn in first.turns] == [1, 2]
     assert first.branch_version == 1
@@ -71,7 +75,10 @@ def test_completed_turns_are_append_only_and_versioned() -> None:
     ]
     with pytest.raises(VersionConflict):
         branch.append_completed(
-            expected_version=1, messages=(NewTurn("user", "stale"),), now=NOW
+            author=branch.created_by,
+            expected_version=1,
+            messages=(NewTurn("user", "stale"),),
+            now=NOW,
         )
     assert len(branch.turns) == 3
 
@@ -81,7 +88,9 @@ def test_invalid_or_empty_completion_does_not_advance_branch() -> None:
         WorkspaceId(uuid4()), SessionId(uuid4()), UserId(uuid4()), NOW
     )
     with pytest.raises(InvalidInput):
-        branch.append_completed(expected_version=0, messages=(), now=NOW)
+        branch.append_completed(
+            author=branch.created_by, expected_version=0, messages=(), now=NOW
+        )
     with pytest.raises(InvalidInput):
         NewTurn("system", "unsafe")  # type: ignore[arg-type]
     assert branch.version == 0

@@ -29,7 +29,7 @@ async def test_migrations_are_ordered_once_and_not_run_by_app_startup(
 ) -> None:
     await run_migrations(database_url, MIGRATIONS)
     await run_migrations(database_url, MIGRATIONS)
-    expected = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)
+    expected = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13)
     assert await applied_versions(database_url) == expected
 
     app = build_app(Settings(database_url=database_url, models=("test",)))

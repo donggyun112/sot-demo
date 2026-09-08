@@ -442,7 +442,10 @@ async def test_failed_turn_insert_rolls_back_conditional_branch_advance(
 ) -> None:
     s = state
     completed = s.branch.append_completed(
-        expected_version=0, messages=(NewTurn("user", "Q"),), now=NOW
+        author=s.owner.user_id,
+        expected_version=0,
+        messages=(NewTurn("user", "Q"),),
+        now=NOW,
     )
     with pytest.raises(psycopg.errors.UniqueViolation):
         async with s.uow().transaction() as tx:

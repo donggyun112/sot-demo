@@ -578,7 +578,10 @@ class AppendCompletedTurns:
                 context.turns,
             )
             result = branch.append_completed(
-                expected_version=expected_version, messages=messages, now=now
+                author=actor.user_id,
+                expected_version=expected_version,
+                messages=messages,
+                now=now,
             )
             version = await self._repository.advance_version(
                 tx, workspace_id, branch_id, expected_version=expected_version

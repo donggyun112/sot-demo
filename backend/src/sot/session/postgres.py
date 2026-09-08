@@ -229,7 +229,8 @@ class PostgresSessionRepository:
             return None
         turns = await (
             await connection(tx).execute(
-                "SELECT id,workspace_id,branch_id,ordinal,role,content,created_at FROM sot.sot_turn WHERE workspace_id=%s AND branch_id=%s ORDER BY ordinal",
+                "SELECT id,workspace_id,branch_id,ordinal,role,content,created_at,created_by "
+                "FROM sot.sot_turn WHERE workspace_id=%s AND branch_id=%s ORDER BY ordinal",
                 (workspace_id, branch_id),
             )
         ).fetchall()
@@ -241,7 +242,16 @@ class PostgresSessionRepository:
             row[4],
             row[5],
             tuple(
-                Turn(t[0], WorkspaceId(t[1]), BranchId(t[2]), t[3], t[4], t[5], t[6])
+                Turn(
+                    t[0],
+                    WorkspaceId(t[1]),
+                    BranchId(t[2]),
+                    t[3],
+                    t[4],
+                    t[5],
+                    t[6],
+                    UserId(t[7]),
+                )
                 for t in turns
             ),
         )
@@ -274,7 +284,8 @@ class PostgresSessionRepository:
             if turn.branch_id != branch_id:
                 raise ValueError("Turn branch mismatch")
             await connection(tx).execute(
-                "INSERT INTO sot.sot_turn(id,workspace_id,branch_id,ordinal,role,content,created_at) VALUES (%s,%s,%s,%s,%s,%s,%s)",
+                "INSERT INTO sot.sot_turn(id,workspace_id,branch_id,ordinal,role,content,created_at,created_by) "
+                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
                 (
                     turn.id,
                     workspace_id,
@@ -283,6 +294,7 @@ class PostgresSessionRepository:
                     turn.role,
                     turn.content,
                     turn.created_at,
+                    turn.created_by,
                 ),
             )
 

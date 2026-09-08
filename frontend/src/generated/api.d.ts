@@ -1335,6 +1335,11 @@ export interface components {
              */
             created_at: string;
             /**
+             * Created By
+             * Format: uuid
+             */
+            created_by: string;
+            /**
              * Id
              * Format: uuid
              */

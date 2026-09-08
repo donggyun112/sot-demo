@@ -38,6 +38,7 @@ def source_branch() -> Branch:
         WorkspaceId(uuid4()), SessionId(uuid4()), UserId(uuid4()), NOW
     )
     branch.append_completed(
+        author=branch.created_by,
         expected_version=0,
         messages=(
             NewTurn("user", "question"),
@@ -202,6 +203,7 @@ async def prepared() -> tuple[CuratedMemory, Actor, Branch]:
     created = await creator(store).execute(actor, workspace_id, document_id)
     branch = store.branches[workspace_id, created.branch_id]
     branch.append_completed(
+        author=branch.created_by,
         expected_version=0,
         messages=(NewTurn("user", "Q"), NewTurn("assistant", "private")),
         now=NOW,

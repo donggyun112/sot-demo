@@ -103,6 +103,7 @@ async def product_harness() -> AgentProductHarness:
     branch = store.branches[workspace_id, created.branch_id]
     for version in range(4):
         branch.append_completed(
+            author=branch.created_by,
             expected_version=version,
             messages=(
                 NewTurn("user", f"question {version}"),

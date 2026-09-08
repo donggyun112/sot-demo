@@ -180,6 +180,9 @@ class Turn:
     role: TurnRole
     content: str
     created_at: datetime
+    # Who was at the keyboard. An assistant or tool turn belongs to the person
+    # whose run produced it, which is who a reader would hold to it.
+    created_by: UserId
 
 
 @dataclass(frozen=True, slots=True)
@@ -236,8 +239,15 @@ class Branch:
         )
 
     def append_completed(
-        self, *, expected_version: int, messages: tuple[NewTurn, ...], now: datetime
+        self,
+        *,
+        author: UserId,
+        expected_version: int,
+        messages: tuple[NewTurn, ...],
+        now: datetime,
     ) -> CompletedTurnsResult:
+        """Append what was just said. The author is who said it, not who owns
+        the branch: a session can be held by several people."""
         if expected_version != self.version:
             raise VersionConflict()
         if not messages:
@@ -251,6 +261,7 @@ class Branch:
                 message.role,
                 message.content,
                 now,
+                author,
             )
             for offset, message in enumerate(messages, 1)
         )

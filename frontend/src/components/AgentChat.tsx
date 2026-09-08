@@ -19,6 +19,8 @@ interface AgentChatProps {
   onSaved: () => Promise<void>;
   canSend?: boolean;
   youLabel: string;
+  /** Names the author of a stored turn; without it every turn reads as yours. */
+  nameOf?: (userId: string) => string;
 }
 type AgentMessage = PydanticAIAgent["messages"][number];
 /**
@@ -76,7 +78,9 @@ function toolEnvelope(text: string): ToolEnvelope | null {
  * agent did and when.
  */
 type Block =
-  | { kind: "text"; id: string; role: string; content: string }
+  /* `author` is who said it, for a session more than one person holds. It is
+     absent only on a live turn, which is by definition the reader's own. */
+  | { kind: "text"; id: string; role: string; content: string; author?: string }
   | { kind: "tool"; id: string; name: string; args?: unknown; result?: unknown };
 
 /** A call and its result are one thing that happened, so they read as one. */
@@ -147,6 +151,7 @@ function storedBlocks(turns: Turn[]): Block[] {
           id: turn.id,
           role: turn.role,
           content: turn.content,
+          author: turn.created_by,
         },
   );
 }
@@ -278,7 +283,13 @@ export function AgentChat(props: AgentChatProps) {
               <TurnRow
                 key={block.id}
                 role={block.role}
-                name={block.role === "user" ? props.youLabel : t("agent.name")}
+                name={
+                  block.role !== "user"
+                    ? t("agent.name")
+                    : block.author && props.nameOf
+                      ? props.nameOf(block.author)
+                      : props.youLabel
+                }
               >
                 {block.role === "user" ? (
                   <MarkdownBody compact text={block.content} />

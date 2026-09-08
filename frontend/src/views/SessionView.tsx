@@ -214,6 +214,7 @@ export function SessionView() {
               onSaved={() => queryClient.invalidateQueries().then(() => undefined)}
               canSend={can(member, "session.participate")}
               youLabel={user?.display_name ?? t("people.you")}
+              nameOf={nameOf}
             />
           )}
         </div>
@@ -255,6 +256,7 @@ function CurationTurns({
 }) {
   const { t } = useTranslation();
   const { api } = useSot();
+  const nameOf = useDisplayName();
   const queryClient = useQueryClient();
   const [editId, setEditId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
@@ -306,7 +308,8 @@ function CurationTurns({
         >
           <div className={styles.turnHead}>
             <span className={styles.turnWho}>
-              {t(`turnRole.${turn.role}`)} · {turn.ordinal}
+              {turn.role === "user" ? nameOf(turn.created_by) : t("agent.name")} ·{" "}
+              {turn.ordinal}
               {dropped && (
                 <span className={styles.chip} data-tone="danger">
                   {t("sessions.dropped")}

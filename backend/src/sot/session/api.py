@@ -174,6 +174,7 @@ class TurnResponse(BaseModel):
     role: Literal["user", "assistant", "tool"]
     content: str
     created_at: datetime
+    created_by: UUID
 
 
 class BundleItemResponse(BaseModel):
@@ -267,6 +268,7 @@ def build_session_router(
                 role=turn.role,
                 content=turn.content,
                 created_at=turn.created_at,
+                created_by=turn.created_by,
             )
             for turn in await list_turns.execute(
                 current, WorkspaceId(workspace_id), BranchId(branch_id)
