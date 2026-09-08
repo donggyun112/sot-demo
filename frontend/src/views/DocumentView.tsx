@@ -7,7 +7,7 @@ import { ordinalLabel, useDisplayName, useTimestamp } from "../app/identity";
 import { TopBar } from "../components/AppShell";
 import { Section } from "../components/Page";
 import { MarkdownBody } from "../components/MarkdownBody";
-import { headingsFrom } from "./outline";
+import { claimKey, headingsFrom } from "./outline";
 import { editSummary } from "./patch";
 import styles from "./product.module.css";
 
@@ -72,6 +72,8 @@ export function DocumentView() {
   const [renaming, setRenaming] = useState<string | null>(null);
   const current = document.data?.current_revision;
   const revision = reading !== null ? (past.data ?? current) : current;
+  /** Looking at something other than the text the document currently is. */
+  const historical = reading !== null && reading !== current?.number;
   const headings = headingsFrom(revision?.content ?? "");
   const selected = params.get("block") ?? headings[0]?.id;
   const heading = headings.find((item) => item.id === selected) ?? headings[0];
@@ -82,7 +84,7 @@ export function DocumentView() {
     (item) => item.status === "open" || item.status === "approved",
   );
   const cited = citations.filter(
-    (item) => heading && item.claim_anchor === heading.title,
+    (item) => heading && claimKey(item.claim_anchor) === claimKey(heading.title),
   );
   /** Keep every other search param — selection is not the only thing in the URL. */
   const setParam = (key: string, value: string | null) => {
@@ -163,9 +165,9 @@ export function DocumentView() {
                 <div className={styles.cardHead}>
                   <span
                     className={styles.chip}
-                    data-tone={reading === null ? "ok" : "accent"}
+                    data-tone={historical ? "accent" : "ok"}
                   >
-                    {t("document.canonical")}
+                    {historical ? t("document.past") : t("document.canonical")}
                   </span>
                   {t("docs.revision", { number: revision.number })}
                   {open.length > 0 && (
@@ -175,7 +177,7 @@ export function DocumentView() {
                   )}
                 </div>
                 {/* Reading an old revision has to say so, or the page lies. */}
-                {reading !== null && reading !== current?.number && (
+                {historical && (
                   <p className={styles.banner} role="status">
                     {t("document.reading", { number: reading })}{" "}
                     <button
@@ -190,7 +192,7 @@ export function DocumentView() {
                 {renaming === null ? (
                   <div className={styles.titleRow}>
                     <h1>{document.data?.document.title || t("docs.untitled")}</h1>
-                    {can(member, "document.create") && (
+                    {can(member, "document.create") && !historical && (
                       <button
                         type="button"
                         className={styles.ghost}
@@ -259,7 +261,11 @@ export function DocumentView() {
                     {t("common.error")}
                   </p>
                 )}
-                <MarkdownBody text={revision.content} />
+                {revision.content.trim() ? (
+                  <MarkdownBody text={revision.content} />
+                ) : (
+                  <p className={styles.empty}>{t("document.emptyBody")}</p>
+                )}
               </div>
             </article>
 
@@ -372,6 +378,37 @@ export function DocumentView() {
                     </span>
                   </button>
                 ))}
+                {/*
+                  A revision is only trustworthy if you can walk back to the
+                  conversation it came out of. The proposal knows its session,
+                  so the history can hand you both.
+                */}
+                {(history.data ?? []).map((item) => {
+                  const from = item.proposal_id
+                    ? (proposals.data ?? []).find(
+                        (one) => one.id === item.proposal_id,
+                      )
+                    : undefined;
+                  if (!from) return null;
+                  return (
+                    <div key={`${item.id}-origin`} className={styles.meta}>
+                      {t("document.historyOf", { number: item.number })} ·{" "}
+                      <Link
+                        to={`/w/${workspaceId}/proposals/${from.id}`}
+                        className={styles.inlineLink}
+                      >
+                        {t("document.historyOpenProposal")}
+                      </Link>{" "}
+                      ·{" "}
+                      <Link
+                        to={`/w/${workspaceId}/sessions/${from.source_session_id}`}
+                        className={styles.inlineLink}
+                      >
+                        {t("document.historyOpenSession")}
+                      </Link>
+                    </div>
+                  );
+                })}
               </Section>
 
               <Section
@@ -402,7 +439,9 @@ export function DocumentView() {
                             position: item.bundle_item_position + 1,
                           })}
                         </div>
-                        <div className={styles.turnBody}>{item.claim_anchor}</div>
+                        <div className={styles.turnBody}>
+                          {claimKey(item.claim_anchor)}
+                        </div>
                       </div>
                     );
                   })

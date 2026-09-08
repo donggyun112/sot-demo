@@ -699,3 +699,40 @@ it("puts a teammate's name on a teammate's words", async () => {
   // And the agent is still the agent, not a person.
   expect(within(await turnFor("B로 결정")).getByText("SOT Agent")).toBeVisible();
 });
+
+
+it("shows the grounds for the section you are reading", async () => {
+  // The anchor is a markdown heading and the outline strips the hashes, so a
+  // verbatim comparison reported every section as unsupported.
+  await signIn();
+  await openDocument();
+  await userEvent.click(await screen.findByRole("button", { name: "Evidence" }));
+  const rail = await screen.findByRole("region", { name: "Evidence" });
+  await userEvent.click(await screen.findByRole("button", { name: /감사·모니터링/ }));
+
+  expect(
+    within(rail).queryByText("No evidence is linked to this passage."),
+  ).toBeNull();
+  // Shown as the claim, not as markdown syntax.
+  expect(within(rail).getAllByText("감사·모니터링").length).toBeGreaterThan(0);
+  expect(within(rail).queryByText("## 감사·모니터링")).toBeNull();
+});
+
+it("walks from a revision back to the conversation behind it", async () => {
+  // A canonical document is only trustworthy if you can reach the argument
+  // that produced it.
+  const server = createServer();
+  server.state.proposals = [proposal];
+  await signIn(server);
+  await openDocument();
+  await userEvent.click(await screen.findByRole("button", { name: "Evidence" }));
+  const history = await screen.findByRole("region", { name: "History" });
+
+  const session = within(history).getByRole("link", {
+    name: "Session it came from",
+  });
+  expect(session).toHaveAttribute("href", "/w/w1/sessions/session-1");
+  expect(
+    within(history).getByRole("link", { name: "Proposal" }),
+  ).toHaveAttribute("href", "/w/w1/proposals/proposal-1");
+});

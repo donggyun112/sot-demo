@@ -303,11 +303,20 @@ export function createServer() {
           workspace_id,
           document_id: document.id,
           number: 2,
-          content: workspace_id === "w2" ? "목적지 합의" : "초기 합의",
-          proposal_id: null,
+          content:
+            workspace_id === "w2"
+              ? "목적지 합의"
+              : "초기 합의\n\n## 감사·모니터링\n\n이력을 남긴다.",
+          proposal_id: "proposal-1",
           created_by: member.id,
           created_at: session.created_at,
-          citations: [],
+          citations: [
+            {
+              claim_anchor: "## 감사·모니터링",
+              bundle_id: "bundle-1",
+              bundle_item_position: 1,
+            },
+          ],
         },
       } satisfies Schema["DocumentResponse"]);
     if (path.endsWith("/documents/doc-1/sessions")) {

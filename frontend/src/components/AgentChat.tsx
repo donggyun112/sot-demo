@@ -102,18 +102,20 @@ function attachResult(blocks: Block[], callId: string, result: unknown) {
 /** The live run: AG-UI messages, already in order. */
 function liveBlocks(messages: readonly AgentMessage[]): Block[] {
   const blocks: Block[] = [];
+  const pushToolCalls = (message: AgentMessage) => {
+    if (!("toolCalls" in message) || !Array.isArray(message.toolCalls)) return;
+    for (const call of message.toolCalls)
+      blocks.push({
+        kind: "tool",
+        id: call.id,
+        name: call.function.name,
+        args: call.function.arguments
+          ? (toolEnvelope(call.function.arguments)?.args ??
+            call.function.arguments)
+          : undefined,
+      });
+  };
   for (const message of messages) {
-    if ("toolCalls" in message && Array.isArray(message.toolCalls))
-      for (const call of message.toolCalls)
-        blocks.push({
-          kind: "tool",
-          id: call.id,
-          name: call.function.name,
-          args: call.function.arguments
-            ? (toolEnvelope(call.function.arguments)?.args ??
-              call.function.arguments)
-            : undefined,
-        });
     if (message.role === "tool") {
       const envelope = toolEnvelope(textContent(message));
       if (!envelope?.tool_call_id) continue;
@@ -134,19 +136,35 @@ function liveBlocks(messages: readonly AgentMessage[]): Block[] {
       continue;
     }
     const content = textContent(message);
-    if (!content) continue;
     if (message.role === "reasoning") {
-      blocks.push({ kind: "thinking", id: message.id, content });
+      if (content) blocks.push({ kind: "thinking", id: message.id, content });
       continue;
     }
-    blocks.push({
-      kind: "text",
-      id: message.id,
-      role: message.role,
-      content,
-    });
+    if (content)
+      blocks.push({
+        kind: "text",
+        id: message.id,
+        role: message.role,
+        content,
+      });
+    // After its own text: one assistant message can hold both.
+    pushToolCalls(message);
   }
   return blocks;
+}
+
+/**
+ * Detail that exists only while this session watched it happen: what the agent
+ * reasoned, and what a tool was called with and returned. None of it is
+ * stored — reasoning never is, and the stored transcript reduces a call to its
+ * name — so dropping to the stored view would erase it mid-conversation.
+ */
+function isRunDetail(block: Block): boolean {
+  return (
+    block.kind === "thinking" ||
+    (block.kind === "tool" &&
+      (block.args !== undefined || block.result !== undefined))
+  );
 }
 
 /** What was stored: turns in their own order, tool calls named. */
@@ -288,7 +306,8 @@ export function AgentChat(props: AgentChatProps) {
   // partial output is still on screen — the live messages are the record.
   // Once it lands and syncs, the stored turns are. Both are already in order.
   const settled = !running && !preservePartial.current && !needsRefetch;
-  const blocks = settled ? storedBlocks(props.turns) : liveBlocks(messages);
+  const live = liveBlocks(messages);
+  const blocks = settled && !live.some(isRunDetail) ? storedBlocks(props.turns) : live;
 
   return (
     <div className={styles.chat}>

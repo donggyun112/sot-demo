@@ -126,24 +126,44 @@ def _edit_title(edits: tuple[DocumentEdit, ...]) -> str:
     return "Update"
 
 
+def _claims(text: str) -> list[str]:
+    """The lines this text puts forward as claims a reader can look up.
+
+    Every markdown heading it introduces, because that is the unit a reader
+    selects when asking "what is this section based on". One edit routinely
+    adds a whole skeleton of sections; anchoring only its first line left
+    every section after the first reading as unsupported. With no headings at
+    all, the first line is the claim.
+    """
+    headings = [
+        line.strip()
+        for line in text.splitlines()
+        if line.lstrip().startswith("#") and line.lstrip("# \t").strip()
+    ]
+    if headings:
+        return headings
+    first = text.strip().split("\n")[0].strip()
+    return [first] if first else []
+
+
 def _grounds(
     frozen: FrozenEvidence, edits: tuple[DocumentEdit, ...]
 ) -> tuple[ProposalCitation, ...]:
-    """Anchor each edit to the conversation it came out of.
+    """Anchor what an update claims to the conversation it came out of.
 
-    The anchor is the first line the edit ADDS, which is text the proposal
-    actually wrote rather than something invented for it. The item is the last
-    one in the conversation: the turn the agent was writing from when it made
-    the edit. Nothing is cited when there is nothing to cite.
+    Anchors are lines the edit ADDS — text the proposal actually wrote rather
+    than something invented for it. The item is the last one in the
+    conversation: the turn the agent was writing from. Nothing is cited when
+    there is nothing to cite.
     """
     if not frozen.items:
         return ()
     position = len(frozen.items) - 1
-    anchors = []
+    anchors: list[str] = []
     for edit in edits:
-        first = edit.replace.strip().split("\n")[0].strip()
-        if first and first not in anchors:
-            anchors.append(first)
+        for claim in _claims(edit.replace):
+            if claim not in anchors:
+                anchors.append(claim)
     return tuple(
         ProposalCitation(frozen.bundle_id, position, anchor) for anchor in anchors
     )

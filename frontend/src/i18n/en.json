@@ -99,7 +99,11 @@
     "historyProposal": "From a proposal",
     "historyInitial": "First revision",
     "reading": "Reading revision {{number}}. This is not the current text.",
-    "backToCurrent": "Back to current"
+    "backToCurrent": "Back to current",
+    "past": "Earlier revision",
+    "emptyBody": "This document has no text yet. Ask the agent for an update in a session.",
+    "historyOpenProposal": "Proposal",
+    "historyOpenSession": "Session it came from"
   },
   "sessions": {
     "title": "Sessions",

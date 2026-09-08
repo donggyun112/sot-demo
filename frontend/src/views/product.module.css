@@ -863,3 +863,15 @@ textarea.input {
   flex: 1 1 20ch;
   min-width: 0;
 }
+
+/* A link inside a line of prose, where a whole row would be too much: walking
+   from a revision back to the proposal and the conversation behind it. */
+.inlineLink {
+  color: var(--brand);
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--brand) 35%, transparent);
+}
+
+.inlineLink:hover {
+  border-bottom-color: var(--brand);
+}

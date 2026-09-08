@@ -1075,3 +1075,56 @@ async def test_nothing_is_cited_when_the_conversation_is_empty(
     version = env.store.proposals[result.id].current_version
     assert version.bundle_ids == ()
     assert version.citations == ()
+
+
+@pytest.mark.asyncio
+async def test_every_section_an_update_adds_gets_its_own_grounds(env: Harness) -> None:
+    """One edit routinely adds a whole skeleton of sections. Anchoring only its
+    first line left every section after the first reading as unsupported."""
+    env.evidence.items = (
+        BundleItem((uuid4(),), "user", "무엇을 넣을까?", "copied"),
+        BundleItem((uuid4(),), "assistant", "뼈대부터 잡죠", "copied"),
+    )
+    skeleton = (
+        "## 문제 정의\n"
+        "토큰이 유출되면 과금과 데이터 노출로 이어진다.\n\n"
+        "## 관리 원칙\n"
+        "평문 금지, 최소 권한.\n\n"
+        "## 감사·모니터링\n"
+        "생성·사용·폐기 이력을 남긴다."
+    )
+    result = await env.create.execute(
+        Actor(ALICE),
+        WORKSPACE,
+        SESSION,
+        document_id=DOCUMENT,
+        edits=(DocumentEdit("", skeleton),),
+        branch_id=BRANCH,
+    )
+
+    version = env.store.proposals[result.id].current_version
+    assert [c.claim_anchor for c in version.citations] == [
+        "## 문제 정의",
+        "## 관리 원칙",
+        "## 감사·모니터링",
+    ]
+    # All of them stand on the same turn: the one the agent was writing from.
+    assert {c.bundle_item_position for c in version.citations} == {1}
+
+
+@pytest.mark.asyncio
+async def test_prose_with_no_headings_is_still_anchored_once(env: Harness) -> None:
+    env.evidence.items = (
+        BundleItem((uuid4(),), "assistant", "한 줄만 고치죠", "copied"),
+    )
+    result = await env.create.execute(
+        Actor(ALICE),
+        WORKSPACE,
+        SESSION,
+        document_id=DOCUMENT,
+        edits=(DocumentEdit("", "계정당 초당 10회로 한다.\n근거는 아래와 같다."),),
+        branch_id=BRANCH,
+    )
+
+    version = env.store.proposals[result.id].current_version
+    assert [c.claim_anchor for c in version.citations] == ["계정당 초당 10회로 한다."]

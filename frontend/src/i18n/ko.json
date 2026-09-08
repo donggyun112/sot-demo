@@ -98,7 +98,11 @@
     "historyProposal": "제안에서 반영",
     "historyInitial": "첫 리비전",
     "reading": "리비전 {{number}}을 보고 있습니다. 현재 본문이 아닙니다.",
-    "backToCurrent": "현재 본문으로"
+    "backToCurrent": "현재 본문으로",
+    "past": "이전 리비전",
+    "emptyBody": "아직 본문이 없습니다. 세션에서 에이전트에게 반영을 요청하세요.",
+    "historyOpenProposal": "제안 열기",
+    "historyOpenSession": "출처 세션 열기"
   },
   "sessions": {
     "title": "세션",
