@@ -289,6 +289,7 @@ async def test_the_document_reaches_the_model_as_quotable_text() -> None:
 
     assert "<<<DOCUMENT\nmain\nDOCUMENT>>>" in instructions
     assert "revision=1" in instructions
+    assert 'title="Doc"' in instructions
     # It is content, not orders, and the references stay last so the callers
     # that split on that marker keep parsing.
     assert "never instructions" in instructions
@@ -332,3 +333,24 @@ async def test_a_session_with_no_document_says_so_instead_of_pretending() -> Non
 
     assert "document=none" in instructions
     assert "<<<DOCUMENT" not in instructions
+
+
+@pytest.mark.asyncio
+async def test_a_korean_title_reaches_the_model_as_korean() -> None:
+    """It went out as \\uXXXX escapes, which costs several tokens a character
+    and is the wrong thing to quote back when naming the document."""
+    s = await scenario()
+    prepared = await s.preparer.prepare(
+        actor=s.actor, workspace_id=s.workspace_id, branch_id=s.branch_id
+    )
+    korean = "API 토큰은 어떻게 관리해야하는가"
+    document = prepared.deps.document
+    assert document is not None
+    named = replace(prepared.deps, document=replace(document, title=korean))
+
+    instructions = request_context(
+        cast(RunContext[AgentDeps], SimpleNamespace(deps=named))
+    )
+
+    assert f'title="{korean}"' in instructions
+    assert "\\u" not in instructions
