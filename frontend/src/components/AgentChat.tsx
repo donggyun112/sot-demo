@@ -481,6 +481,7 @@ export function AgentChat(props: AgentChatProps) {
               </TurnRow>
             ) : block.kind === "file" ? (
               <TurnRow
+                bare
                 key={block.id}
                 role="user"
                 name={
@@ -489,7 +490,7 @@ export function AgentChat(props: AgentChatProps) {
                     : props.youLabel
                 }
               >
-                <div className={cards.row}>
+                <div className={cards.rowSent}>
                   {block.files.map((file) => (
                     <FileCard key={file.id} name={file.name} lines={file.lines} />
                   ))}

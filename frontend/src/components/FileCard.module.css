@@ -77,3 +77,13 @@
   flex-wrap: wrap;
   gap: var(--space-md);
 }
+
+/*
+  In the transcript the row belongs to a turn that sits on the right, so a
+  line that does not fill the width has to end there too. Packed from the
+  left, a fourth card sat under the first one and read as a new group.
+*/
+.rowSent {
+  composes: row;
+  justify-content: flex-end;
+}

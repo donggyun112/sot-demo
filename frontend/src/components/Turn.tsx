@@ -11,10 +11,17 @@ import styles from "./Turn.module.css";
 export function Turn({
   role,
   name,
+  bare = false,
   children,
 }: {
   role: string;
   name: string;
+  /**
+   * Aligned like your message but not wearing its bubble. A row of file
+   * cards is not a message: the bubble put a second tinted box around
+   * boxes that already have their own.
+   */
+  bare?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -25,7 +32,7 @@ export function Turn({
         </span>
         <span className={styles.name}>{name}</span>
       </div>
-      {role === "user" ? (
+      {role === "user" && !bare ? (
         <div className={styles.userBubble}>{children}</div>
       ) : (
         children
