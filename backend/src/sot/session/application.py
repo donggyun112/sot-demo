@@ -363,22 +363,21 @@ class ListBranchTurns:
                 workspace_id=workspace_id,
                 branch_id=branch_id,
             )
-            # A tool CALL stays in the transcript: an update you cannot see
-            # the agent make is one you have to take on trust. Its arguments
-            # and its return do not, and curation keeps every tool turn out
-            # of bundles, so none of this reaches shared evidence.
+            # The whole record, arguments and results included: an update
+            # you cannot see the agent make is one you have to take on trust,
+            # and a run already streams all of it to whoever watched. Holding
+            # it back afterwards only made the same session read differently
+            # on reload. Curation keeps every tool turn out of bundles, so
+            # none of it reaches shared evidence.
             kept: list[TranscriptTurn] = []
             for turn in branch.turns:
                 if turn.role != "tool":
                     kept.append(TranscriptTurn(turn))
                     continue
-                name = self._records.call_name(turn.content)
-                if name is not None:
+                record = self._records.record(turn.content)
+                if record is not None:
                     kept.append(
-                        TranscriptTurn(
-                            replace(turn, content=name),
-                            self._records.call_id(turn.content),
-                        )
+                        TranscriptTurn(replace(turn, content=record.name), record)
                     )
             return tuple(kept)
 

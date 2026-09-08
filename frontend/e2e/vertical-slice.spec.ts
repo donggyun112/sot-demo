@@ -260,13 +260,26 @@ test("private draft, hand-off to a teammate and explicit consensus merge", async
     expect(proposals.filter((item) => proposed(item) === "race winner proposal")).toHaveLength(1);
     expect(proposals.some((item) => proposed(item) === "race loser proposal")).toBe(false);
     const raceTurns = await (await get(aliceContext, `/workspaces/${aw}/branches/${race.branch_id}/turns`, aliceLogin)).json() as Turn[];
-    // The tool CALL is kept, by name: the update is auditable. Its arguments
-    // and its return are not in the transcript.
+    // The whole record is kept: the call, what it was called with, and what
+    // it returned. An update you cannot see the agent make is one you have to
+    // take on trust.
     expect(raceTurns.map((turn) => turn.content)).toEqual([
       "race winner",
       "sot_update",
+      "sot_update",
       "Winner committed",
     ]);
+    expect(raceTurns.map((turn) => turn.tool_kind)).toEqual([
+      null,
+      "call",
+      "return",
+      null,
+    ]);
+    expect(raceTurns[1].tool_payload).toEqual({
+      edits: [{ find: "", replace: "race winner proposal" }],
+    });
+    expect(raceTurns[2].tool_payload).toMatchObject({ status: "open" });
+    // Read out of the envelope, not passed through it.
     expect(JSON.stringify(raceTurns)).not.toContain("sot.tool-turn");
   } finally {
     await Promise.allSettled([aliceContext.close(), bobContext.close(), publicContext.close()]);

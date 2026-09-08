@@ -730,6 +730,7 @@
         "title": "JoinTurnsRequest",
         "type": "object"
       },
+      "JsonValue": {},
       "LoginRequest": {
         "additionalProperties": false,
         "properties": {
@@ -1625,6 +1626,32 @@
               }
             ],
             "title": "Tool Call Id"
+          },
+          "tool_kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "call",
+                  "return",
+                  "retry"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Kind"
+          },
+          "tool_payload": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JsonValue"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "workspace_id": {
             "format": "uuid",

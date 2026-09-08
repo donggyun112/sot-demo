@@ -991,6 +991,7 @@ export interface components {
             /** Turn Ids */
             turn_ids: string[];
         };
+        JsonValue: unknown;
         /** LoginRequest */
         LoginRequest: {
             /** Credential */
@@ -1422,6 +1423,9 @@ export interface components {
             role: "user" | "assistant" | "tool";
             /** Tool Call Id */
             tool_call_id?: string | null;
+            /** Tool Kind */
+            tool_kind?: ("call" | "return" | "retry") | null;
+            tool_payload?: components["schemas"]["JsonValue"] | null;
             /**
              * Workspace Id
              * Format: uuid

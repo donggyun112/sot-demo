@@ -245,35 +245,37 @@ async def test_branch_version_and_completed_turns_exclude_execution_internals(
     )
     response = await api.get(turns_path, headers=bearer(s.owner.user_id))
     assert response.status_code == 200
-    # The system prompt never becomes a turn, a tool CALL is kept as the name
-    # of what the agent did, and its return stays out of the transcript.
+    # The system prompt never becomes a turn. Everything the agent actually
+    # did does: the call, its arguments, and its result.
     assert [
         (row["ordinal"], row["role"], row["content"]) for row in response.json()
     ] == [
         (1, "user", "question"),
         (2, "tool", "session_cite"),
+        (3, "tool", "session_cite"),
         (4, "assistant", "completed answer"),
     ]
     assert [row["id"] for row in response.json()] == [
-        str(saved.turns[0].id),
-        str(saved.turns[1].id),
-        str(saved.turns[3].id),
+        str(turn.id) for turn in saved.turns
     ]
     assert all(
         row["branch_id"] == str(s.branch.id)
         and row["workspace_id"] == str(s.workspace_id)
         for row in response.json()
     )
-    # Neither the arguments, the result, nor the envelope they travelled in.
-    assert "private" not in response.text and "sot.tool-turn" not in response.text
-    assert "internal" not in response.text
-    # The call's id IS given: an opaque handle, and the only way a merged
-    # passage can point at the moment its update was written.
-    assert [row["tool_call_id"] for row in response.json()] == [
-        None,
-        "call-abc123",
-        None,
+    assert [
+        (row["tool_kind"], row["tool_call_id"], row["tool_payload"])
+        for row in response.json()
+    ] == [
+        (None, None, None),
+        ("call", "call-abc123", {}),
+        ("return", "call-abc123", {"internal": "private tool payload"}),
+        (None, None, None),
     ]
+    # The system prompt is still not there, and neither is the envelope the
+    # record travelled in: the fields are read out of it, not passed through.
+    assert "private system prompt" not in response.text
+    assert "sot.tool-turn" not in response.text
     branches = await api.get(branches_path, headers=bearer(s.owner.user_id))
     assert branches.status_code == 200
     assert [(row["id"], row["version"]) for row in branches.json()] == [

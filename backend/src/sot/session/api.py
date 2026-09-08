@@ -4,7 +4,7 @@ from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
 from sot.identity.contracts import Actor
 from sot.session.application import (
@@ -183,9 +183,12 @@ class TurnResponse(BaseModel):
     content: str
     created_at: datetime
     created_by: UUID
-    # Present on a tool CALL: the handle a merged passage points at to name
-    # the moment its update was written. Never arguments, never a return.
+    # A tool turn carries its whole record. It stays inside the session:
+    # curation keeps every tool turn out of bundles, so none of it reaches
+    # shared evidence.
+    tool_kind: Literal["call", "return", "retry"] | None = None
     tool_call_id: str | None = None
+    tool_payload: JsonValue | None = None
 
 
 class CitedConversationResponse(BaseModel):
@@ -291,7 +294,9 @@ def build_session_router(
                 content=entry.turn.content,
                 created_at=entry.turn.created_at,
                 created_by=entry.turn.created_by,
-                tool_call_id=entry.tool_call_id,
+                tool_kind=entry.tool.kind if entry.tool else None,
+                tool_call_id=entry.tool.call_id if entry.tool else None,
+                tool_payload=entry.tool.payload if entry.tool else None,
             )
             for entry in await list_turns.execute(
                 current, WorkspaceId(workspace_id), BranchId(branch_id)

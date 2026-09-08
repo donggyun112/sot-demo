@@ -54,7 +54,22 @@ export const turns: Schema["TurnResponse"][] = [
     content: "sot_update",
     created_at: session.created_at,
     created_by: member.id,
+    tool_kind: "call",
     tool_call_id: "call-abc123",
+    tool_payload: { edits: [{ find: "", replace: "## 감사·모니터링" }] },
+  },
+  {
+    id: "turn-4",
+    workspace_id: "w1",
+    branch_id: branch.id,
+    ordinal: 4,
+    role: "tool",
+    content: "sot_update",
+    created_at: session.created_at,
+    created_by: member.id,
+    tool_kind: "return",
+    tool_call_id: "call-abc123",
+    tool_payload: { proposalId: "proposal-1", status: "open" },
   },
 ];
 export const proposal: Schema["ProposalResponse"] = {

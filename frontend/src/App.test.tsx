@@ -795,3 +795,25 @@ it("marks and opens the call that wrote the passage you came from", async () => 
   expect(fold!.dataset.marked).toBe("true");
   expect(fold!.open).toBe(true);
 });
+
+
+it("keeps what a tool was called with and what it returned, after a reload", async () => {
+  // A run streams all of this to whoever watched it. Dropping it from the
+  // stored transcript made the same session read differently on reload — and
+  // an update you cannot see the agent make is one you take on trust.
+  const server = createServer();
+  server.state.sessions = [session];
+  await signIn(server);
+  await openDocument();
+  await userEvent.click(await screen.findByRole("link", { name: "Sessions" }));
+  await userEvent.click(await screen.findByRole("button", { name: "New session" }));
+
+  const fold = (await screen.findByText("sot_update")).closest("details");
+  expect(fold).not.toBeNull();
+  await userEvent.click(screen.getByText("sot_update"));
+
+  // One record, not two: the call and its return read as one thing.
+  expect(screen.getAllByText("sot_update")).toHaveLength(1);
+  expect(within(fold!).getByText(/감사·모니터링/)).toBeVisible();
+  expect(within(fold!).getByText(/proposal-1/)).toBeVisible();
+});

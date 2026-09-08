@@ -138,19 +138,29 @@ class EvidenceFreezer(Protocol):
     ) -> FrozenEvidence: ...
 
 
-class ToolRecordReader(Protocol):
-    """Name the tool a turn records, for a transcript someone can audit.
+@dataclass(frozen=True, slots=True)
+class ToolRecord:
+    """What a tool turn recorded: the call, or its return.
 
-    Only a CALL is nameable. A tool's return is execution data the caller
-    never wrote and must not read back, so it has no name here and is left
-    out of the transcript entirely.
+    The whole of it. A transcript that shows an update happened but not what
+    it was made with is not a record anyone can audit — and the arguments and
+    the result were already streamed to whoever watched the run, so hiding
+    them afterwards only made the same session read differently on reload.
+
+    It stays inside the session: curation keeps every tool turn out of
+    bundles, so none of this reaches shared evidence.
     """
 
-    def call_name(self, content: str) -> str | None: ...
+    kind: str
+    name: str
+    call_id: str
+    payload: object | None = None
 
-    def call_id(self, content: str) -> str | None:
-        """The provider's id for the call. An opaque handle, never payload."""
-        ...
+
+class ToolRecordReader(Protocol):
+    """Read the tool envelope a turn carries, for a transcript to show."""
+
+    def record(self, content: str) -> ToolRecord | None: ...
 
 
 class BundleOwningSessionReader(Protocol):
@@ -201,15 +211,10 @@ class CiteCreator(Protocol):
 
 @dataclass(frozen=True, slots=True)
 class TranscriptTurn:
-    """A turn as a reader may see it.
-
-    A tool call keeps its name and its id — the id is what lets a merged
-    passage point at the moment its update was written — and never its
-    arguments or its return.
-    """
+    """A turn as a reader sees it: a tool turn keeps its whole record."""
 
     turn: Turn
-    tool_call_id: str | None = None
+    tool: ToolRecord | None = None
 
 
 @dataclass(frozen=True, slots=True)

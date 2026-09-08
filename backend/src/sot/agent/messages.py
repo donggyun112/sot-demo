@@ -29,7 +29,7 @@ from pydantic_ai.messages import (
 from pydantic_core import ErrorDetails
 
 from sot.agent.deps import CompletedTurnReference
-from sot.session.contracts import NewTurn, Turn
+from sot.session.contracts import NewTurn, ToolRecord, Turn
 
 
 class _ToolEnvelope(BaseModel):
@@ -284,24 +284,30 @@ def completed_messages_to_new_turns(
 class ToolRecords:
     """Reads the tool envelope this module writes, for the session transcript."""
 
-    def call_name(self, content: str) -> str | None:
-        return self._field(content, "tool_name")
+    def record(self, content: str) -> ToolRecord | None:
+        """The envelope this module wrote, read back whole.
 
-    def call_id(self, content: str) -> str | None:
-        """The provider's id for the call: an opaque handle, never payload.
-
-        It is what lets a merged passage point at the moment in the transcript
-        where its update was written, instead of at the whole session.
+        Anything that is not one of our envelopes is not a tool record and is
+        left out rather than guessed at.
         """
-        return self._field(content, "tool_call_id")
-
-    @staticmethod
-    def _field(content: str, key: str) -> str | None:
         try:
-            payload = json.loads(content)
+            envelope = json.loads(content)
         except (TypeError, ValueError):
             return None
-        if not isinstance(payload, dict) or payload.get("kind") != "call":
+        if not isinstance(envelope, dict):
             return None
-        value = payload.get(key)
-        return value if isinstance(value, str) and value else None
+        kind, name, call_id = (
+            envelope.get("kind"),
+            envelope.get("tool_name"),
+            envelope.get("tool_call_id"),
+        )
+        if kind not in {"call", "return", "retry"}:
+            return None
+        if not isinstance(name, str) or not name:
+            return None
+        if not isinstance(call_id, str) or not call_id:
+            return None
+        payload = envelope.get(
+            {"call": "args", "return": "result"}.get(kind, "content")
+        )
+        return ToolRecord(kind, name, call_id, payload)

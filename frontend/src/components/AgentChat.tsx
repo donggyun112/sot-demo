@@ -103,7 +103,7 @@ type Block =
 function attachResult(blocks: Block[], callId: string, result: unknown) {
   for (let i = blocks.length - 1; i >= 0; i--) {
     const block = blocks[i];
-    if (block.kind === "tool" && block.id === callId) {
+    if (block.kind === "tool" && (block.id === callId || block.callId === callId)) {
       block.result = result;
       return true;
     }
@@ -166,37 +166,49 @@ function liveBlocks(messages: readonly AgentMessage[]): Block[] {
 }
 
 /**
- * Detail that exists only while this session watched it happen: what the agent
- * reasoned, and what a tool was called with and returned. None of it is
- * stored — reasoning never is, and the stored transcript reduces a call to its
- * name — so dropping to the stored view would erase it mid-conversation.
+ * Reasoning exists only while this session watched it happen: it is never
+ * stored, by design. Everything a tool did IS stored, so only this has to
+ * survive the swap to the stored view.
  */
 function isRunDetail(block: Block): boolean {
-  return (
-    block.kind === "thinking" ||
-    (block.kind === "tool" &&
-      (block.args !== undefined || block.result !== undefined))
-  );
+  return block.kind === "thinking";
 }
 
-/** What was stored: turns in their own order, tool calls named. */
+/**
+ * What was stored: turns in their own order, with a tool's whole record —
+ * what it was called with and what it returned. A call and its return are one
+ * thing that happened, so they read as one.
+ */
 function storedBlocks(turns: Turn[]): Block[] {
-  return turns.map((turn) =>
-    turn.role === "tool"
-      ? {
-          kind: "tool" as const,
-          id: turn.id,
-          name: turn.content,
-          callId: turn.tool_call_id ?? undefined,
-        }
-      : {
-          kind: "text" as const,
-          id: turn.id,
-          role: turn.role,
-          content: turn.content,
-          author: turn.created_by,
-        },
-  );
+  const blocks: Block[] = [];
+  for (const turn of turns) {
+    if (turn.role !== "tool") {
+      blocks.push({
+        kind: "text",
+        id: turn.id,
+        role: turn.role,
+        content: turn.content,
+        author: turn.created_by,
+      });
+      continue;
+    }
+    const callId = turn.tool_call_id ?? undefined;
+    if (
+      turn.tool_kind !== "call" &&
+      callId &&
+      attachResult(blocks, callId, turn.tool_payload)
+    )
+      continue;
+    blocks.push({
+      kind: "tool",
+      id: turn.id,
+      name: turn.content,
+      callId,
+      args: turn.tool_kind === "call" ? (turn.tool_payload ?? undefined) : undefined,
+      result: turn.tool_kind === "call" ? undefined : (turn.tool_payload ?? undefined),
+    });
+  }
+  return blocks;
 }
 
 export function AgentChat(props: AgentChatProps) {
