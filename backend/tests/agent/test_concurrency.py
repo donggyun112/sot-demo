@@ -18,6 +18,7 @@ from sot.agent.models import build_agent
 from sot.consensus.application import CreateProposal, ProposalSources
 from sot.consensus.contracts import DocumentEdit
 from sot.consensus.domain import Proposal, ProposalStatus
+from sot.document.application import GetDocument
 from sot.identity.contracts import Actor
 from sot.session.application import (
     AppendCompletedTurns,
@@ -143,6 +144,7 @@ async def product_harness() -> AgentProductHarness:
             cite_creator,
             proposal_creator,
             store,
+            GetDocument(store, lambda: store),
         ),
         CompletedRunWriter(
             AppendCompletedTurns(store, branch_access, lambda: store, FixedClock())

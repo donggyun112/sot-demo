@@ -20,6 +20,7 @@ from sot.agent.prompts import request_context
 from sot.bootstrap.app import build_app
 from sot.bootstrap.settings import Settings
 from sot.consensus.contracts import ProposalCreator
+from sot.document.application import GetDocument
 from sot.identity.contracts import Actor
 from sot.session.application import AppendCompletedTurns, BranchAccess, SessionAccess
 from sot.session.contracts import BranchMutationResult, CiteCreator, NewTurn
@@ -75,7 +76,15 @@ async def scenario() -> Scenario:
         actor,
         workspace_id,
         created.branch_id,
-        AgentRunPreparer(store, branches, lambda: store, cites, proposals, store),
+        AgentRunPreparer(
+            store,
+            branches,
+            lambda: store,
+            cites,
+            proposals,
+            store,
+            GetDocument(store, lambda: store),
+        ),
         CompletedRunWriter(appender),
         document_id,
     )

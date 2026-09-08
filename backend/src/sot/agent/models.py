@@ -5,7 +5,7 @@ from pydantic_ai.models.test import TestModel
 
 from sot.agent.deps import AgentDeps
 from sot.agent.prompts import INSTRUCTIONS, request_context
-from sot.agent.tools import session_cite, sot_update
+from sot.agent.tools import session_cite, sot_read, sot_update
 
 
 def build_model(references: tuple[Model | str, ...]) -> Model | str:
@@ -27,5 +27,6 @@ def build_agent(model: Model | str) -> Agent[AgentDeps, str]:
     )
     agent.instructions(request_context)
     agent.tool(sequential=True)(session_cite)
+    agent.tool(sequential=True)(sot_read)
     agent.tool(sequential=True)(sot_update)
     return agent

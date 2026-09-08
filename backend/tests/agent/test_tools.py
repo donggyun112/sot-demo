@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import cast
 from uuid import uuid4
@@ -18,15 +19,17 @@ from pydantic_ai.messages import (
 )
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 
-from sot.agent.deps import AgentDeps, BranchLineage
+from sot.agent.deps import AgentDeps, BranchLineage, DocumentSnapshot
 from sot.agent.models import build_agent
-from sot.agent.tools import session_cite, sot_update
+from sot.agent.tools import session_cite, sot_read, sot_update
 from sot.consensus.contracts import DocumentEdit
+from sot.document.contracts import DocumentSummary, DocumentView, RevisionView
+from sot.document.domain import RevisionId
 from sot.identity.contracts import Actor
 from sot.session.contracts import BranchMutationResult, TurnId
 from sot.session.domain import VersionConflict
 from sot.shared.errors import InvalidInput
-from sot.shared.ids import BranchId, UserId, WorkspaceId
+from sot.shared.ids import BranchId, DocumentId, UserId, WorkspaceId
 
 
 @dataclass
@@ -209,9 +212,12 @@ async def test_agent_tools_expose_only_product_inputs() -> None:
     schemas = {
         tool.name: tool.parameters_json_schema for tool in seen[0].function_tools
     }
-    assert set(schemas) == {"session_cite", "sot_update"}
+    assert set(schemas) == {"session_cite", "sot_read", "sot_update"}
     assert set(schemas["session_cite"]["properties"]) == {"turn_ids", "summary"}
     assert set(schemas["sot_update"]["properties"]) == {"edits"}
+    # Reading takes nothing: which document is the run's business, not the
+    # model's, and a document id from a prompt would be a way out of it.
+    assert schemas["sot_read"]["properties"] == {}
     assert all(schema["additionalProperties"] is False for schema in schemas.values())
     assert not {
         "actor",
@@ -288,3 +294,69 @@ async def test_native_uuid_validation_retries_before_calling_command() -> None:
     assert creator.calls[0]["turn_ids"] == (turn_id,)
     assert len(creator.calls) == 1
     assert deps.lineage.expected_version == 5
+
+
+@dataclass
+class RecordingDocuments:
+    view: DocumentView
+    calls: list[tuple[Actor, WorkspaceId, DocumentId]] = field(default_factory=list)
+
+    async def execute(
+        self, actor: Actor, workspace_id: WorkspaceId, document_id: DocumentId
+    ) -> DocumentView:
+        self.calls.append((actor, workspace_id, document_id))
+        return self.view
+
+
+def document_view_at(revision: int, content: str) -> DocumentView:
+    document_id = DocumentId(uuid4())
+    workspace_id = WorkspaceId(uuid4())
+    return DocumentView(
+        DocumentSummary(document_id, workspace_id, "Policy", RevisionId(uuid4()), 1),
+        RevisionView(
+            RevisionId(uuid4()),
+            workspace_id,
+            document_id,
+            revision,
+            content,
+            None,
+            UserId(uuid4()),
+            datetime(2026, 9, 8, tzinfo=UTC),
+            (),
+        ),
+    )
+
+
+@pytest.mark.asyncio
+async def test_reading_returns_the_document_as_it_stands_now() -> None:
+    """The snapshot the run started with goes stale the moment someone merges,
+    and it is cut when the document is long. This is how the agent catches up."""
+    view = document_view_at(4, "# Rate limits\n\nTen per second.")
+    documents = RecordingDocuments(view)
+    deps = agent_deps()
+    deps = replace(
+        deps,
+        document=DocumentSnapshot.of(view.document.id, "Policy", 3, "stale"),
+        document_reader=documents,
+    )
+
+    result = await sot_read(tool_context(deps))
+
+    assert result == {
+        "documentId": str(view.document.id),
+        "title": "Policy",
+        "revision": 4,
+        "content": "# Rate limits\n\nTen per second.",
+    }
+    # Whose read it is, and in which workspace, comes from the run.
+    assert documents.calls == [(deps.actor, deps.workspace_id, view.document.id)]
+
+
+@pytest.mark.asyncio
+async def test_reading_a_session_with_no_document_says_so_and_retries() -> None:
+    deps = agent_deps()
+
+    with pytest.raises(ModelRetry) as refused:
+        await sot_read(tool_context(deps))
+
+    assert "not attached to a document" in str(refused.value)

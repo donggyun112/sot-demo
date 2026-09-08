@@ -194,7 +194,8 @@
     "runFailed": "The model run failed. ({{detail}})",
     "disconnected": "The response stream dropped. Your input and the partial reply are still on screen. ({{detail}})",
     "stopped": "Stopped. The partial reply is still on screen.",
-    "requestFailed": "Request failed"
+    "requestFailed": "Request failed",
+    "thinking": "Reasoning"
   },
   "send": {
     "title": "Who holds this session",

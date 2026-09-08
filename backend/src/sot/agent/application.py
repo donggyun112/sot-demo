@@ -1,6 +1,11 @@
 from dataclasses import dataclass
 
-from sot.agent.deps import AgentDeps, BranchLineage, DocumentSnapshot
+from sot.agent.deps import (
+    AgentDeps,
+    BranchLineage,
+    DocumentFetcher,
+    DocumentSnapshot,
+)
 from sot.consensus.contracts import ProposalCreator
 from sot.document.contracts import DocumentReader
 from sot.identity.contracts import Actor
@@ -37,6 +42,7 @@ class AgentRunPreparer:
         cite_creator: CiteCreator,
         proposal_creator: ProposalCreator,
         documents: DocumentReader,
+        document_reader: DocumentFetcher,
     ) -> None:
         self._authorizer = authorizer
         self._reader = reader
@@ -44,6 +50,7 @@ class AgentRunPreparer:
         self._cite_creator = cite_creator
         self._proposal_creator = proposal_creator
         self._documents = documents
+        self._document_reader = document_reader
 
     async def prepare(
         self, *, actor: Actor, workspace_id: WorkspaceId, branch_id: BranchId
@@ -87,6 +94,7 @@ class AgentRunPreparer:
                 self._cite_creator,
                 self._proposal_creator,
                 document=document,
+                document_reader=self._document_reader,
             ),
         )
 

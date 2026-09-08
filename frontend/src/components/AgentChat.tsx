@@ -81,6 +81,10 @@ type Block =
   /* `author` is who said it, for a session more than one person holds. It is
      absent only on a live turn, which is by definition the reader's own. */
   | { kind: "text"; id: string; role: string; content: string; author?: string }
+  /* Reasoning is how the agent got to the answer, not the answer. Printing it
+     as an assistant turn made every reply look like two replies. It is never
+     stored either, so it exists only while the run is on screen. */
+  | { kind: "thinking"; id: string; content: string }
   | { kind: "tool"; id: string; name: string; args?: unknown; result?: unknown };
 
 /** A call and its result are one thing that happened, so they read as one. */
@@ -130,13 +134,17 @@ function liveBlocks(messages: readonly AgentMessage[]): Block[] {
       continue;
     }
     const content = textContent(message);
-    if (content)
-      blocks.push({
-        kind: "text",
-        id: message.id,
-        role: message.role,
-        content,
-      });
+    if (!content) continue;
+    if (message.role === "reasoning") {
+      blocks.push({ kind: "thinking", id: message.id, content });
+      continue;
+    }
+    blocks.push({
+      kind: "text",
+      id: message.id,
+      role: message.role,
+      content,
+    });
   }
   return blocks;
 }
@@ -158,6 +166,16 @@ function storedBlocks(turns: Turn[]): Block[] {
 
 export function AgentChat(props: AgentChatProps) {
   const { t } = useTranslation();
+  /**
+   * Read the toggled state HERE, not inside the state updater: React runs the
+   * updater during the next render, and the event's currentTarget is null by
+   * then. Reading it there threw, unmounted the transcript, and looked like a
+   * fold that would not open.
+   */
+  const rememberFold = (id: string, event: { currentTarget: HTMLDetailsElement }) => {
+    const open = event.currentTarget.open;
+    setFolds((current) => ({ ...current, [id]: open }));
+  };
   const agent = useMemo(
     () =>
       new PydanticAIAgent({
@@ -299,6 +317,22 @@ export function AgentChat(props: AgentChatProps) {
                   </div>
                 )}
               </TurnRow>
+            ) : block.kind === "thinking" ? (
+              <details
+                className={styles.fold}
+                key={block.id}
+                open={folds[block.id] ?? false}
+                onToggle={(event) => rememberFold(block.id, event)}
+              >
+                <summary>
+                  <span className={styles.stepName}>{t("agent.thinking")}</span>
+                </summary>
+                <div className={styles.foldBody}>
+                  <div className={turns.prose}>
+                    <MarkdownBody compact text={block.content} />
+                  </div>
+                </div>
+              </details>
             ) : (
               <details
                 className={styles.fold}
@@ -306,12 +340,7 @@ export function AgentChat(props: AgentChatProps) {
                 /* Uncontrolled once touched: writing `open` on every render
                    fought the click that opened it. */
                 open={folds[block.id] ?? running}
-                onToggle={(event) =>
-                  setFolds((current) => ({
-                    ...current,
-                    [block.id]: event.currentTarget.open,
-                  }))
-                }
+                onToggle={(event) => rememberFold(block.id, event)}
               >
                 <summary>
                   <span className={styles.stepName}>{block.name}</span>

@@ -192,7 +192,8 @@
     "runFailed": "모델 실행에 실패했습니다. ({{detail}})",
     "disconnected": "응답 연결이 끊겼습니다. 입력과 받는 중이던 응답은 화면에 남아 있습니다. ({{detail}})",
     "stopped": "중지했습니다. 받는 중이던 응답은 화면에 남아 있습니다.",
-    "requestFailed": "요청 실패"
+    "requestFailed": "요청 실패",
+    "thinking": "생각 과정"
   },
   "send": {
     "title": "이 세션을 가진 사람",

@@ -19,6 +19,13 @@ class SOTUpdateResult(TypedDict):
     branchVersion: int
 
 
+class SOTReadResult(TypedDict):
+    documentId: str
+    title: str
+    revision: int
+    content: str
+
+
 async def session_cite(
     ctx: RunContext[AgentDeps], turn_ids: tuple[TurnId, ...], summary: str
 ) -> SessionCiteResult:
@@ -34,6 +41,28 @@ async def session_cite(
     )
     deps.lineage.advance_to(result.branch_version)
     return {"citeId": str(result.resource_id), "branchVersion": result.branch_version}
+
+
+async def sot_read(ctx: RunContext[AgentDeps]) -> SOTReadResult:
+    """Read the shared document in full, as it stands right now.
+
+    The current text is already in your instructions; call this when you need
+    it again — after proposing an edit, when the copy you were given was cut
+    short, or when you suspect someone has merged something since this
+    conversation started.
+    """
+    deps = ctx.deps
+    if deps.document is None or deps.document_reader is None:
+        raise ModelRetry("This session is not attached to a document.")
+    view = await deps.document_reader.execute(
+        deps.actor, deps.workspace_id, deps.document.document_id
+    )
+    return {
+        "documentId": str(view.document.id),
+        "title": view.document.title,
+        "revision": view.current_revision.number,
+        "content": view.current_revision.content,
+    }
 
 
 class DocumentEditInput(TypedDict):
@@ -74,4 +103,4 @@ async def sot_update(
     }
 
 
-__all__ = ["session_cite", "sot_update"]
+__all__ = ["session_cite", "sot_read", "sot_update"]

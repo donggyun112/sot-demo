@@ -1,8 +1,9 @@
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, Protocol
 from uuid import UUID
 
 from sot.consensus.contracts import ProposalCreator
+from sot.document.contracts import DocumentView
 from sot.identity.contracts import Actor
 from sot.session.contracts import CiteCreator
 from sot.shared.ids import BranchId, DocumentId, WorkspaceId
@@ -50,6 +51,18 @@ class DocumentSnapshot:
         )
 
 
+class DocumentFetcher(Protocol):
+    """Read the document again, now, in a transaction of its own.
+
+    The snapshot the run started with is what an edit anchors against, and it
+    goes stale the moment someone merges. This is how the agent checks.
+    """
+
+    async def execute(
+        self, actor: Actor, workspace_id: WorkspaceId, document_id: DocumentId
+    ) -> DocumentView: ...
+
+
 @dataclass(frozen=True, slots=True)
 class CompletedTurnReference:
     turn_id: UUID
@@ -69,3 +82,4 @@ class AgentDeps:
     turn_references: tuple[CompletedTurnReference, ...] = ()
     # Absent only for a session with no document attached to it.
     document: DocumentSnapshot | None = None
+    document_reader: DocumentFetcher | None = None

@@ -260,3 +260,79 @@ it("retries only resource refetch after failure and keeps completed output visib
     screen.queryByRole("button", { name: "Retry sync" }),
   ).not.toBeInTheDocument();
 });
+
+
+it("folds the agent's reasoning instead of printing it as the reply", async () => {
+  // The model streams REASONING_* separately from its answer. Rendering both
+  // as assistant turns made every reply look like two replies, the first one
+  // being the model talking to itself.
+  const h = await harness();
+  // The exact sequence the server streams for a reasoning model.
+  await h.emit(
+    { type: "RUN_STARTED", threadId: "session-1", runId: "run-1" },
+    { type: "REASONING_START", messageId: "reasoning-1" },
+    {
+      type: "REASONING_MESSAGE_START",
+      messageId: "reasoning-1",
+      role: "reasoning",
+    },
+    {
+      type: "REASONING_MESSAGE_CONTENT",
+      messageId: "reasoning-1",
+      delta: "사용자가 문서를 묻고 있다",
+    },
+    { type: "REASONING_MESSAGE_END", messageId: "reasoning-1" },
+    { type: "REASONING_END", messageId: "reasoning-1" },
+    {
+      type: "TEXT_MESSAGE_START",
+      messageId: "assistant-streamed",
+      role: "assistant",
+    },
+    {
+      type: "TEXT_MESSAGE_CONTENT",
+      messageId: "assistant-streamed",
+      delta: "문서는 비어 있습니다",
+    },
+  );
+
+  // The answer reads on its own; the reasoning is behind a fold, closed.
+  expect(await screen.findByText("문서는 비어 있습니다")).toBeVisible();
+  const fold = screen.getByText("Reasoning").closest("details");
+  expect(fold).not.toBeNull();
+  expect(fold!.open).toBe(false);
+  await userEvent.click(screen.getByText("Reasoning"));
+  expect(screen.getByText("사용자가 문서를 묻고 있다")).toBeVisible();
+});
+
+
+it("opens a tool fold on click instead of tearing the transcript down", async () => {
+  // Toggling read the event inside the state updater, which React runs on the
+  // NEXT render — by then currentTarget is null, so the click threw and the
+  // whole transcript unmounted. It looked like a fold that would not open.
+  const h = await harness();
+  await h.emit(
+    { type: "RUN_STARTED", threadId: "session-1", runId: "run-1" },
+    {
+      type: "TOOL_CALL_START",
+      toolCallId: "call-1",
+      toolCallName: "sot_read",
+      parentMessageId: "assistant-streamed",
+    },
+    { type: "TOOL_CALL_ARGS", toolCallId: "call-1", delta: "{}" },
+    { type: "TOOL_CALL_END", toolCallId: "call-1" },
+  );
+
+  const summary = await screen.findByText("sot_read");
+  const fold = summary.closest("details");
+  // A running step is open, so you can watch it happen.
+  expect(fold!.open).toBe(true);
+
+  await userEvent.click(summary);
+  expect(screen.getByText("sot_read")).toBeVisible();
+  expect(fold!.open).toBe(false);
+
+  // And it opens again: the toggle survives its own state update.
+  await userEvent.click(summary);
+  expect(screen.getByText("sot_read")).toBeVisible();
+  expect(fold!.open).toBe(true);
+});

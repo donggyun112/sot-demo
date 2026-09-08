@@ -287,7 +287,13 @@ def build_app(
     )
     canonical_agent = build_agent(build_model(settings.models))
     agent_preparer = AgentRunPreparer(
-        access, branch_access, uow_factory, curation, create_proposal, document_access
+        access,
+        branch_access,
+        uow_factory,
+        curation,
+        create_proposal,
+        document_access,
+        GetDocument(document_access, uow_factory),
     )
     completed_run_writer = CompletedRunWriter(
         AppendCompletedTurns(sessions, branch_access, uow_factory, clock)
