@@ -6,7 +6,6 @@ from uuid import UUID
 
 from ag_ui.core import (
     ActivityMessage,
-    AssistantMessage,
     BaseEvent,
     DeveloperMessage,
     RunAgentInput,
@@ -83,16 +82,10 @@ class ServerOnlyAGUIAdapter(AGUIAdapter[AgentDeps, str]):
             latest := run_input.messages[-1], UserMessage
         ):
             raise ValueError
-        previous = next(
-            (
-                message
-                for message in reversed(run_input.messages[:-1])
-                if isinstance(message, UserMessage | AssistantMessage)
-            ),
-            None,
-        )
-        if isinstance(previous, UserMessage):
-            raise TypeError
+        # Whatever else the client sent is discarded — history comes from the
+        # branch — so two trailing user messages are not an attack, they are
+        # what a session looks like once a file has been attached: the
+        # attachment is a user turn nobody answered.
         if not isinstance(latest.content, str) or not (
             prompt := latest.content.strip()
         ):
