@@ -17,7 +17,8 @@ services:
     build: ./backend
     environment:
       SOT_ENVIRONMENT: ${SOT_ENVIRONMENT:-production}
-      SOT_DATABASE_URL: ${SOT_DATABASE_URL:-postgresql://sot:sot@db:5432/sot}
+      # not ${SOT_DATABASE_URL} — .env points at the host dev db, unreachable from this container
+      SOT_DATABASE_URL: postgresql://sot:sot@db:5432/sot
       SOT_MODELS: '${SOT_MODELS:-["test"]}'
       SOT_CORS_ORIGINS: '${SOT_CORS_ORIGINS:-["http://localhost:3000"]}'
       SOT_JWT_SECRET: ${SOT_JWT_SECRET:-}
